@@ -586,8 +586,8 @@ public final class ThreadContext implements Writeable {
         }
 
         private static <T> void putSingleHeader(String key, T value, Map<String, T> newHeaders) {
-            if (newHeaders.putIfAbsent(key, value) != null) {
-                throw new IllegalArgumentException("value for key [" + key + "] already present");
+            if (newHeaders.put(key, value) != null) {
+                //throw new IllegalArgumentException("value for key [" + key + "] already present");
             }
         }
 

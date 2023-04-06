@@ -44,6 +44,10 @@ import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.NotifyOnceListener;
+import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.bulk.BulkShardRequest;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.search.SearchRequest;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -60,6 +64,11 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.instrumentation.SpanName;
+import org.opensearch.instrumentation.Tracer;
+import org.opensearch.instrumentation.TracerFactory;
+import org.opensearch.search.fetch.ShardFetchRequest;
+import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TcpChannel;
@@ -223,6 +232,12 @@ public class TaskManager implements ClusterStateApplier {
             Task previousTask = tasks.put(task.getId(), task);
             assert previousTask == null;
         }
+        if(request instanceof SearchRequest || request instanceof ShardSearchRequest || request instanceof ShardFetchRequest) {
+            System.out.println("task.getParentTaskId() " + task.getParentTaskId() + request.getClass() + " " + task.getId() + " " + task.getClass());
+            String parentId = task.getParentTaskId().isSet() ? String.valueOf(task.getParentTaskId().getId()) : null;
+            String parentSpanName = parentId != null ? "Task_" + parentId : null;
+            TracerFactory.getInstance().startTrace(new SpanName("Task_" + task.getId(), String.valueOf(task.getId())), null, new SpanName(parentSpanName, parentId), Tracer.Level.HIGH);
+        }
         return task;
     }
 
@@ -268,6 +283,7 @@ public class TaskManager implements ClusterStateApplier {
      * Unregister the task
      */
     public Task unregister(Task task) {
+        Task task1 = null;
         logger.trace("unregister task for id: {}", task.getId());
 
         // Decrement the task's self-thread as part of unregistration.
@@ -287,13 +303,15 @@ public class TaskManager implements ClusterStateApplier {
             CancellableTaskHolder holder = cancellableTasks.remove(task.getId());
             if (holder != null) {
                 holder.finish();
-                return holder.getTask();
+                task1 = holder.getTask();
             } else {
-                return null;
+                task1 = null;
             }
         } else {
-            return tasks.remove(task.getId());
+            task1 = tasks.remove(task.getId());
         }
+        TracerFactory.getInstance().endTrace(new SpanName("Task_" + task.getId(), String.valueOf(task.getId())));
+       return task1;
     }
 
     /**
@@ -301,6 +319,9 @@ public class TaskManager implements ClusterStateApplier {
      * to unregister the child node once the child task is completed or failed.
      */
     public Releasable registerChildNode(long taskId, DiscoveryNode node) {
+       // System.out.println("child request to node :: "+ node.getAddress());
+       // OTelTracer.startTrace("Task_" + taskId);
+        //TracerFactory.beginTraceAsParent(String.valueOf(taskId), "CTask_"+taskId);
         final CancellableTaskHolder holder = cancellableTasks.get(taskId);
         if (holder != null) {
             logger.trace("register child node [{}] task [{}]", node, taskId);
@@ -308,6 +329,7 @@ public class TaskManager implements ClusterStateApplier {
             return Releasables.releaseOnce(() -> {
                 logger.trace("unregister child node [{}] task [{}]", node, taskId);
                 holder.unregisterChildNode(node);
+                //TracerFactory.endTrace(String.valueOf(taskId), "CTask_"+taskId);
             });
         }
         return () -> {};
