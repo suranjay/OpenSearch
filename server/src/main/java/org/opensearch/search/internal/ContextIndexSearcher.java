@@ -66,8 +66,10 @@ import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.instrumentation.OSSpan;
 import org.opensearch.instrumentation.SpanName;
 import org.opensearch.instrumentation.Tracer;
+import org.opensearch.instrumentation.Tracer.Level;
 import org.opensearch.instrumentation.TracerFactory;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.dfs.AggregatedDfs;
@@ -213,7 +215,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         TotalHits totalHits
     ) throws IOException {
         String id = UUID.randomUUID().toString();
-        TracerFactory.getInstance().startTrace(new SpanName("IndexSearcher", id), null, Tracer.Level.LOW);
+        final OSSpan span = TracerFactory.getInstance().startTrace(new SpanName("IndexSearcher", id), null, Level.LOW);
         final List<Collector> collectors = new ArrayList<>(leaves.size());
         for (LeafReaderContext ctx : leaves) {
             final Collector collector = manager.newCollector();
@@ -231,7 +233,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
         result.topDocs(new TopDocsAndMaxScore(mergedTopDocs, Float.NaN), formats);
 
-        TracerFactory.getInstance().endTrace(new SpanName("IndexSearcher", id));
+        TracerFactory.getInstance().endTrace(span);
     }
 
     public void search(
@@ -256,11 +258,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Override
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         String id = UUID.randomUUID().toString();
-        TracerFactory.getInstance().startTrace(new SpanName("IndexSearcher", id), null, Tracer.Level.LOW);
+        final OSSpan span = TracerFactory.getInstance().startTrace(new SpanName("IndexSearcher", id), null, Level.LOW);
         for (LeafReaderContext ctx : leaves) { // search each subreader
             searchLeaf(ctx, weight, collector);
         }
-        TracerFactory.getInstance().endTrace(new SpanName("IndexSearcher", id));
+        TracerFactory.getInstance().endTrace(span);
     }
 
     /**
@@ -271,7 +273,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
         String id = UUID.randomUUID().toString();
-        TracerFactory.getInstance().startTrace(new SpanName("IndexSearcher-Leaf", id), null, Tracer.Level.LOW);
+        final OSSpan span = TracerFactory.getInstance().startTrace(new SpanName("IndexSearcher-Leaf", id), null, Level.LOW);
         cancellable.checkCancelled();
         weight = wrapWeight(weight);
         // See please https://github.com/apache/lucene/pull/964
@@ -313,7 +315,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 }
             }
         }
-        TracerFactory.getInstance().endTrace(new SpanName("IndexSearcher-Leaf", id));
+        TracerFactory.getInstance().endTrace(span);
     }
 
     private Weight wrapWeight(Weight weight) {

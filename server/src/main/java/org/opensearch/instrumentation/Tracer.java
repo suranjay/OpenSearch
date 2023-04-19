@@ -31,53 +31,42 @@ public interface Tracer {
 
 
     /**
-     * Start the trace with passed attributes. It takes care of automatically propagating the context/parent to the
-     * child spans wherever the context switch is happening like from one thread to another in the same
-     * ExecutorService, across thread pools and even across nodes.
+     * Start the trace with passed attributes. It takes care of automatically propagating the context/parent to the child spans wherever the context switch is
+     * happening like from one thread to another in the same ExecutorService, across thread pools and even across nodes.
      *
-     * SpanName should be unique for each span. SpanName consists of two parameters uniqueId and name. So the caller
-     * need to provide the unique id for each span otherwise span creation call will fail.
-     * @param spanName
-     * @param attributes
-     * @param level
+     * SpanName should be unique for each span. SpanName consists of two parameters uniqueId and name. So the caller need to provide the unique id for each span
+     * otherwise span creation call will fail.
      */
-    default public void startTrace(SpanName spanName, Map<String,Object> attributes, Level  level){
+    default public OSSpan startTrace(SpanName spanName, Map<String,Object> attributes, Level  level){
         startTrace(spanName, attributes, null, level);
+        return null;
     }
 
     /**
-     * Start the trace with passed attributes. It takes care of propagating the context/parent automatically to the
-     * child spans wherever the context switch is happening like from one thread to another in the same
-     * ExecutorService, across thread pool and even across nodes.
+     * Start the trace with passed attributes. It takes care of propagating the context/parent automatically to the child spans wherever the context switch is
+     * happening like from one thread to another in the same ExecutorService, across thread pool and even across nodes.
      *
-     * SpanName should be unique for each span. SpanName consists of two parameters uniqueId and name. So the caller
-     * need to provide the unique id for each span otherwise span creation call will fail.
+     * SpanName should be unique for each span. SpanName consists of two parameters uniqueId and name. So the caller need to provide the unique id for each span
+     * otherwise span creation call will fail.
      *
-     * Caller can also explicitly set the Parent span. It may be needed in case one more level of nesting is
-     * required and the cases where multiple async child tasks are being submitted from the same thread and the user
-     * wants to set this child as a parent of the following runnable. The parentSpanName provided should be an active
-     * span.
+     * Caller can also explicitly set the Parent span. It may be needed in case one more level of nesting is required and the cases where multiple async child
+     * tasks are being submitted from the same thread and the user wants to set this child as a parent of the following runnable. The parentSpanName provided
+     * should be an active span.
      *
-     * Example - if three spans (A,B,C) are started in the same thread (before calling the endTrace). Then A will become
-     * the parent of B and B will become the parent of C. In case the user want A to be the parent of both B and C then
-     * they will have to tell explicitly through the parentSpanName.
+     * Example - if three spans (A,B,C) are started in the same thread (before calling the endTrace). Then A will become the parent of B and B will become the
+     * parent of C. In case the user want A to be the parent of both B and C then they will have to tell explicitly through the parentSpanName.
      *
-     * Callers need to define the level of the span. Levels are ordered and specified by an order value. Only Spans with
-     * Levels with value higher and equal to the configured level will be published. Level of a child span can't be
-     * higher than the parent span so that it shouldn't get into a situation where parent span is filtered out based on
-     * the level and child still exists; it will lead to a parent child linking issue and the child will be orphaned.
-     * @param spanName
-     * @param attributes
-     * @param parentSpanName
-     * @param level
+     * Callers need to define the level of the span. Levels are ordered and specified by an order value. Only Spans with Levels with value higher and equal to
+     * the configured level will be published. Level of a child span can't be higher than the parent span so that it shouldn't get into a situation where parent
+     * span is filtered out based on the level and child still exists; it will lead to a parent child linking issue and the child will be orphaned.
      */
-    public void startTrace(SpanName spanName, Map<String,Object> attributes, SpanName parentSpanName, Level  level);
+    public OSSpan startTrace(SpanName spanName, Map<String,Object> attributes, SpanName parentSpanName, Level  level);
 
     /**
      * Ends the scope of the trace. It is mandatory to end each span explicitly.
-     * @param spanName
+//     * @param spanName
      */
-    public void endTrace(SpanName spanName);
+    public void endTrace(OSSpan span);
 
     /**
      * Adds attributes to the span.

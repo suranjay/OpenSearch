@@ -29,11 +29,12 @@ public class DefaultTracer implements Tracer {
 
 
     private final ThreadPool threadPool;
-    private final Map<String, OSSpan> spanMap = new ConcurrentHashMap<>();
     private static final String H_PARENT_ID_KEY = "P_SpanId";
     private static final String H_TRACE_ID_KEY = "P_TraceId";
     private static final String H_TRACE_FLAG_KEY = "P_TraceFlag";
     public static final String T_PARENT_SPAN_KEY = "P_Span";
+    public static final String T_TRACE_ID_KEY = "P_Trace";
+    public static final String T_TRACE_FLAG_KEY = "P_TraceFl";
     private static final String A_SPAN_ID_KEY = "SpanId";
     private static final String A_PARENT_SPAN_ID_KEY = "ParentSpanId";
     private final io.opentelemetry.api.trace.Tracer openTelemetryTracer;
@@ -45,24 +46,23 @@ public class DefaultTracer implements Tracer {
     }
 
     @Override
-    public synchronized void startTrace(SpanName spanName, Map<String, Object> attributes, Level level) {
-        startTrace(spanName, attributes, null, level);
+    public synchronized OSSpan startTrace(SpanName spanName, Map<String, Object> attributes, Level level) {
+        return startTrace(spanName, attributes, null, level);
     }
 
     @Override
-    public synchronized void startTrace(SpanName spanName, Map<String, Object> attributes, SpanName parentSpanName, Level level) {
+    public synchronized OSSpan startTrace(SpanName spanName, Map<String, Object> attributes, SpanName parentSpanName, Level level) {
         System.out.println("Starting span:" + spanName.getKey());
         OSSpan parentSpan = null;
         if(parentSpanName != null){
             //parent span shouldn't be ended
-            parentSpan = spanMap.get(parentSpanName.getKey());
             parentSpan = parentSpan == null ? getParentFromThreadContext(threadPool.getThreadContext()) : parentSpan;
         }else{
             parentSpan = getParentFromThreadContext(threadPool.getThreadContext());
         }
         Level calculatedLevel = getLevel(parentSpan, level);
         if(!isLevelEnabled(calculatedLevel)){
-            return;
+//            return parentSpan;
         }
         Span span;
         if(parentSpan == null){
@@ -72,10 +72,10 @@ public class DefaultTracer implements Tracer {
         }
         logger.info("Starting span:" + span.getSpanContext() != null ? span.getSpanContext().getSpanId() : "<empty span id>" + " with Parent:" + parentSpan != null ? parentSpan.getSpan() != null ? parentSpan.getSpan().getSpanContext() != null ? parentSpan.getSpan().getSpanContext().getSpanId() : "empty span2": "empty parent1" : null);
         OSSpan osSpan = new OSSpan(spanName, span, parentSpan, calculatedLevel);
-        addParentToThreadContext(threadPool.getThreadContext(), spanName);
+        addParentToThreadContext(threadPool.getThreadContext(), osSpan);
         populateSpanAttributes(threadPool.getThreadContext(), osSpan);
-        spanMap.put(spanName.getKey(), osSpan);
         setSpanAttributes(span, parentSpan, attributes, spanName);
+        return osSpan;
     }
 
     private boolean isLevelEnabled(Level calculatedLevel) {
@@ -91,20 +91,16 @@ public class DefaultTracer implements Tracer {
 
 
     @Override
-    public synchronized void endTrace(SpanName spanName) {
-        System.out.println("Ending span::" + spanName.getKey());
-        OSSpan span = spanMap.get(spanName.getKey());
+    public synchronized void endTrace(OSSpan span) {
         if (span == null) {
-            logger.warn("invalid21 span name:" + spanName.getKey());
-
             return;
         }
+        System.out.println("Ending span::" + span.getSpanName());
         span.getSpan().end();
         logger.info("Ending span:" + span.getSpan().getSpanContext().getSpanId());
         OSSpan parentSpan = span.getParentSpan();
-        spanMap.remove(spanName.getKey());
         if (parentSpan != null) {
-            addParentToThreadContext(threadPool.getThreadContext(), parentSpan.getSpanName());
+            addParentToThreadContext(threadPool.getThreadContext(), parentSpan);
         }
     }
 
@@ -127,8 +123,10 @@ public class DefaultTracer implements Tracer {
     }
 
 
-    private void addParentToThreadContext(ThreadContext threadContext, SpanName spanName) {
-        threadPool.getThreadContext().putTransient(T_PARENT_SPAN_KEY, spanName.getKey());
+    private void addParentToThreadContext(ThreadContext threadContext, OSSpan span) {
+        threadPool.getThreadContext().putTransient(T_PARENT_SPAN_KEY, span.getSpan().getSpanContext().getSpanId());
+        threadPool.getThreadContext().putTransient(T_TRACE_ID_KEY, span.getSpan().getSpanContext().getTraceId());
+        threadPool.getThreadContext().putTransient(T_TRACE_FLAG_KEY, span.getSpan().getSpanContext().getTraceFlags().asHex());
     }
 
     private void populateSpanAttributes(ThreadContext threadContext, OSSpan span) {
@@ -138,14 +136,14 @@ public class DefaultTracer implements Tracer {
     }
 
     private OSSpan getParentFromThreadContext(ThreadContext threadContext) {
-        String parentSpanName = threadContext.getTransient(T_PARENT_SPAN_KEY);
-        System.out.println("parentSpanTransient " + parentSpanName);
+        String parentSpanIdFromThreadContext = threadContext.getTransient(T_PARENT_SPAN_KEY);
+        System.out.println("parentSpanTransient " + parentSpanIdFromThreadContext);
         OSSpan parentSpan = null;
-        if (parentSpanName == null) {
+        if (parentSpanIdFromThreadContext == null) {
             parentSpan = createSpanFromHeader(threadContext);
             System.out.println("headed parent " + parentSpan);
         } else {
-            parentSpan = spanMap.get(parentSpanName);
+            parentSpan = createSpanFromThreadContext(threadContext);
             System.out.println("parentSpanTransient from threadPool" + (threadPool == null ? null : threadPool.getThreadContext().getTransient("Parent_Span")));
         }
         return parentSpan;
@@ -174,6 +172,20 @@ public class DefaultTracer implements Tracer {
         System.out.println("header spanId" + spanId);
         String traceId = threadContext.getHeader(H_TRACE_ID_KEY);
         String traceFlag = threadContext.getHeader(H_TRACE_FLAG_KEY);
+        if (spanId != null && traceId != null && traceFlag != null) {
+            SpanContext spanContext = SpanContext.createFromRemoteParent(traceId, spanId, TraceFlags.fromByte(
+                OtelEncodingUtils.byteFromBase16(traceFlag.charAt(0), traceFlag.charAt(1))), TraceState.getDefault());
+            Span span = Span.wrap(spanContext);
+            return new OSSpan(new SpanName(spanId, "RootSpan"), span, null, Level.HIGH);
+        }
+        return null;
+    }
+
+    private OSSpan createSpanFromThreadContext(ThreadContext threadContext) {
+        String spanId = threadContext.getTransient(T_PARENT_SPAN_KEY);
+        System.out.println("header spanId" + spanId);
+        String traceId = threadContext.getTransient(T_TRACE_ID_KEY);
+        String traceFlag = threadContext.getTransient(T_TRACE_FLAG_KEY);
         if (spanId != null && traceId != null && traceFlag != null) {
             SpanContext spanContext = SpanContext.createFromRemoteParent(traceId, spanId, TraceFlags.fromByte(
                 OtelEncodingUtils.byteFromBase16(traceFlag.charAt(0), traceFlag.charAt(1))), TraceState.getDefault());

@@ -43,6 +43,7 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.instrumentation.OSSpan;
 import org.opensearch.instrumentation.SpanName;
 import org.opensearch.instrumentation.TracerFactory;
 import org.opensearch.rest.AbstractRestChannel;
@@ -64,6 +65,8 @@ import static org.opensearch.tasks.Task.X_OPAQUE_ID;
  * @opensearch.internal
  */
 public class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
+
+    public static OSSpan span;
 
     static final String CLOSE = "close";
     static final String CONNECTION = "connection";
@@ -169,7 +172,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             if (request.uri().startsWith("/_search")) {
 
                 System.out.println("ending 1" + request.getRequestId());
-                TracerFactory.getInstance().endTrace(new SpanName("Request_" + String.valueOf(request.getRequestId()), String.valueOf(request.getRequestId())));
+                TracerFactory.getInstance().endTrace(span);
             }
             if (success == false) {
                 Releasables.close(toClose);
