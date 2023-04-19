@@ -51,6 +51,9 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.Streams;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.instrumentation.SpanName;
+import org.opensearch.instrumentation.Tracer;
+import org.opensearch.instrumentation.TracerFactory;
 import org.opensearch.usage.UsageService;
 
 import java.io.ByteArrayOutputStream;
@@ -238,6 +241,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
     @Override
     public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
         try {
+            if (request.uri().startsWith("/_search")) {
+                System.out.println("Request Id:" + request.getRequestId() + " uri:" + request.uri() );
+                Map<String, Object> map = new HashMap<>();
+                map.put("Request_id", String.valueOf(request.getRequestId()));
+                TracerFactory.getInstance().startTrace(new SpanName("Request_" + String.valueOf(request.getRequestId()), String.valueOf(request.getRequestId())), map, Tracer.Level.HIGH);
+            }
             tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {
             try {
@@ -571,6 +580,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         @Override
         public void sendResponse(RestResponse response) {
             close();
+            final RestRequest request = request();
+            TracerFactory.getInstance().endTrace(new SpanName("Request_" + String.valueOf(request.getRequestId()), String.valueOf(request.getRequestId())));
             delegate.sendResponse(response);
         }
 

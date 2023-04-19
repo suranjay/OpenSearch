@@ -43,6 +43,8 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.instrumentation.SpanName;
+import org.opensearch.instrumentation.TracerFactory;
 import org.opensearch.rest.AbstractRestChannel;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
@@ -164,6 +166,11 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             httpChannel.sendResponse(httpResponse, listener);
             success = true;
         } finally {
+            if (request.uri().startsWith("/_search")) {
+
+                System.out.println("ending 1" + request.getRequestId());
+                TracerFactory.getInstance().endTrace(new SpanName("Request_" + String.valueOf(request.getRequestId()), String.valueOf(request.getRequestId())));
+            }
             if (success == false) {
                 Releasables.close(toClose);
             }

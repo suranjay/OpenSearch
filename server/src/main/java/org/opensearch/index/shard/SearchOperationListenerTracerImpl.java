@@ -18,7 +18,7 @@ public class SearchOperationListenerTracerImpl implements SearchOperationListene
     @Override
     public void onPreQueryPhase(SearchContext searchContext) {
         SearchOperationListener.super.onPreQueryPhase(searchContext);
-        System.out.println("Inside onPreQueryPhase Listener " + searchContext.getThreadPool().getThreadContext().getTransient("TASK_ID"));
+//        System.out.println("Inside onPreQueryPhase Listener " + searchContext.getThreadPool().getThreadContext().getTransient("TASK_ID"));
         TracerFactory.getInstance().startTrace(new SpanName("onQueryPhase" + searchContext.getTask().getId(), searchContext.indexShard().getHistoryUUID()), null, Tracer.Level.MID);
     }
 

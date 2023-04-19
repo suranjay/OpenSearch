@@ -233,10 +233,10 @@ public class TaskManager implements ClusterStateApplier {
             assert previousTask == null;
         }
         if(request instanceof SearchRequest || request instanceof ShardSearchRequest || request instanceof ShardFetchRequest) {
-            System.out.println("task.getParentTaskId() " + task.getParentTaskId() + request.getClass() + " " + task.getId() + " " + task.getClass());
-            String parentId = task.getParentTaskId().isSet() ? String.valueOf(task.getParentTaskId().getId()) : null;
-            String parentSpanName = parentId != null ? "Task_" + parentId : null;
-            TracerFactory.getInstance().startTrace(new SpanName("Task_" + task.getId(), String.valueOf(task.getId())), null, new SpanName(parentSpanName, parentId), Tracer.Level.HIGH);
+//            System.out.println("task.getParentTaskId() " + task.getParentTaskId() + request.getClass() + " " + task.getId() + " " + task.getClass());
+//            String parentId = task.getParentTaskId().isSet() ? String.valueOf(task.getParentTaskId().getId()) : null;
+//            String parentSpanName = parentId != null ? "Task_" + parentId : null;
+//            TracerFactory.getInstance().startTrace(new SpanName("Task_" + task.getId(), String.valueOf(task.getId())), null, new SpanName(parentSpanName, parentId), Tracer.Level.HIGH);
         }
         return task;
     }
@@ -310,7 +310,7 @@ public class TaskManager implements ClusterStateApplier {
         } else {
             task1 = tasks.remove(task.getId());
         }
-        TracerFactory.getInstance().endTrace(new SpanName("Task_" + task.getId(), String.valueOf(task.getId())));
+//        TracerFactory.getInstance().endTrace(new SpanName("Task_" + task.getId(), String.valueOf(task.getId())));
        return task1;
     }
 

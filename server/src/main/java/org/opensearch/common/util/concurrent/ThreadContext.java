@@ -66,6 +66,7 @@ import java.util.stream.Stream;
 
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE;
+import static org.opensearch.instrumentation.DefaultTracer.T_PARENT_SPAN_KEY;
 import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 
 /**
@@ -150,6 +151,12 @@ public final class ThreadContext implements Writeable {
         if (context.transientHeaders.containsKey(TASK_ID)) {
             threadContextStruct = threadContextStruct.putTransient(TASK_ID, context.transientHeaders.get(TASK_ID));
         }
+
+        if (context.transientHeaders.containsKey(T_PARENT_SPAN_KEY)) {
+            threadContextStruct = threadContextStruct.putTransient(T_PARENT_SPAN_KEY, context.transientHeaders.get(T_PARENT_SPAN_KEY));
+        }
+
+
 
         threadLocal.set(threadContextStruct);
 
