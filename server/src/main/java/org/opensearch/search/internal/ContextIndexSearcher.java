@@ -32,8 +32,15 @@
 
 package org.opensearch.search.internal;
 
-import java.util.Random;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Executor;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -67,8 +74,6 @@ import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.instrumentation.OSSpan;
-import org.opensearch.instrumentation.SpanName;
-import org.opensearch.instrumentation.Tracer;
 import org.opensearch.instrumentation.Tracer.Level;
 import org.opensearch.instrumentation.TracerFactory;
 import org.opensearch.search.DocValueFormat;
@@ -79,15 +84,6 @@ import org.opensearch.search.profile.query.ProfileWeight;
 import org.opensearch.search.profile.query.QueryProfiler;
 import org.opensearch.search.profile.query.QueryTimingType;
 import org.opensearch.search.query.QuerySearchResult;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.Executor;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
@@ -215,7 +211,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         TotalHits totalHits
     ) throws IOException {
         String id = UUID.randomUUID().toString();
-        final OSSpan span = TracerFactory.getInstance().startTrace(new SpanName("IndexSearcher", id), null, Level.LOW);
+        final OSSpan span = TracerFactory.getInstance().startTrace("IndexSearcher", null, Level.LOW);
         final List<Collector> collectors = new ArrayList<>(leaves.size());
         for (LeafReaderContext ctx : leaves) {
             final Collector collector = manager.newCollector();
@@ -258,7 +254,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Override
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         String id = UUID.randomUUID().toString();
-        final OSSpan span = TracerFactory.getInstance().startTrace(new SpanName("IndexSearcher", id), null, Level.LOW);
+        final OSSpan span = TracerFactory.getInstance().startTrace("IndexSearcher", null, Level.LOW);
         for (LeafReaderContext ctx : leaves) { // search each subreader
             searchLeaf(ctx, weight, collector);
         }
@@ -273,7 +269,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
         String id = UUID.randomUUID().toString();
-        final OSSpan span = TracerFactory.getInstance().startTrace(new SpanName("IndexSearcher-Leaf", id), null, Level.LOW);
+        final OSSpan span = TracerFactory.getInstance().startTrace("IndexSearcher-Leaf", null, Level.LOW);
         cancellable.checkCancelled();
         weight = wrapWeight(weight);
         // See please https://github.com/apache/lucene/pull/964

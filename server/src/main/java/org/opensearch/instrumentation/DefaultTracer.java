@@ -46,18 +46,14 @@ public class DefaultTracer implements Tracer {
     }
 
     @Override
-    public synchronized OSSpan startTrace(SpanName spanName, Map<String, Object> attributes, Level level) {
+    public synchronized OSSpan startTrace(String spanName, Map<String, Object> attributes, Level level) {
         return startTrace(spanName, attributes, null, level);
     }
 
     @Override
-    public synchronized OSSpan startTrace(SpanName spanName, Map<String, Object> attributes, SpanName parentSpanName, Level level) {
-        System.out.println("Starting span:" + spanName.getKey());
-        OSSpan parentSpan = null;
-        if(parentSpanName != null){
-            //parent span shouldn't be ended
-            parentSpan = parentSpan == null ? getParentFromThreadContext(threadPool.getThreadContext()) : parentSpan;
-        }else{
+    public synchronized OSSpan startTrace(String spanName, Map<String, Object> attributes, OSSpan parentSpan, Level level) {
+        System.out.println("Starting span:" + spanName);
+        if(parentSpan == null){
             parentSpan = getParentFromThreadContext(threadPool.getThreadContext());
         }
         Level calculatedLevel = getLevel(parentSpan, level);
@@ -66,9 +62,9 @@ public class DefaultTracer implements Tracer {
         }
         Span span;
         if(parentSpan == null){
-            span = openTelemetryTracer.spanBuilder(spanName.name).startSpan();
+            span = openTelemetryTracer.spanBuilder(spanName).startSpan();
         }else {
-            span = openTelemetryTracer.spanBuilder(spanName.name).setParent(Context.current().with(parentSpan.getSpan())).startSpan();
+            span = openTelemetryTracer.spanBuilder(spanName).setParent(Context.current().with(parentSpan.getSpan())).startSpan();
         }
         logger.info("Starting span:" + span.getSpanContext() != null ? span.getSpanContext().getSpanId() : "<empty span id>" + " with Parent:" + parentSpan != null ? parentSpan.getSpan() != null ? parentSpan.getSpan().getSpanContext() != null ? parentSpan.getSpan().getSpanContext().getSpanId() : "empty span2": "empty parent1" : null);
         OSSpan osSpan = new OSSpan(spanName, span, parentSpan, calculatedLevel);
@@ -105,14 +101,14 @@ public class DefaultTracer implements Tracer {
     }
 
     @Override
-    public void addAttribute(SpanName spanName, String key, Object value) {
+    public void addAttribute(OSSpan span, String key, Object value) {
         /**
          * Adds attribute to the existing open span.
          */
     }
 
     @Override
-    public void addEvent(SpanName spanName, String event) {
+    public void addEvent(OSSpan span, String event) {
         /**
          * Adds event to the existing open span.
          */
@@ -149,12 +145,12 @@ public class DefaultTracer implements Tracer {
         return parentSpan;
     }
 
-    private static void setSpanAttributes(Span span, OSSpan parenSpan, Map<String, Object> attributes, SpanName spanName) {
+    private static void setSpanAttributes(Span span, OSSpan parenSpan, Map<String, Object> attributes, String spanName) {
         span.setAttribute(A_SPAN_ID_KEY, span.getSpanContext().getSpanId());
         span.setAttribute("TraceId", span.getSpanContext().getTraceId());
-        span.setAttribute("SpanKey", spanName.getKey());
+        span.setAttribute("SpanKey", spanName);
         span.setAttribute("ThreadName", Thread.currentThread().getName());
-        span.setAttribute("ParentSpanKey", parenSpan != null && parenSpan.getSpanName() != null ? parenSpan.getSpanName().getKey() : null);
+        span.setAttribute("ParentSpanKey", parenSpan != null && parenSpan.getSpanName() != null ? parenSpan.getSpanName() : null);
         System.out.println("SpanId " + span.getSpanContext().getSpanId());
         if (parenSpan != null) {
             System.out.println("P_SpanId " + parenSpan.getSpan().getSpanContext().getSpanId());
@@ -176,7 +172,7 @@ public class DefaultTracer implements Tracer {
             SpanContext spanContext = SpanContext.createFromRemoteParent(traceId, spanId, TraceFlags.fromByte(
                 OtelEncodingUtils.byteFromBase16(traceFlag.charAt(0), traceFlag.charAt(1))), TraceState.getDefault());
             Span span = Span.wrap(spanContext);
-            return new OSSpan(new SpanName(spanId, "RootSpan"), span, null, Level.HIGH);
+            return new OSSpan("RootSpan", span, null, Level.HIGH);
         }
         return null;
     }
@@ -190,7 +186,7 @@ public class DefaultTracer implements Tracer {
             SpanContext spanContext = SpanContext.createFromRemoteParent(traceId, spanId, TraceFlags.fromByte(
                 OtelEncodingUtils.byteFromBase16(traceFlag.charAt(0), traceFlag.charAt(1))), TraceState.getDefault());
             Span span = Span.wrap(spanContext);
-            return new OSSpan(new SpanName(spanId, "RootSpan"), span, null, Level.HIGH);
+            return new OSSpan("RootSpan", span, null, Level.HIGH);
         }
         return null;
     }

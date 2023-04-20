@@ -34,20 +34,16 @@ public interface Tracer {
      * Start the trace with passed attributes. It takes care of automatically propagating the context/parent to the child spans wherever the context switch is
      * happening like from one thread to another in the same ExecutorService, across thread pools and even across nodes.
      *
-     * SpanName should be unique for each span. SpanName consists of two parameters uniqueId and name. So the caller need to provide the unique id for each span
-     * otherwise span creation call will fail.
+     * Returns a span reference which can be used for ending it.
      */
-    default public OSSpan startTrace(SpanName spanName, Map<String,Object> attributes, Level  level){
-        startTrace(spanName, attributes, null, level);
-        return null;
+    default public OSSpan startTrace(String spanName, Map<String,Object> attributes, Level  level){
+        return startTrace(spanName, attributes, null, level);
     }
 
     /**
      * Start the trace with passed attributes. It takes care of propagating the context/parent automatically to the child spans wherever the context switch is
      * happening like from one thread to another in the same ExecutorService, across thread pool and even across nodes.
      *
-     * SpanName should be unique for each span. SpanName consists of two parameters uniqueId and name. So the caller need to provide the unique id for each span
-     * otherwise span creation call will fail.
      *
      * Caller can also explicitly set the Parent span. It may be needed in case one more level of nesting is required and the cases where multiple async child
      * tasks are being submitted from the same thread and the user wants to set this child as a parent of the following runnable. The parentSpanName provided
@@ -60,7 +56,7 @@ public interface Tracer {
      * the configured level will be published. Level of a child span can't be higher than the parent span so that it shouldn't get into a situation where parent
      * span is filtered out based on the level and child still exists; it will lead to a parent child linking issue and the child will be orphaned.
      */
-    public OSSpan startTrace(SpanName spanName, Map<String,Object> attributes, SpanName parentSpanName, Level  level);
+    public OSSpan startTrace(String spanName, Map<String,Object> attributes, OSSpan parentSpan, Level  level);
 
     /**
      * Ends the scope of the trace. It is mandatory to end each span explicitly.
@@ -70,17 +66,14 @@ public interface Tracer {
 
     /**
      * Adds attributes to the span.
-     * @param spanName
-     * @param key
-     * @param value
+     * @param span
      */
-    public void addAttribute(SpanName spanName, String key, Object value);
+    public void addAttribute(OSSpan span, String key, Object value);
 
     /**
      * Adds an event to the span.
-     * @param spanName
-     * @param event
+     * @param span
      */
-    public void addEvent(SpanName spanName, String event);
+    public void addEvent(OSSpan span, String event);
 
 }

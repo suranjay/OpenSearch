@@ -32,47 +32,11 @@
 
 package org.opensearch.tasks;
 
+import static org.opensearch.common.unit.TimeValue.timeValueMillis;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
+
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.core.Assertions;
-import org.opensearch.ExceptionsHelper;
-import org.opensearch.OpenSearchException;
-import org.opensearch.OpenSearchTimeoutException;
-import org.opensearch.action.ActionListener;
-import org.opensearch.action.ActionResponse;
-import org.opensearch.action.NotifyOnceListener;
-import org.opensearch.action.bulk.BulkRequest;
-import org.opensearch.action.bulk.BulkShardRequest;
-import org.opensearch.action.index.IndexRequest;
-import org.opensearch.action.search.SearchRequest;
-import org.opensearch.cluster.ClusterChangedEvent;
-import org.opensearch.cluster.ClusterStateApplier;
-import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.common.SetOnce;
-import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
-import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.common.util.concurrent.ConcurrentMapLong;
-import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.instrumentation.SpanName;
-import org.opensearch.instrumentation.Tracer;
-import org.opensearch.instrumentation.TracerFactory;
-import org.opensearch.search.fetch.ShardFetchRequest;
-import org.opensearch.search.internal.ShardSearchRequest;
-import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
-import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.TcpChannel;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -90,9 +54,38 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
-
-import static org.opensearch.common.unit.TimeValue.timeValueMillis;
-import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
+import org.opensearch.OpenSearchTimeoutException;
+import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.NotifyOnceListener;
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterStateApplier;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.SetOnce;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.common.util.concurrent.ConcurrentMapLong;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.Assertions;
+import org.opensearch.search.fetch.ShardFetchRequest;
+import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TcpChannel;
 
 /**
  * Task Manager service for keeping track of currently running tasks on the nodes

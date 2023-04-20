@@ -3,12 +3,12 @@ package org.opensearch.instrumentation;
 import io.opentelemetry.api.trace.Span;
 
 public class OSSpan {
-    private SpanName spanName;
+    private String spanName;
     private Span span;
     private OSSpan parentSpan;
     private Tracer.Level level;
 
-    public OSSpan(SpanName spanName, Span span, OSSpan parentSpan, Tracer.Level level) {
+    public OSSpan(String spanName, Span span, OSSpan parentSpan, Tracer.Level level) {
         this.spanName = spanName;
         this.span = span;
         this.parentSpan = parentSpan;
@@ -27,7 +27,7 @@ public class OSSpan {
         return level;
     }
 
-    public SpanName getSpanName() {
+    public String getSpanName() {
         return spanName;
     }
 }

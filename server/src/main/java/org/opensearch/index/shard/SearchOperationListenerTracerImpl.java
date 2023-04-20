@@ -9,7 +9,6 @@
 package org.opensearch.index.shard;
 
 import org.opensearch.instrumentation.OSSpan;
-import org.opensearch.instrumentation.SpanName;
 import org.opensearch.instrumentation.Tracer;
 import org.opensearch.instrumentation.Tracer.Level;
 import org.opensearch.instrumentation.TracerFactory;
@@ -25,7 +24,7 @@ public class SearchOperationListenerTracerImpl implements SearchOperationListene
         SearchOperationListener.super.onPreQueryPhase(searchContext);
 //        System.out.println("Inside onPreQueryPhase Listener " + searchContext.getThreadPool().getThreadContext().getTransient("TASK_ID"));
          span1 = TracerFactory.getInstance()
-            .startTrace(new SpanName("onQueryPhase" + searchContext.getTask().getId(), searchContext.indexShard().getHistoryUUID()), null, Level.MID);
+            .startTrace("onQueryPhase", null, Level.MID);
     }
 
     @Override
@@ -37,7 +36,7 @@ public class SearchOperationListenerTracerImpl implements SearchOperationListene
     @Override
     public void onPreFetchPhase(SearchContext searchContext) {
         SearchOperationListener.super.onPreFetchPhase(searchContext);
-        span2 = TracerFactory.getInstance().startTrace(new SpanName("onFetchPhase" + searchContext.getTask().getId()+searchContext.getTask().getParentTaskId().getId(), searchContext.indexShard().getHistoryUUID()), null, Tracer.Level.MID);
+        span2 = TracerFactory.getInstance().startTrace("onFetchPhase", null, Tracer.Level.MID);
     }
 
     @Override
