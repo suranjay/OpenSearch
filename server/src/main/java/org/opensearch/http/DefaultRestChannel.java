@@ -64,7 +64,6 @@ import org.opensearch.rest.RestStatus;
  */
 public class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
 
-    public static OSSpan span;
 
     static final String CLOSE = "close";
     static final String CONNECTION = "connection";
@@ -170,7 +169,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             if (request.uri().startsWith("/_search")) {
 
                 System.out.println("ending 1" + request.getRequestId());
-                TracerFactory.getInstance().endTrace(span);
+                /*if (span!=null)
+                TracerFactory.getInstance().endTrace(span.get());*/
             }
             if (success == false) {
                 Releasables.close(toClose);

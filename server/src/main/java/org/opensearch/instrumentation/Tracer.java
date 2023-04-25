@@ -56,7 +56,7 @@ public interface Tracer {
      * the configured level will be published. Level of a child span can't be higher than the parent span so that it shouldn't get into a situation where parent
      * span is filtered out based on the level and child still exists; it will lead to a parent child linking issue and the child will be orphaned.
      */
-    public OSSpan startTrace(String spanName, Map<String,Object> attributes, OSSpan parentSpan, Level  level);
+    public OSSpan startTrace(String spanName, Map<String,Object> attributes, OSSpan parentSpan, Level level);
 
     /**
      * Ends the scope of the trace. It is mandatory to end each span explicitly.

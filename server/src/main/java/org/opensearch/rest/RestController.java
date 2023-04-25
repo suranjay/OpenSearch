@@ -33,7 +33,6 @@
 package org.opensearch.rest;
 
 import static org.opensearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
-import static org.opensearch.http.DefaultRestChannel.span;
 import static org.opensearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
 import static org.opensearch.rest.RestStatus.BAD_REQUEST;
 import static org.opensearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
@@ -52,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -74,6 +74,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.instrumentation.OSSpan;
 import org.opensearch.instrumentation.Tracer;
 import org.opensearch.instrumentation.TracerFactory;
 import org.opensearch.usage.UsageService;
@@ -84,6 +85,9 @@ import org.opensearch.usage.UsageService;
  * @opensearch.api
  */
 public class RestController implements HttpServerTransport.Dispatcher {
+
+    public static Map<String, OSSpan> spanMap = new HashMap<>();
+
 
     private static final Logger logger = LogManager.getLogger(RestController.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestController.class);
@@ -244,7 +248,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 System.out.println("Request Id:" + request.getRequestId() + " uri:" + request.uri() );
                 Map<String, Object> map = new HashMap<>();
                 map.put("Request_id", String.valueOf(request.getRequestId()));
-                span = TracerFactory.getInstance().startTrace("Request_" + String.valueOf(request.getRequestId()), map, Tracer.Level.HIGH);
+                spanMap.put("Request_" + String.valueOf(request.getRequestId()), TracerFactory.getInstance().startTrace("Request_" + String.valueOf(request.getRequestId()), map, Tracer.Level.HIGH));
             }
             tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {
@@ -580,7 +584,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         public void sendResponse(RestResponse response) {
             close();
             final RestRequest request = request();
-            TracerFactory.getInstance().endTrace(span);
+            TracerFactory.getInstance().endTrace(spanMap.get("Request_" + String.valueOf(request.getRequestId())));
             delegate.sendResponse(response);
         }
 

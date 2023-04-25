@@ -18,6 +18,7 @@ public class TracerFactory {
 
     public static synchronized void initializeTracer(ThreadPool threadPool){
         OpenTelemetry openTelemetry = OTelMain.openTelemetry;
+        openTelemetry.getPropagators().getTextMapPropagator().extract()
         io.opentelemetry.api.trace.Tracer openTelemetryTracer = openTelemetry.getTracer("instrumentation-library-name", "1.0.0");
         if(defaultTracer == null) {
             defaultTracer = new DefaultTracer(openTelemetryTracer, threadPool);

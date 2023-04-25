@@ -8,6 +8,8 @@
 
 package org.opensearch.index.shard;
 
+import java.util.HashMap;
+import java.util.Map;
 import org.opensearch.instrumentation.OSSpan;
 import org.opensearch.instrumentation.Tracer;
 import org.opensearch.instrumentation.Tracer.Level;
@@ -16,32 +18,33 @@ import org.opensearch.search.internal.SearchContext;
 
 public class SearchOperationListenerTracerImpl implements SearchOperationListener {
 
-    OSSpan span1;
-    OSSpan span2;
+    private Map<String, OSSpan> map = new HashMap<>();
+
 
     @Override
     public void onPreQueryPhase(SearchContext searchContext) {
         SearchOperationListener.super.onPreQueryPhase(searchContext);
-//        System.out.println("Inside onPreQueryPhase Listener " + searchContext.getThreadPool().getThreadContext().getTransient("TASK_ID"));
-         span1 = TracerFactory.getInstance()
-            .startTrace("onQueryPhase", null, Level.MID);
+         map.put("onQueryPhase" + String.valueOf(searchContext.getTask().getId()), TracerFactory.getInstance()
+            .startTrace("onQueryPhase", null, Level.MID));
     }
 
     @Override
     public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
         SearchOperationListener.super.onQueryPhase(searchContext, tookInNanos);
-        TracerFactory.getInstance().endTrace(span1);
+        TracerFactory.getInstance().endTrace(map.get("onQueryPhase" + String.valueOf(searchContext.getTask().getId())));
     }
 
     @Override
     public void onPreFetchPhase(SearchContext searchContext) {
         SearchOperationListener.super.onPreFetchPhase(searchContext);
-        span2 = TracerFactory.getInstance().startTrace("onFetchPhase", null, Tracer.Level.MID);
+        map.put("onFetchPhase" + String.valueOf(searchContext.getTask().getId()), TracerFactory.getInstance()
+            .startTrace("onFetchPhase", null, Level.MID));
     }
 
     @Override
     public void onFetchPhase(SearchContext searchContext, long tookInNanos) {
         SearchOperationListener.super.onFetchPhase(searchContext, tookInNanos);
-        TracerFactory.getInstance().endTrace(span2);
+        TracerFactory.getInstance().endTrace(map.get("onFetchPhase" + String.valueOf(searchContext.getTask().getId())));
+
     }
 }

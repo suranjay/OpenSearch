@@ -8,13 +8,12 @@ import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.TraceFlags;
 import io.opentelemetry.api.trace.TraceState;
 import io.opentelemetry.context.Context;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.threadpool.ThreadPool;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.threadpool.ThreadPool;
 
 /**
  * This class encapsulates the state needed to execute a search. It holds a reference to the
@@ -27,14 +26,14 @@ public class DefaultTracer implements Tracer {
 
     private static final Logger logger = LogManager.getLogger(DefaultTracer.class);
 
-
     private final ThreadPool threadPool;
-    private static final String H_PARENT_ID_KEY = "P_SpanId";
-    private static final String H_TRACE_ID_KEY = "P_TraceId";
-    private static final String H_TRACE_FLAG_KEY = "P_TraceFlag";
+    public static final String H_PARENT_ID_KEY = "P_SpanId";
+    public static final String H_TRACE_ID_KEY = "P_TraceId";
+    public static final String H_TRACE_FLAG_KEY = "P_TraceFlag";
     public static final String T_PARENT_SPAN_KEY = "P_Span";
     public static final String T_TRACE_ID_KEY = "P_Trace";
     public static final String T_TRACE_FLAG_KEY = "P_TraceFl";
+    public static final String T_SPAN_DETAILS_KEY = "T_SpanDetails";
     private static final String A_SPAN_ID_KEY = "SpanId";
     private static final String A_PARENT_SPAN_ID_KEY = "ParentSpanId";
     private final io.opentelemetry.api.trace.Tracer openTelemetryTracer;
@@ -119,20 +118,35 @@ public class DefaultTracer implements Tracer {
     }
 
 
-    private void addParentToThreadContext(ThreadContext threadContext, OSSpan span) {
+    /*private void addParentToThreadContext(ThreadContext threadContext, OSSpan span) {
         threadPool.getThreadContext().putTransient(T_PARENT_SPAN_KEY, span.getSpan().getSpanContext().getSpanId());
         threadPool.getThreadContext().putTransient(T_TRACE_ID_KEY, span.getSpan().getSpanContext().getTraceId());
         threadPool.getThreadContext().putTransient(T_TRACE_FLAG_KEY, span.getSpan().getSpanContext().getTraceFlags().asHex());
+    }*/
+
+    private synchronized void addParentToThreadContext(ThreadContext threadContext, OSSpan span) {
+        Map<String, String> spanDetails = threadPool.getThreadContext().getTransient(T_SPAN_DETAILS_KEY);
+        if (spanDetails == null) {
+            System.out.println("creating map");
+            spanDetails = new HashMap<>();
+            threadPool.getThreadContext().putTransient(T_SPAN_DETAILS_KEY, spanDetails);
+        }
+        System.out.println("hash:" +spanDetails.hashCode());
+        spanDetails.put(T_PARENT_SPAN_KEY, span.getSpan().getSpanContext().getSpanId());
+        spanDetails.put(T_TRACE_ID_KEY, span.getSpan().getSpanContext().getTraceId());
+        spanDetails.put(T_TRACE_FLAG_KEY, span.getSpan().getSpanContext().getTraceFlags().asHex());
     }
 
     private void populateSpanAttributes(ThreadContext threadContext, OSSpan span) {
-        threadContext.putHeader(H_PARENT_ID_KEY, span.getSpan().getSpanContext().getSpanId());
-        threadContext.putHeader(H_TRACE_ID_KEY, span.getSpan().getSpanContext().getTraceId());
-        threadContext.putHeader(H_TRACE_FLAG_KEY, span.getSpan().getSpanContext().getTraceFlags().asHex());
+//        threadContext.putHeader(H_PARENT_ID_KEY, span.getSpan().getSpanContext().getSpanId());
+//        threadContext.putHeader(H_TRACE_ID_KEY, span.getSpan().getSpanContext().getTraceId());
+//        threadContext.putHeader(H_TRACE_FLAG_KEY, span.getSpan().getSpanContext().getTraceFlags().asHex());
     }
 
     private OSSpan getParentFromThreadContext(ThreadContext threadContext) {
-        String parentSpanIdFromThreadContext = threadContext.getTransient(T_PARENT_SPAN_KEY);
+        Map<String, String> parentSpanIdFromThreadContext = threadContext.getTransient(T_SPAN_DETAILS_KEY);
+
+//        String parentSpanIdFromThreadContext = threadContext.getTransient(T_PARENT_SPAN_KEY);
         System.out.println("parentSpanTransient " + parentSpanIdFromThreadContext);
         OSSpan parentSpan = null;
         if (parentSpanIdFromThreadContext == null) {
@@ -177,11 +191,26 @@ public class DefaultTracer implements Tracer {
         return null;
     }
 
-    private OSSpan createSpanFromThreadContext(ThreadContext threadContext) {
+    /*private OSSpan createSpanFromThreadContext(ThreadContext threadContext) {
         String spanId = threadContext.getTransient(T_PARENT_SPAN_KEY);
         System.out.println("header spanId" + spanId);
         String traceId = threadContext.getTransient(T_TRACE_ID_KEY);
         String traceFlag = threadContext.getTransient(T_TRACE_FLAG_KEY);
+        if (spanId != null && traceId != null && traceFlag != null) {
+            SpanContext spanContext = SpanContext.createFromRemoteParent(traceId, spanId, TraceFlags.fromByte(
+                OtelEncodingUtils.byteFromBase16(traceFlag.charAt(0), traceFlag.charAt(1))), TraceState.getDefault());
+            Span span = Span.wrap(spanContext);
+            return new OSSpan("RootSpan", span, null, Level.HIGH);
+        }
+        return null;
+    }*/
+
+    private OSSpan createSpanFromThreadContext(ThreadContext threadContext) {
+        Map<String, String> parentSpanDetails = threadContext.getTransient(T_SPAN_DETAILS_KEY);
+        System.out.println("header spanId" + parentSpanDetails);
+        String spanId = parentSpanDetails.get(T_PARENT_SPAN_KEY);
+        String traceId = parentSpanDetails.get(T_TRACE_ID_KEY);
+        String traceFlag = parentSpanDetails.get(T_TRACE_FLAG_KEY);
         if (spanId != null && traceId != null && traceFlag != null) {
             SpanContext spanContext = SpanContext.createFromRemoteParent(traceId, spanId, TraceFlags.fromByte(
                 OtelEncodingUtils.byteFromBase16(traceFlag.charAt(0), traceFlag.charAt(1))), TraceState.getDefault());
