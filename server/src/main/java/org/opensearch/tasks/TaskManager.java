@@ -225,9 +225,9 @@ public class TaskManager implements ClusterStateApplier {
             Task previousTask = tasks.put(task.getId(), task);
             assert previousTask == null;
         }
-        String parentId = task.getParentTaskId().isSet() ? String.valueOf(task.getParentTaskId().getId()) : null;
-        System.out.println("task.parent "  + task.getId() + " : " + parentId);
         if(request instanceof SearchRequest || request instanceof ShardSearchRequest || request instanceof ShardFetchRequest) {
+            String parentId = task.getParentTaskId().isSet() ? String.valueOf(task.getParentTaskId().getId()) : null;
+            System.out.println("task.parent "  + task.getId() + " : " + parentId);
 //            System.out.println("stacktrace:" + Arrays.toString(Thread.currentThread().getStackTrace()).replace( ',', '\n' ));
             Map<String, Object> currentSpan = threadContext.getTransient(T_SPAN_DETAILS_KEY);
             if (currentSpan!=null) {
@@ -242,7 +242,7 @@ public class TaskManager implements ClusterStateApplier {
                     System.out.println("noo parent task found of " + "Task_" + task.getId() + " :" + parentId);
                 }
             }
-            spanMap.put("Task_" + task.getId(), TracerFactory.getInstance().startTrace("Task_" + task.getId(), null, parentSpan, Tracer.Level.HIGH));
+//            spanMap.put("Task_" + task.getId(), TracerFactory.getInstance().startTrace("Task_" + task.getId(), null, parentSpan, Tracer.Level.HIGH));
         }
         return task;
     }
@@ -317,7 +317,7 @@ public class TaskManager implements ClusterStateApplier {
             task1 = tasks.remove(task.getId());
         }
         if (spanMap.containsKey("Task_" + task.getId()) && spanMap.get("Task_" + task.getId()) != null) {
-            TracerFactory.getInstance().endTrace(spanMap.get("Task_" + task.getId()));
+//            TracerFactory.getInstance().endTrace(spanMap.get("Task_" + task.getId()));
             spanMap.remove("Task_" + task.getId());
         }
        return task1;

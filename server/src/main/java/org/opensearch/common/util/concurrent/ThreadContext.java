@@ -61,6 +61,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.instrumentation.OSSpan;
+import org.opensearch.instrumentation.OSSpanHolder;
 import org.opensearch.tasks.Task;
 
 /**
@@ -160,6 +161,7 @@ public final class ThreadContext implements Writeable {
         }*/
         if (context.transientHeaders.containsKey(T_SPAN_DETAILS_KEY)) {
             threadContextStruct = threadContextStruct.putTransient(T_SPAN_DETAILS_KEY, new ConcurrentHashMap<>((Map<String, Object>)context.transientHeaders.get(T_SPAN_DETAILS_KEY)));
+            threadContextStruct = threadContextStruct.putTransient(T_SPAN_DETAILS_KEY1, new OSSpanHolder((OSSpanHolder) context.transientHeaders.get(T_SPAN_DETAILS_KEY1)));
         }
 
         threadLocal.set(threadContextStruct);
@@ -259,6 +261,7 @@ public final class ThreadContext implements Writeable {
         final ThreadContextStruct newContext = threadLocal.get();
         if (newContext.transientHeaders.containsKey(T_SPAN_DETAILS_KEY)) {
             newContext.transientHeaders.put(T_SPAN_DETAILS_KEY, new ConcurrentHashMap<>((Map<String, Object>) newContext.transientHeaders.get(T_SPAN_DETAILS_KEY)));
+            newContext.transientHeaders.put(T_SPAN_DETAILS_KEY1, new OSSpanHolder((OSSpanHolder) newContext.transientHeaders.get(T_SPAN_DETAILS_KEY1)));
         }
         return () -> {
             if (preserveResponseHeaders && threadLocal.get() != newContext) {
@@ -734,7 +737,7 @@ public final class ThreadContext implements Writeable {
                 requestHeaders = new HashMap<>(defaultHeaders);
                 requestHeaders.putAll(this.requestHeaders);
             }
-            if (this.transientHeaders != null && this.transientHeaders.containsKey(T_SPAN_DETAILS_KEY)) {
+            if (this.transientHeaders != null && this.transientHeaders.containsKey(T_SPAN_DETAILS_KEY1)) {
                 out.writeVInt(requestHeaders.size() + 3);
             } else {
                 out.writeVInt(requestHeaders.size());
@@ -743,11 +746,12 @@ public final class ThreadContext implements Writeable {
                 out.writeString(entry.getKey());
                 out.writeString(entry.getValue());
             }
-            if (this.transientHeaders != null && this.transientHeaders.containsKey(T_SPAN_DETAILS_KEY)) {
+            if (this.transientHeaders != null && this.transientHeaders.containsKey(T_SPAN_DETAILS_KEY1)) {
 //                System.out.println("write stack:" + Arrays.asList(Thread.currentThread().getStackTrace()));
                 Map<String, Object> traceContext = (Map<String, Object>) this.transientHeaders.get(T_SPAN_DETAILS_KEY);
+                OSSpanHolder traceContext1 = (OSSpanHolder) this.transientHeaders.get(T_SPAN_DETAILS_KEY1);
 //                System.out.println("Setting header context:" + traceContext);
-                OSSpan span = (OSSpan) traceContext.get(PARENT_SPAN);
+                OSSpan span = traceContext1.getSpan();
                 out.writeString(H_TRACE_ID_KEY);
                 out.writeString(span.getSpan().getSpanContext().getTraceId());
                 out.writeString(H_PARENT_ID_KEY);

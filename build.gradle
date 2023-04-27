@@ -621,7 +621,7 @@ subprojects {
 
 
 testClusters.all {
-  numberOfNodes = 2
+  numberOfNodes = 3
 }
 
 

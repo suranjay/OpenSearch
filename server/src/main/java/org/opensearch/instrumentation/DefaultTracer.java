@@ -39,6 +39,7 @@ public class DefaultTracer implements Tracer {
     public static final String T_TRACE_ID_KEY = "P_Trace";
     public static final String T_TRACE_FLAG_KEY = "P_TraceFl";
     public static final String T_SPAN_DETAILS_KEY = "T_SpanDetails";
+    public static final String T_SPAN_DETAILS_KEY1 = "T_SpanDetails1";
     private static final String A_SPAN_ID_KEY = "SpanId";
     private static final String A_PARENT_SPAN_ID_KEY = "ParentSpanId";
     private final io.opentelemetry.api.trace.Tracer openTelemetryTracer;
@@ -162,10 +163,16 @@ public class DefaultTracer implements Tracer {
 
     private void addParentToThreadContext(ThreadContext threadContext, OSSpan span) {
         Map<String, Object> spanDetails = threadPool.getThreadContext().getTransient(T_SPAN_DETAILS_KEY);
+        OSSpanHolder spanHolder = threadPool.getThreadContext().getTransient(T_SPAN_DETAILS_KEY1);
         if (spanDetails == null) {
 //            System.out.println("creating map");
             spanDetails = new ConcurrentHashMap<>();
             threadPool.getThreadContext().putTransient(T_SPAN_DETAILS_KEY, spanDetails);
+        }
+        if (spanHolder == null) {
+            threadPool.getThreadContext().putTransient(T_SPAN_DETAILS_KEY1, new OSSpanHolder(span));
+        } else {
+            spanHolder.setSpan(span);
         }
 //        System.out.println("hash:" +spanDetails.hashCode());
 //        spanDetails.put(T_PARENT_SPAN_KEY, span.getSpan().getSpanContext().getSpanId());
@@ -202,10 +209,10 @@ public class DefaultTracer implements Tracer {
     }
 
     private OSSpan getParentFromThreadContext(ThreadContext threadContext) {
-        Map<String, Object> parentSpanIdFromThreadContext = threadContext.getTransient(T_SPAN_DETAILS_KEY);
+        OSSpanHolder parentSpanIdFromThreadContext = threadContext.getTransient(T_SPAN_DETAILS_KEY1);
 
 //        String parentSpanIdFromThreadContext = threadContext.getTransient(T_PARENT_SPAN_KEY);
-        if (parentSpanIdFromThreadContext !=null && parentSpanIdFromThreadContext.get(PARENT_SPAN) != null) {
+        if (parentSpanIdFromThreadContext !=null && parentSpanIdFromThreadContext.getSpan() != null) {
             /*System.out.println("parentSpanTransient " + ((OSSpan)parentSpanIdFromThreadContext.get(PARENT_SPAN)).getSpan().getSpanContext().getSpanId()
                 + " thread:" + parentSpanIdFromThreadContext.hashCode() ) ;*/
 
