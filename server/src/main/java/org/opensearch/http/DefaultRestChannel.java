@@ -169,8 +169,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             if (request.uri().startsWith("/_search")) {
 
                 System.out.println("ending 1" + request.getRequestId());
-                /*if (span!=null)
-                TracerFactory.getInstance().endTrace(span.get());*/
+                /*if (span!=null)*/
+                TracerFactory.getInstance().endTrace();
             }
             if (success == false) {
                 Releasables.close(toClose);

@@ -33,24 +33,13 @@ package org.opensearch.common.util.concurrent;
 
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE;
-import static org.opensearch.instrumentation.DefaultTracer.H_PARENT_ID_KEY;
-import static org.opensearch.instrumentation.DefaultTracer.T_PARENT_SPAN_KEY;
-import static org.opensearch.instrumentation.DefaultTracer.T_SPAN_DETAILS_KEY;
-import static org.opensearch.instrumentation.DefaultTracer.T_TRACE_FLAG_KEY;
-import static org.opensearch.instrumentation.DefaultTracer.T_TRACE_ID_KEY;
+import static org.opensearch.instrumentation.DefaultTracer.*;
 import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
@@ -71,6 +60,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.http.HttpTransportSettings;
+import org.opensearch.instrumentation.OSSpan;
 import org.opensearch.tasks.Task;
 
 /**
@@ -169,7 +159,7 @@ public final class ThreadContext implements Writeable {
             threadContextStruct = threadContextStruct.putTransient(T_TRACE_FLAG_KEY, context.transientHeaders.get(T_TRACE_FLAG_KEY));
         }*/
         if (context.transientHeaders.containsKey(T_SPAN_DETAILS_KEY)) {
-//            threadContextStruct = threadContextStruct.putTransient(T_SPAN_DETAILS_KEY, new HashMap<>((Map<String, String>)context.transientHeaders.get(T_SPAN_DETAILS_KEY)));
+            threadContextStruct = threadContextStruct.putTransient(T_SPAN_DETAILS_KEY, new ConcurrentHashMap<>((Map<String, Object>)context.transientHeaders.get(T_SPAN_DETAILS_KEY)));
         }
 
         threadLocal.set(threadContextStruct);
@@ -268,7 +258,7 @@ public final class ThreadContext implements Writeable {
         // this is the context when this method returns
         final ThreadContextStruct newContext = threadLocal.get();
         if (newContext.transientHeaders.containsKey(T_SPAN_DETAILS_KEY)) {
-            newContext.transientHeaders.replace(T_SPAN_DETAILS_KEY, new HashMap<>((Map<String, String>) newContext.transientHeaders.get(T_SPAN_DETAILS_KEY)));
+            newContext.transientHeaders.put(T_SPAN_DETAILS_KEY, new ConcurrentHashMap<>((Map<String, Object>) newContext.transientHeaders.get(T_SPAN_DETAILS_KEY)));
         }
         return () -> {
             if (preserveResponseHeaders && threadLocal.get() != newContext) {
@@ -342,6 +332,9 @@ public final class ThreadContext implements Writeable {
 
     public static Tuple<Map<String, String>, Map<String, Set<String>>> readHeadersFromStream(StreamInput in) throws IOException {
         final Map<String, String> requestHeaders = in.readMap(StreamInput::readString, StreamInput::readString);
+        if (requestHeaders.containsKey(H_TRACE_ID_KEY)) {
+//            System.out.println("received headers:" + requestHeaders);
+        }
         final Map<String, Set<String>> responseHeaders = in.readMap(StreamInput::readString, input -> {
             final int size = input.readVInt();
             if (size == 0) {
@@ -611,7 +604,7 @@ public final class ThreadContext implements Writeable {
 
         private static <T> void putSingleHeader(String key, T value, Map<String, T> newHeaders) {
             if (newHeaders.put(key, value) != null) {
-//                throw new IllegalArgumentException("value for key [" + key + "] already present");
+                throw new IllegalArgumentException("value for key [" + key + "] already present");
             }
         }
 
@@ -741,11 +734,26 @@ public final class ThreadContext implements Writeable {
                 requestHeaders = new HashMap<>(defaultHeaders);
                 requestHeaders.putAll(this.requestHeaders);
             }
-
-            out.writeVInt(requestHeaders.size());
+            if (this.transientHeaders != null && this.transientHeaders.containsKey(T_SPAN_DETAILS_KEY)) {
+                out.writeVInt(requestHeaders.size() + 3);
+            } else {
+                out.writeVInt(requestHeaders.size());
+            }
             for (Map.Entry<String, String> entry : requestHeaders.entrySet()) {
                 out.writeString(entry.getKey());
                 out.writeString(entry.getValue());
+            }
+            if (this.transientHeaders != null && this.transientHeaders.containsKey(T_SPAN_DETAILS_KEY)) {
+//                System.out.println("write stack:" + Arrays.asList(Thread.currentThread().getStackTrace()));
+                Map<String, Object> traceContext = (Map<String, Object>) this.transientHeaders.get(T_SPAN_DETAILS_KEY);
+//                System.out.println("Setting header context:" + traceContext);
+                OSSpan span = (OSSpan) traceContext.get(PARENT_SPAN);
+                out.writeString(H_TRACE_ID_KEY);
+                out.writeString(span.getSpan().getSpanContext().getTraceId());
+                out.writeString(H_PARENT_ID_KEY);
+                out.writeString(span.getSpan().getSpanContext().getSpanId());
+                out.writeString(H_TRACE_FLAG_KEY);
+                out.writeString(span.getSpan().getSpanContext().getTraceFlags().asHex());
             }
 
             out.writeMap(responseHeaders, StreamOutput::writeString, StreamOutput::writeStringCollection);

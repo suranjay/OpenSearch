@@ -619,9 +619,11 @@ subprojects {
   }
 }
 
-/*testClusters.all {
+
+testClusters.all {
   numberOfNodes = 3
-}*/
+}
+
 
 reporting {
   reports {

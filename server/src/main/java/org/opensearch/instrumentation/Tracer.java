@@ -63,6 +63,7 @@ public interface Tracer {
 //     * @param spanName
      */
     public void endTrace(OSSpan span);
+    public void endTrace();
 
     /**
      * Adds attributes to the span.

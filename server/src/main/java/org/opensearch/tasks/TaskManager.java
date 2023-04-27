@@ -81,6 +81,9 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.Assertions;
+import org.opensearch.instrumentation.OSSpan;
+import org.opensearch.instrumentation.Tracer;
+import org.opensearch.instrumentation.TracerFactory;
 import org.opensearch.search.fetch.ShardFetchRequest;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
@@ -133,6 +136,8 @@ public class TaskManager implements ClusterStateApplier {
 
     private volatile boolean taskResourceConsumersEnabled;
     private final Set<Consumer<Task>> taskResourceConsumer;
+
+    private Map<String, OSSpan> spanMap = new ConcurrentHashMap<>();
 
     public static TaskManager createTaskManagerWithClusterSettings(
         Settings settings,
@@ -226,10 +231,17 @@ public class TaskManager implements ClusterStateApplier {
             assert previousTask == null;
         }
         if(request instanceof SearchRequest || request instanceof ShardSearchRequest || request instanceof ShardFetchRequest) {
-//            System.out.println("task.getParentTaskId() " + task.getParentTaskId() + request.getClass() + " " + task.getId() + " " + task.getClass());
-//            String parentId = task.getParentTaskId().isSet() ? String.valueOf(task.getParentTaskId().getId()) : null;
-//            String parentSpanName = parentId != null ? "Task_" + parentId : null;
-//            TracerFactory.getInstance().startTrace(new SpanName("Task_" + task.getId(), String.valueOf(task.getId())), null, new SpanName(parentSpanName, parentId), Tracer.Level.HIGH);
+            System.out.println("task.getParentTaskId() " + task.getParentTaskId() + request.getClass() + " " + task.getId() + " " + task.getClass());
+            String parentId = task.getParentTaskId().isSet() ? String.valueOf(task.getParentTaskId().getId()) : null;
+            String parentSpanName = parentId != null ? "Task_" + parentId : null;
+            OSSpan parentSpan = null;
+            if (parentId != null) {
+                parentSpan = spanMap.get("Task_" + parentId);
+                if (parentSpan == null) {
+                    System.out.println("noo parent task found of " + "Task_" + task.getId() + " :" + parentId);
+                }
+            }
+            spanMap.put("Task_" + task.getId(), TracerFactory.getInstance().startTrace("Task_" + task.getId(), null, parentSpan, Tracer.Level.HIGH));
         }
         return task;
     }
@@ -303,7 +315,10 @@ public class TaskManager implements ClusterStateApplier {
         } else {
             task1 = tasks.remove(task.getId());
         }
-//        TracerFactory.getInstance().endTrace(new SpanName("Task_" + task.getId(), String.valueOf(task.getId())));
+        if (spanMap.containsKey("Task_" + task.getId()) && spanMap.get("Task_" + task.getId()) != null) {
+            TracerFactory.getInstance().endTrace(spanMap.get("Task_" + task.getId()));
+            spanMap.remove("Task_" + task.getId());
+        }
        return task1;
     }
 
