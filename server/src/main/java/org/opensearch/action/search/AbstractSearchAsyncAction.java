@@ -51,6 +51,9 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.instrumentation.OSSpan;
+import org.opensearch.instrumentation.Tracer;
+import org.opensearch.instrumentation.TracerFactory;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.AliasFilter;
@@ -246,11 +249,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     throw new SearchPhaseExecutionException(getName(), msg, null, ShardSearchFailure.EMPTY_ARRAY);
                 }
             }
+            OSSpan span = TracerFactory.getInstance().getCurrentParent();
             for (int index = 0; index < shardsIts.size(); index++) {
                 final SearchShardIterator shardRoutings = shardsIts.get(index);
                 assert shardRoutings.skip() == false;
-                performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
+                performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull(), span);
             }
+//            TracerFactory.getInstance().endTrace();
         }
     }
 
@@ -261,7 +266,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         successfulShardExecution(iterator);
     }
 
-    private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
+    private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard, OSSpan span) {
         /*
          * We capture the thread that this phase is starting on. When we are called back after executing the phase, we are either on the
          * same thread (because we never went async, or the same thread was selected from the thread pool) or a different thread. If we
@@ -276,6 +281,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 ? pendingExecutionsPerNode.computeIfAbsent(shard.getNodeId(), n -> new PendingExecutions(maxConcurrentRequestsPerNode))
                 : null;
             Runnable r = () -> {
+//                System.out.println("");
+//                TracerFactory.getInstance().startTrace("child shard" + shardIndex, null, span, Tracer.Level.HIGH);
                 final Thread thread = Thread.currentThread();
                 try {
                     executePhaseOnShard(shardIt, shard, new SearchActionListener<Result>(shard, shardIndex) {
@@ -284,6 +291,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             try {
                                 onShardResult(result, shardIt);
                             } finally {
+//                                TracerFactory.getInstance().endTrace();
                                 executeNext(pendingExecutions, thread);
                             }
                         }
@@ -293,6 +301,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             try {
                                 onShardFailure(shardIndex, shard, shardIt, t);
                             } finally {
+//                                TracerFactory.getInstance().endTrace();
                                 executeNext(pendingExecutions, thread);
                             }
                         }
@@ -314,6 +323,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             }
                         });
                     } finally {
+//                        TracerFactory.getInstance().endTrace();
                         executeNext(pendingExecutions, thread);
                     }
                 }
@@ -480,7 +490,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             );
         } else {
             if (lastShard == false) {
-                performPhaseOnShard(shardIndex, shardIt, nextShard);
+                performPhaseOnShard(shardIndex, shardIt, nextShard, null);
             }
         }
     }

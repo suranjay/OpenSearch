@@ -63,6 +63,9 @@ public interface Tracer {
 //     * @param spanName
      */
     public void endTrace(OSSpan span);
+
+    OSSpan getCurrentParent();
+
     public void endTrace();
 
     /**

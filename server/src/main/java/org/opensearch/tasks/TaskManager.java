@@ -34,19 +34,13 @@ package org.opensearch.tasks;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
+import static org.opensearch.instrumentation.DefaultTracer.PARENT_SPAN;
+import static org.opensearch.instrumentation.DefaultTracer.T_SPAN_DETAILS_KEY;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -69,6 +63,7 @@ import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.collect.HppcMaps;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.ClusterSettings;
@@ -230,9 +225,15 @@ public class TaskManager implements ClusterStateApplier {
             Task previousTask = tasks.put(task.getId(), task);
             assert previousTask == null;
         }
+        String parentId = task.getParentTaskId().isSet() ? String.valueOf(task.getParentTaskId().getId()) : null;
+        System.out.println("task.parent "  + task.getId() + " : " + parentId);
         if(request instanceof SearchRequest || request instanceof ShardSearchRequest || request instanceof ShardFetchRequest) {
-            System.out.println("task.getParentTaskId() " + task.getParentTaskId() + request.getClass() + " " + task.getId() + " " + task.getClass());
-            String parentId = task.getParentTaskId().isSet() ? String.valueOf(task.getParentTaskId().getId()) : null;
+//            System.out.println("stacktrace:" + Arrays.toString(Thread.currentThread().getStackTrace()).replace( ',', '\n' ));
+            Map<String, Object> currentSpan = threadContext.getTransient(T_SPAN_DETAILS_KEY);
+            if (currentSpan!=null) {
+                OSSpan o = (OSSpan) currentSpan.get(PARENT_SPAN);
+//                System.out.println("current span id in task:" + o.getSpan().getSpanContext().getSpanId());
+            }
             String parentSpanName = parentId != null ? "Task_" + parentId : null;
             OSSpan parentSpan = null;
             if (parentId != null) {
