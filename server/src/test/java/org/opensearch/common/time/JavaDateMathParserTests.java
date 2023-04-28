@@ -33,7 +33,6 @@
 package org.opensearch.common.time;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.time.Instant;
@@ -111,11 +110,6 @@ public class JavaDateMathParserTests extends OpenSearchTestCase {
     }
 
     public void testWeekDates() {
-        assumeFalse(
-            "won't work in jdk8 " + "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs",
-            JavaVersion.current().equals(JavaVersion.parse("8"))
-        );
-
         DateFormatter formatter = DateFormatter.forPattern("YYYY-ww");
         assertDateMathEquals(formatter.toDateMathParser(), "2016-01", "2016-01-04T23:59:59.999Z", 0, true, ZoneOffset.UTC);
 
@@ -135,6 +129,16 @@ public class JavaDateMathParserTests extends OpenSearchTestCase {
         assertDateMathEquals("2014-05-30T20:21", "2014-05-30T20:21:00.000");
         assertDateMathEquals("2014-05-30T20:21:35", "2014-05-30T20:21:35.000");
         assertDateMathEquals("2014-05-30T20:21:35.123", "2014-05-30T20:21:35.123");
+    }
+
+    public void testDayOfYearWithMissingFields() {
+        DateFormatter formatter = DateFormatter.forPattern("yyyy[-DDD'T'HH:mm:ss.SSS]");
+        assertDateMathEquals(formatter.toDateMathParser(), "2022", "2022-01-01T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+    }
+
+    public void testDayOfYear() {
+        DateFormatter formatter = DateFormatter.forPattern("yyyy[-DDD'T'HH:mm:ss.SSS]");
+        assertDateMathEquals(formatter.toDateMathParser(), "2022-104T14:08:30.293", "2022-04-14T14:08:30.293", 0, true, ZoneOffset.UTC);
     }
 
     public void testRoundingDoesNotAffectExactDate() {

@@ -35,7 +35,7 @@ package org.opensearch.search.aggregations.pipeline;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -45,6 +45,8 @@ import java.util.Map;
 
 /**
  * Calculate a simple unweighted (arithmetic) moving average
+ *
+ * @opensearch.internal
  */
 public class SimpleModel extends MovAvgModel {
     public static final String NAME = "simple";
@@ -110,6 +112,11 @@ public class SimpleModel extends MovAvgModel {
         }
     };
 
+    /**
+     * Builder for the simple model
+     *
+     * @opensearch.internal
+     */
     public static class SimpleModelBuilder implements MovAvgModelBuilder {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

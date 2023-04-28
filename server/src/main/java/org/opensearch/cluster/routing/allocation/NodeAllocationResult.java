@@ -40,9 +40,9 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -51,6 +51,8 @@ import static org.opensearch.cluster.routing.allocation.AbstractAllocationDecisi
 
 /**
  * This class represents the shard allocation decision and its explanation for a single node.
+ *
+ * @opensearch.internal
  */
 public class NodeAllocationResult implements ToXContentObject, Writeable, Comparable<NodeAllocationResult> {
 
@@ -186,7 +188,11 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
         return nodeResultComparator.compare(this, other);
     }
 
-    /** A class that captures metadata about a shard store on a node. */
+    /**
+     * A class that captures metadata about a shard store on a node.
+     *
+     * @opensearch.internal
+     */
     public static final class ShardStoreInfo implements ToXContentFragment, Writeable {
         private final boolean inSync;
         @Nullable

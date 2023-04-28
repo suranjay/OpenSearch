@@ -34,7 +34,7 @@ package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -42,6 +42,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of derivitive pipeline
+ *
+ * @opensearch.internal
+ */
 public class InternalDerivative extends InternalSimpleValue implements Derivative {
     private final double normalizationFactor;
 

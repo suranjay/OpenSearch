@@ -33,7 +33,6 @@
 package org.opensearch.cluster.routing;
 
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
@@ -47,8 +46,8 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -62,6 +61,8 @@ import java.util.function.Predicate;
 
 /**
  * Holds additional information as to why the shard is in unassigned state.
+ *
+ * @opensearch.internal
  */
 public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
@@ -79,6 +80,8 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * <p>
      * Note, ordering of the enum is important, make sure to add new values
      * at the end and handle version serialization properly.
+     *
+     * @opensearch.internal
      */
     public enum Reason {
         /**
@@ -153,6 +156,8 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      *
      * Note, ordering of the enum is important, make sure to add new values
      * at the end and handle version serialization properly.
+     *
+     * @opensearch.internal
      */
     public enum AllocationStatus implements Writeable {
         /**
@@ -301,26 +306,18 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.reason = Reason.values()[(int) in.readByte()];
         this.unassignedTimeMillis = in.readLong();
         // As System.nanoTime() cannot be compared across different JVMs, reset it to now.
-        // This means that in master fail-over situations, elapsed delay time is forgotten.
+        // This means that in cluster-manager fail-over situations, elapsed delay time is forgotten.
         this.unassignedTimeNanos = System.nanoTime();
         this.delayed = in.readBoolean();
         this.message = in.readOptionalString();
         this.failure = in.readException();
         this.failedAllocations = in.readVInt();
         this.lastAllocationStatus = AllocationStatus.readFrom(in);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_5_0)) {
-            this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-        } else {
-            this.failedNodeIds = Collections.emptySet();
-        }
+        this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(LegacyESVersion.V_7_0_0) && reason == Reason.INDEX_CLOSED) {
-            out.writeByte((byte) Reason.REINITIALIZED.ordinal());
-        } else {
-            out.writeByte((byte) reason.ordinal());
-        }
+        out.writeByte((byte) reason.ordinal());
         out.writeLong(unassignedTimeMillis);
         // Do not serialize unassignedTimeNanos as System.nanoTime() cannot be compared across different JVMs
         out.writeBoolean(delayed);
@@ -328,9 +325,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         out.writeException(failure);
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_5_0)) {
-            out.writeCollection(failedNodeIds, StreamOutput::writeString);
-        }
+        out.writeCollection(failedNodeIds, StreamOutput::writeString);
     }
 
     /**

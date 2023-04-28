@@ -37,8 +37,8 @@ import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -54,6 +54,8 @@ import static org.opensearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
  * <p>
  * Registers a repository with given name, type and settings. If the repository with the same name already
  * exists in the cluster, the new repository will replace the existing repository.
+ *
+ * @opensearch.internal
  */
 public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryRequest> implements ToXContentObject {
 

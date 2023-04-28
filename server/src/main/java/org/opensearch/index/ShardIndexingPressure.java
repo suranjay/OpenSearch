@@ -12,7 +12,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.ShardIndexingPressureTracker.CommonOperationTracker;
 import org.opensearch.index.ShardIndexingPressureTracker.OperationTracker;
 import org.opensearch.index.ShardIndexingPressureTracker.PerformanceTracker;
@@ -39,6 +39,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 1. Memory Accounting at shard level. This can be enabled/disabled based on dynamic setting.
  * 2. Memory Accounting at Node level. Tracking is done using the IndexingPressure artefacts to support feature seamless toggling.
  * 3. Interfaces to access the statistics for shard trackers.
+ *
+ * @opensearch.internal
  */
 public class ShardIndexingPressure extends IndexingPressure {
 

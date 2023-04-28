@@ -46,13 +46,15 @@ import java.util.function.Function;
 
 /**
  * A script to produce dynamic values for return fields.
+ *
+ * @opensearch.internal
  */
 public abstract class FieldScript {
 
     public static final String[] PARAMETERS = {};
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.opensearch.common.collect.Map.of("doc", value -> {
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of("doc", value -> {
         deprecationLogger.deprecate(
             "field-script_doc",
             "Accessing variable [doc] via [params.doc] from within an field-script " + "is deprecated in favor of directly accessing [doc]."
@@ -108,11 +110,20 @@ public abstract class FieldScript {
         leafLookup.setDocument(docid);
     }
 
-    /** A factory to construct {@link FieldScript} instances. */
+    /**
+     * A factory to construct {@link FieldScript} instances.
+     *
+     * @opensearch.internal
+     */
     public interface LeafFactory {
         FieldScript newInstance(LeafReaderContext ctx) throws IOException;
     }
 
+    /**
+     * Factory for field script
+     *
+     * @opensearch.internal
+     */
     public interface Factory extends ScriptFactory {
         LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);
     }

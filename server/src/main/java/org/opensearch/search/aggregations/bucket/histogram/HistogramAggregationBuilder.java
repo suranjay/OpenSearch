@@ -32,12 +32,11 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -60,6 +59,8 @@ import java.util.Objects;
 /**
  * A builder for histograms on numeric fields.  This builder can operate on either base numeric fields, or numeric range fields.  IP range
  * fields are unsupported, and will throw at the factory layer.
+ *
+ * @opensearch.internal
  */
 public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<HistogramAggregationBuilder> {
     public static final String NAME = "histogram";
@@ -163,18 +164,8 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         minDocCount = in.readVLong();
         interval = in.readDouble();
         offset = in.readDouble();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            extendedBounds = in.readOptionalWriteable(DoubleBounds::new);
-            hardBounds = in.readOptionalWriteable(DoubleBounds::new);
-        } else {
-            double minBound = in.readDouble();
-            double maxBound = in.readDouble();
-            if (minBound == Double.POSITIVE_INFINITY && maxBound == Double.NEGATIVE_INFINITY) {
-                extendedBounds = null;
-            } else {
-                extendedBounds = new DoubleBounds(minBound, maxBound);
-            }
-        }
+        extendedBounds = in.readOptionalWriteable(DoubleBounds::new);
+        hardBounds = in.readOptionalWriteable(DoubleBounds::new);
     }
 
     @Override
@@ -184,18 +175,8 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         out.writeVLong(minDocCount);
         out.writeDouble(interval);
         out.writeDouble(offset);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            out.writeOptionalWriteable(extendedBounds);
-            out.writeOptionalWriteable(hardBounds);
-        } else {
-            if (extendedBounds != null) {
-                out.writeDouble(extendedBounds.getMin());
-                out.writeDouble(extendedBounds.getMax());
-            } else {
-                out.writeDouble(Double.POSITIVE_INFINITY);
-                out.writeDouble(Double.NEGATIVE_INFINITY);
-            }
-        }
+        out.writeOptionalWriteable(extendedBounds);
+        out.writeOptionalWriteable(hardBounds);
     }
 
     /** Get the current interval that is set on this builder. */
@@ -225,12 +206,12 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     /** Get the current minimum bound that is set on this builder. */
     public double minBound() {
-        return extendedBounds.getMin();
+        return DoubleBounds.getEffectiveMin(extendedBounds);
     }
 
     /** Get the current maximum bound that is set on this builder. */
     public double maxBound() {
-        return extendedBounds.getMax();
+        return DoubleBounds.getEffectiveMax(extendedBounds);
     }
 
     protected DoubleBounds extendedBounds() {

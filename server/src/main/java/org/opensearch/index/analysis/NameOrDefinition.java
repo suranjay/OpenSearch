@@ -36,15 +36,20 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParseException;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParseException;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Provides the name and settings for an analyzer
+ *
+ * @opensearch.internal
+ */
 public class NameOrDefinition implements Writeable, ToXContentFragment {
     // exactly one of these two members is not null
     public final String name;

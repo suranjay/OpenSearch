@@ -53,7 +53,7 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.threadpool.ThreadPool;
@@ -78,6 +78,11 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
 
+/**
+ * Base HttpServer class
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
     private static final Logger logger = LogManager.getLogger(AbstractHttpServerTransport.class);
     private static final ActionListener<Void> NO_OP = ActionListener.wrap(() -> {});

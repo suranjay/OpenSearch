@@ -35,6 +35,8 @@ package org.opensearch.repositories.s3;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import org.opensearch.common.Strings;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.SecureSetting;
 import org.opensearch.common.settings.SecureString;
@@ -46,6 +48,7 @@ import org.opensearch.common.unit.TimeValue;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
@@ -66,6 +69,29 @@ final class S3ClientSettings {
 
     /** Placeholder client name for normalizing client settings in the repository settings. */
     private static final String PLACEHOLDER_CLIENT = "placeholder";
+
+    // Properties to support using IAM Roles for Service Accounts (IRSA)
+
+    /** The identity token file for connecting to s3. */
+    static final Setting.AffixSetting<String> IDENTITY_TOKEN_FILE_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "identity_token_file",
+        key -> SecureSetting.simpleString(key, Property.NodeScope)
+    );
+
+    /** The role ARN (Amazon Resource Name) for connecting to s3. */
+    static final Setting.AffixSetting<SecureString> ROLE_ARN_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "role_arn",
+        key -> SecureSetting.secureString(key, null)
+    );
+
+    /** The role session name for connecting to s3. */
+    static final Setting.AffixSetting<SecureString> ROLE_SESSION_NAME_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "role_session_name",
+        key -> SecureSetting.secureString(key, null)
+    );
 
     /** The access key (ie login id) for connecting to s3. */
     static final Setting.AffixSetting<SecureString> ACCESS_KEY_SETTING = Setting.affixKeySetting(
@@ -189,6 +215,9 @@ final class S3ClientSettings {
     /** Credentials to authenticate with s3. */
     final S3BasicCredentials credentials;
 
+    /** Credentials to authenticate with s3 using IAM Roles for Service Accounts (IRSA). */
+    final IrsaCredentials irsaCredentials;
+
     /** The s3 endpoint the client should talk to, or empty string to use the default. */
     final String endpoint;
 
@@ -221,6 +250,7 @@ final class S3ClientSettings {
 
     private S3ClientSettings(
         S3BasicCredentials credentials,
+        IrsaCredentials irsaCredentials,
         String endpoint,
         Protocol protocol,
         int readTimeoutMillis,
@@ -233,6 +263,7 @@ final class S3ClientSettings {
         ProxySettings proxySettings
     ) {
         this.credentials = credentials;
+        this.irsaCredentials = irsaCredentials;
         this.endpoint = endpoint;
         this.protocol = protocol;
         this.readTimeoutMillis = readTimeoutMillis;
@@ -301,6 +332,7 @@ final class S3ClientSettings {
         validateInetAddressFor(newProxyHost);
         return new S3ClientSettings(
             newCredentials,
+            irsaCredentials,
             newEndpoint,
             newProtocol,
             newReadTimeoutMillis,
@@ -319,16 +351,16 @@ final class S3ClientSettings {
      *
      * Note this will always at least return a client named "default".
      */
-    static Map<String, S3ClientSettings> load(Settings settings) {
+    static Map<String, S3ClientSettings> load(final Settings settings, final Path configPath) {
         final Set<String> clientNames = settings.getGroups(PREFIX).keySet();
         final Map<String, S3ClientSettings> clients = new HashMap<>();
         for (final String clientName : clientNames) {
-            clients.put(clientName, getClientSettings(settings, clientName));
+            clients.put(clientName, getClientSettings(settings, clientName, configPath));
         }
         if (clients.containsKey("default") == false) {
             // this won't find any settings under the default client,
             // but it will pull all the fallback static settings
-            clients.put("default", getClientSettings(settings, "default"));
+            clients.put("default", getClientSettings(settings, "default", configPath));
         }
         return Collections.unmodifiableMap(clients);
     }
@@ -396,12 +428,36 @@ final class S3ClientSettings {
         }
     }
 
+    @SuppressForbidden(reason = "PathUtils#get")
+    private static IrsaCredentials loadIrsaCredentials(Settings settings, String clientName, Path configPath) {
+        String identityTokenFile = getConfigValue(settings, clientName, IDENTITY_TOKEN_FILE_SETTING);
+        if (identityTokenFile.length() != 0) {
+            final Path identityTokenFilePath = PathUtils.get(identityTokenFile);
+            // If the path is not absolute, resolve it relatively to config path
+            if (!identityTokenFilePath.isAbsolute()) {
+                identityTokenFile = PathUtils.get(new Path[] { configPath }, identityTokenFile).toString();
+            }
+        }
+
+        try (
+            SecureString roleArn = getConfigValue(settings, clientName, ROLE_ARN_SETTING);
+            SecureString roleSessionName = getConfigValue(settings, clientName, ROLE_SESSION_NAME_SETTING)
+        ) {
+            if (identityTokenFile.length() != 0 || roleArn.length() != 0 || roleSessionName.length() != 0) {
+                return new IrsaCredentials(identityTokenFile.toString(), roleArn.toString(), roleSessionName.toString());
+            }
+
+            return null;
+        }
+    }
+
     // pkg private for tests
     /** Parse settings for a single client. */
-    static S3ClientSettings getClientSettings(final Settings settings, final String clientName) {
+    static S3ClientSettings getClientSettings(final Settings settings, final String clientName, final Path configPath) {
         final Protocol awsProtocol = getConfigValue(settings, clientName, PROTOCOL_SETTING);
         return new S3ClientSettings(
             S3ClientSettings.loadCredentials(settings, clientName),
+            S3ClientSettings.loadIrsaCredentials(settings, clientName, configPath),
             getConfigValue(settings, clientName, ENDPOINT_SETTING),
             awsProtocol,
             Math.toIntExact(getConfigValue(settings, clientName, READ_TIMEOUT_SETTING).millis()),
@@ -482,7 +538,8 @@ final class S3ClientSettings {
             && proxySettings.equals(that.proxySettings)
             && Objects.equals(disableChunkedEncoding, that.disableChunkedEncoding)
             && Objects.equals(region, that.region)
-            && Objects.equals(signerOverride, that.signerOverride);
+            && Objects.equals(signerOverride, that.signerOverride)
+            && Objects.equals(irsaCredentials, that.irsaCredentials);
     }
 
     @Override
@@ -511,5 +568,52 @@ final class S3ClientSettings {
             return getConfigValue(normalizedSettings, PLACEHOLDER_CLIENT, setting);
         }
         return defaultValue;
+    }
+
+    /**
+     * Class to store IAM Roles for Service Accounts (IRSA) credentials
+     * See please: https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html
+     */
+    static class IrsaCredentials {
+        private final String identityTokenFile;
+        private final String roleArn;
+        private final String roleSessionName;
+
+        IrsaCredentials(String identityTokenFile, String roleArn, String roleSessionName) {
+            this.identityTokenFile = Strings.isNullOrEmpty(identityTokenFile) ? null : identityTokenFile;
+            this.roleArn = Strings.isNullOrEmpty(roleArn) ? null : roleArn;
+            this.roleSessionName = Strings.isNullOrEmpty(roleSessionName) ? "s3-sdk-java-" + System.currentTimeMillis() : roleSessionName;
+        }
+
+        public String getIdentityTokenFile() {
+            return identityTokenFile;
+        }
+
+        public String getRoleArn() {
+            return roleArn;
+        }
+
+        public String getRoleSessionName() {
+            return roleSessionName;
+        }
+
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            final IrsaCredentials that = (IrsaCredentials) o;
+            return Objects.equals(identityTokenFile, that.identityTokenFile)
+                && Objects.equals(roleArn, that.roleArn)
+                && Objects.equals(roleSessionName, that.roleSessionName);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(identityTokenFile, roleArn, roleSessionName);
+        }
     }
 }

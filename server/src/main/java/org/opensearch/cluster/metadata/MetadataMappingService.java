@@ -43,6 +43,8 @@ import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -50,7 +52,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.DocumentMapper;
@@ -69,6 +71,8 @@ import static org.opensearch.indices.cluster.IndicesClusterStateService.Allocate
 
 /**
  * Service responsible for submitting mapping changes
+ *
+ * @opensearch.internal
  */
 public class MetadataMappingService {
 
@@ -76,6 +80,7 @@ public class MetadataMappingService {
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
+    private final ClusterManagerTaskThrottler.ThrottlingKey putMappingTaskKey;
 
     final RefreshTaskExecutor refreshExecutor = new RefreshTaskExecutor();
     final PutMappingExecutor putMappingExecutor = new PutMappingExecutor();
@@ -84,6 +89,10 @@ public class MetadataMappingService {
     public MetadataMappingService(ClusterService clusterService, IndicesService indicesService) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
+
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        putMappingTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.PUT_MAPPING_KEY, true);
+
     }
 
     static class RefreshTask {
@@ -242,6 +251,11 @@ public class MetadataMappingService {
             } finally {
                 IOUtils.close(indexMapperServices.values());
             }
+        }
+
+        @Override
+        public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+            return putMappingTaskKey;
         }
 
         private ClusterState applyRequest(

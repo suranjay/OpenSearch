@@ -32,8 +32,6 @@
 
 package org.opensearch.common.joda;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
 import org.opensearch.common.Strings;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.time.DateFormatter;
@@ -65,6 +63,13 @@ import java.math.BigDecimal;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
+/**
+ * Joda class.
+ *
+ * @deprecated
+ *
+ * @opensearch.internal
+ */
 @Deprecated
 public class Joda {
     // Joda.forPattern could be used even before the logging is initialized.
@@ -382,16 +387,10 @@ public class Joda {
     };
 
     /**
-     * Checks if a pattern is Joda-style.
-     * Joda style patterns are not always compatible with java.time patterns.
-     * @param version - creation version of the index where pattern was used
-     * @param pattern - the pattern to check
-     * @return - true if pattern is joda style, otherwise false
+     * parses epcoch timers
+     *
+     * @opensearch.internal
      */
-    public static boolean isJodaPattern(Version version, String pattern) {
-        return version.before(LegacyESVersion.V_7_0_0) && pattern.startsWith("8") == false;
-    }
-
     public static class EpochTimeParser implements DateTimeParser {
 
         private static final Pattern scientificNotation = Pattern.compile("[Ee]");
@@ -458,6 +457,11 @@ public class Joda {
         return deprecationLogger.getOrCompute();
     }
 
+    /**
+     * Epoch timer printer
+     *
+     * @opensearch.internal
+     */
     public static class EpochTimePrinter implements DateTimePrinter {
 
         private boolean hasMilliSecondPrecision;

@@ -49,9 +49,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.opensearch.lucene.queries.MinDocQuery;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -82,10 +80,12 @@ import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -97,6 +97,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.search.OpenSearchToParentBlockJoinQuery;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
+import org.opensearch.lucene.queries.MinDocQuery;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.collapse.CollapseBuilder;
 import org.opensearch.search.internal.ContextIndexSearcher;
@@ -105,22 +106,28 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.test.TestSearchContext;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.opensearch.search.query.TopDocsCollectorContext.hasInfMaxScore;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.opensearch.search.query.TopDocsCollectorContext.hasInfMaxScore;
 
 public class QueryPhaseTests extends IndexShardTestCase {
 
@@ -335,6 +342,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         ScrollContext scrollContext = new ScrollContext();
         TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader), scrollContext);
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+        context.sort(new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW }));
         scrollContext.lastEmittedDoc = null;
         scrollContext.maxScore = Float.NaN;
         scrollContext.totalHits = null;
@@ -351,7 +359,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
         context.setSearcher(newEarlyTerminationContextSearcher(reader, size));
         QueryPhase.executeInternal(context.withCleanQueryResult());
         assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
-        assertThat(context.terminateAfter(), equalTo(size));
         assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
         assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0].doc, greaterThanOrEqualTo(size));
         reader.close();
@@ -1069,8 +1076,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
             try (IndexReader reader = DirectoryReader.open(dir)) {
                 TestSearchContext context = new TestSearchContextWithRewriteAndCancellation(null, indexShard, newContextSearcher(reader));
-                PrefixQuery prefixQuery = new PrefixQuery(new Term("foo", "a"));
-                prefixQuery.setRewriteMethod(MultiTermQuery.SCORING_BOOLEAN_REWRITE);
+                PrefixQuery prefixQuery = new PrefixQuery(new Term("foo", "a"), MultiTermQuery.SCORING_BOOLEAN_REWRITE);
                 context.parsedQuery(new ParsedQuery(prefixQuery));
                 SearchShardTask task = mock(SearchShardTask.class);
                 when(task.isCancelled()).thenReturn(true);
@@ -1078,6 +1084,58 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 expectThrows(TaskCancelledException.class, () -> new QueryPhase().preProcess(context));
             }
         }
+    }
+
+    public void testQueryTimeoutChecker() throws Exception {
+        long timeCacheLifespan = ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.get(Settings.EMPTY).millis();
+        long timeTolerance = timeCacheLifespan / 20;
+
+        // should throw time exceed exception for sure after timeCacheLifespan*2+timeTolerance (next's next cached time is available)
+        assertThrows(
+            QueryPhase.TimeExceededException.class,
+            () -> createTimeoutCheckerThenWaitThenRun(timeCacheLifespan, timeCacheLifespan * 2 + timeTolerance, true, false)
+        );
+
+        // should not throw time exceed exception after timeCacheLifespan+timeTolerance because new cached time - init time < timeout
+        createTimeoutCheckerThenWaitThenRun(timeCacheLifespan, timeCacheLifespan + timeTolerance, true, false);
+
+        // should not throw time exceed exception after timeout < timeCacheLifespan when cached time didn't change
+        createTimeoutCheckerThenWaitThenRun(timeCacheLifespan / 2, timeCacheLifespan / 2 + timeTolerance, false, true);
+        createTimeoutCheckerThenWaitThenRun(timeCacheLifespan / 4, timeCacheLifespan / 2 + timeTolerance, false, true);
+    }
+
+    private void createTimeoutCheckerThenWaitThenRun(
+        long timeout,
+        long sleepAfterCreation,
+        boolean checkCachedTimeChanged,
+        boolean checkCachedTimeHasNotChanged
+    ) throws Exception {
+        long timeCacheLifespan = ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.get(Settings.EMPTY).millis();
+        long timeTolerance = timeCacheLifespan / 20;
+        long currentTimeDiffWithCachedTime = TimeValue.nsecToMSec(System.nanoTime()) - threadPool.relativeTimeInMillis();
+        // need to run this test approximately at the start of cached time window
+        long timeToAlignTimeWithCachedTimeOffset = timeCacheLifespan - currentTimeDiffWithCachedTime + timeTolerance;
+        Thread.sleep(timeToAlignTimeWithCachedTimeOffset);
+
+        long initialRelativeCachedTime = threadPool.relativeTimeInMillis();
+        SearchContext mockedSearchContext = mock(SearchContext.class);
+        when(mockedSearchContext.timeout()).thenReturn(TimeValue.timeValueMillis(timeout));
+        when(mockedSearchContext.getRelativeTimeInMillis()).thenAnswer(invocation -> threadPool.relativeTimeInMillis());
+        when(mockedSearchContext.getRelativeTimeInMillis(eq(false))).thenCallRealMethod();
+        Runnable queryTimeoutChecker = QueryPhase.createQueryTimeoutChecker(mockedSearchContext);
+        // make sure next time slot become available
+        Thread.sleep(sleepAfterCreation);
+        if (checkCachedTimeChanged) {
+            assertNotEquals(initialRelativeCachedTime, threadPool.relativeTimeInMillis());
+        }
+        if (checkCachedTimeHasNotChanged) {
+            assertEquals(initialRelativeCachedTime, threadPool.relativeTimeInMillis());
+        }
+        queryTimeoutChecker.run();
+        verify(mockedSearchContext, times(1)).timeout();
+        verify(mockedSearchContext, times(1)).getRelativeTimeInMillis(eq(false));
+        verify(mockedSearchContext, atLeastOnce()).getRelativeTimeInMillis();
+        verifyNoMoreInteractions(mockedSearchContext);
     }
 
     private static class TestSearchContextWithRewriteAndCancellation extends TestSearchContext {

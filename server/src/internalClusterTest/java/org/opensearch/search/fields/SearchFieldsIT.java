@@ -43,7 +43,7 @@ import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateUtils;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
@@ -142,7 +142,6 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             scripts.put("_fields['num1'].value", vars -> fieldsScript(vars, "num1"));
             scripts.put("_fields._uid.value", vars -> fieldsScript(vars, "_uid"));
             scripts.put("_fields._id.value", vars -> fieldsScript(vars, "_id"));
-            scripts.put("_fields._type.value", vars -> fieldsScript(vars, "_type"));
 
             scripts.put("_source.obj1", vars -> sourceScript(vars, "obj1"));
             scripts.put("_source.obj1.test", vars -> sourceScript(vars, "obj1.test"));
@@ -469,42 +468,6 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             assertThat(response.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
             Set<String> fields = new HashSet<>(response.getHits().getAt(i).getFields().keySet());
             assertThat(fields, equalTo(singleton("id")));
-            assertThat(response.getHits().getAt(i).getFields().get("id").getValue(), equalTo(Integer.toString(i)));
-        }
-
-        response = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addSort("num1", SortOrder.ASC)
-            .setSize(numDocs)
-            .addScriptField("type", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._type.value", Collections.emptyMap()))
-            .get();
-
-        assertNoFailures(response);
-
-        assertThat(response.getHits().getTotalHits().value, equalTo((long) numDocs));
-        for (int i = 0; i < numDocs; i++) {
-            assertThat(response.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
-            Set<String> fields = new HashSet<>(response.getHits().getAt(i).getFields().keySet());
-            assertThat(fields, equalTo(singleton("type")));
-            assertThat(response.getHits().getAt(i).getFields().get("type").getValue(), equalTo(MapperService.SINGLE_MAPPING_NAME));
-        }
-
-        response = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addSort("num1", SortOrder.ASC)
-            .setSize(numDocs)
-            .addScriptField("id", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._id.value", Collections.emptyMap()))
-            .addScriptField("type", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._type.value", Collections.emptyMap()))
-            .get();
-
-        assertNoFailures(response);
-
-        assertThat(response.getHits().getTotalHits().value, equalTo((long) numDocs));
-        for (int i = 0; i < numDocs; i++) {
-            assertThat(response.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
-            Set<String> fields = new HashSet<>(response.getHits().getAt(i).getFields().keySet());
-            assertThat(fields, equalTo(newHashSet("type", "id")));
-            assertThat(response.getHits().getAt(i).getFields().get("type").getValue(), equalTo(MapperService.SINGLE_MAPPING_NAME));
             assertThat(response.getHits().getAt(i).getFields().get("id").getValue(), equalTo(Integer.toString(i)));
         }
     }
@@ -899,6 +862,9 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
                 .startObject("ip_field")
                 .field("type", "ip")
                 .endObject()
+                .startObject("flat_object_field")
+                .field("type", "flat_object")
+                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -923,6 +889,10 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
                     .field("boolean_field", true)
                     .field("binary_field", new byte[] { 42, 100 })
                     .field("ip_field", "::1")
+                    .field("flat_object_field")
+                    .startObject()
+                    .field("foo", "bar")
+                    .endObject()
                     .endObject()
             )
             .get();
@@ -942,7 +912,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .addDocValueField("date_field")
             .addDocValueField("boolean_field")
             .addDocValueField("binary_field")
-            .addDocValueField("ip_field");
+            .addDocValueField("ip_field")
+            .addDocValueField("flat_object_field");
         SearchResponse searchResponse = builder.get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -963,11 +934,14 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
                     "text_field",
                     "keyword_field",
                     "binary_field",
-                    "ip_field"
+                    "ip_field",
+                    "flat_object_field"
                 )
             )
         );
-
+        String json = Strings.toString(
+            XContentFactory.jsonBuilder().startObject().startObject("flat_object_field").field("foo", "bar").endObject().endObject()
+        );
         assertThat(searchResponse.getHits().getAt(0).getFields().get("byte_field").getValue().toString(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("short_field").getValue().toString(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("integer_field").getValue(), equalTo((Object) 3L));
@@ -983,6 +957,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValue(), equalTo("KmQ"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValue(), equalTo("::1"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("flat_object_field").getValue(), equalTo("flat_object_field.foo"));
 
         builder = client().prepareSearch().setQuery(matchAllQuery()).addDocValueField("*field");
         searchResponse = builder.get();
@@ -1005,7 +980,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
                     "text_field",
                     "keyword_field",
                     "binary_field",
-                    "ip_field"
+                    "ip_field",
+                    "flat_object_field"
                 )
             )
         );
@@ -1025,6 +1001,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValue(), equalTo("KmQ"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValue(), equalTo("::1"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("flat_object_field").getValue(), equalTo("flat_object_field.foo"));
 
         builder = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -1039,7 +1016,9 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .addDocValueField("date_field", "use_field_mapping")
             .addDocValueField("boolean_field", "use_field_mapping")
             .addDocValueField("binary_field", "use_field_mapping")
-            .addDocValueField("ip_field", "use_field_mapping");
+            .addDocValueField("ip_field", "use_field_mapping")
+            .addDocValueField("flat_object_field", "use_field_mapping");
+        ;
         searchResponse = builder.get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -1060,7 +1039,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
                     "text_field",
                     "keyword_field",
                     "binary_field",
-                    "ip_field"
+                    "ip_field",
+                    "flat_object_field"
                 )
             )
         );
@@ -1080,6 +1060,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValue(), equalTo("KmQ"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValue(), equalTo("::1"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("flat_object_field").getValue(), equalTo("flat_object_field.foo"));
 
         builder = client().prepareSearch()
             .setQuery(matchAllQuery())

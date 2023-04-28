@@ -34,13 +34,11 @@ package org.opensearch.action.admin.cluster.repositories.cleanup;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.RepositoryCleanupInProgress;
@@ -73,21 +71,23 @@ import java.util.Collections;
  * <ol>
  *     <li>Check that there are no running repository cleanup, snapshot create, or snapshot delete actions
  *     and add an entry for the repository that is to be cleaned up to {@link RepositoryCleanupInProgress}</li>
- *     <li>Run cleanup actions on the repository. Note, these are executed exclusively on the master node.
+ *     <li>Run cleanup actions on the repository. Note, these are executed exclusively on the cluster-manager node.
  *     For the precise operations execute see {@link BlobStoreRepository#cleanup}</li>
  *     <li>Remove the entry in {@link RepositoryCleanupInProgress} in the first step.</li>
  * </ol>
  *
- * On master failover during the cleanup operation it is simply removed from the cluster state. This is safe because the logic in
+ * On cluster-manager failover during the cleanup operation it is simply removed from the cluster state. This is safe because the logic in
  * {@link BlobStoreRepository#cleanup} ensures that the repository state id has not changed between creation of the cluster state entry
  * and any delete/write operations. TODO: This will not work if we also want to clean up at the shard level as those will involve writes
  *                                        as well as deletes.
+ *
+ * @opensearch.internal
  */
-public final class TransportCleanupRepositoryAction extends TransportMasterNodeAction<CleanupRepositoryRequest, CleanupRepositoryResponse> {
+public final class TransportCleanupRepositoryAction extends TransportClusterManagerNodeAction<
+    CleanupRepositoryRequest,
+    CleanupRepositoryResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportCleanupRepositoryAction.class);
-
-    private static final Version MIN_VERSION = LegacyESVersion.V_7_4_0;
 
     private final RepositoriesService repositoriesService;
 
@@ -119,24 +119,24 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
         );
         this.repositoriesService = repositoriesService;
         this.snapshotsService = snapshotsService;
-        // We add a state applier that will remove any dangling repository cleanup actions on master failover.
+        // We add a state applier that will remove any dangling repository cleanup actions on cluster-manager failover.
         // This is safe to do since cleanups will increment the repository state id before executing any operations to prevent concurrent
         // operations from corrupting the repository. This is the same safety mechanism used by snapshot deletes.
-        if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
+        if (DiscoveryNode.isClusterManagerNode(clusterService.getSettings())) {
             addClusterStateApplier(clusterService);
         }
     }
 
     private static void addClusterStateApplier(ClusterService clusterService) {
         clusterService.addStateApplier(event -> {
-            if (event.localNodeMaster() && event.previousState().nodes().isLocalNodeElectedMaster() == false) {
+            if (event.localNodeClusterManager() && event.previousState().nodes().isLocalNodeElectedClusterManager() == false) {
                 final RepositoryCleanupInProgress repositoryCleanupInProgress = event.state()
                     .custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY);
                 if (repositoryCleanupInProgress.hasCleanupInProgress() == false) {
                     return;
                 }
                 clusterService.submitStateUpdateTask(
-                    "clean up repository cleanup task after master failover",
+                    "clean up repository cleanup task after cluster-manager failover",
                     new ClusterStateUpdateTask() {
                         @Override
                         public ClusterState execute(ClusterState currentState) {
@@ -170,22 +170,12 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         CleanupRepositoryRequest request,
         ClusterState state,
         ActionListener<CleanupRepositoryResponse> listener
     ) {
-        if (state.nodes().getMinNodeVersion().onOrAfter(MIN_VERSION)) {
-            cleanupRepo(request.name(), ActionListener.map(listener, CleanupRepositoryResponse::new));
-        } else {
-            throw new IllegalArgumentException(
-                "Repository cleanup is only supported from version ["
-                    + MIN_VERSION
-                    + "] but the oldest node version in the cluster is ["
-                    + state.nodes().getMinNodeVersion()
-                    + ']'
-            );
-        }
+        cleanupRepo(request.name(), ActionListener.map(listener, CleanupRepositoryResponse::new));
     }
 
     @Override

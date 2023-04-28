@@ -33,34 +33,36 @@
 package org.opensearch.action.admin.indices.shards;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.collect.ImmutableOpenIntMap;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Response for {@link IndicesShardStoresAction}
  *
  * Consists of {@link StoreStatus}s for requested indices grouped by
  * indices and shard ids and a list of encountered node {@link Failure}s
+ *
+ * @opensearch.internal
  */
 public class IndicesShardStoresResponse extends ActionResponse implements ToXContentFragment {
 
     /**
      * Shard store information from a node
+     *
+     * @opensearch.internal
      */
     public static class StoreStatus implements Writeable, ToXContentFragment, Comparable<StoreStatus> {
         private final DiscoveryNode node;
@@ -231,6 +233,8 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
 
     /**
      * Single node failure while retrieving shard store information
+     *
+     * @opensearch.internal
      */
     public static class Failure extends DefaultShardOperationFailedException {
         private String nodeId;
@@ -241,13 +245,8 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         }
 
         private Failure(StreamInput in) throws IOException {
-            if (in.getVersion().before(LegacyESVersion.V_7_4_0)) {
-                nodeId = in.readString();
-            }
             readFrom(in, this);
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
-                nodeId = in.readString();
-            }
+            nodeId = in.readString();
         }
 
         public String nodeId() {
@@ -260,13 +259,8 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().before(LegacyESVersion.V_7_4_0)) {
-                out.writeString(nodeId);
-            }
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
-                out.writeString(nodeId);
-            }
+            out.writeString(nodeId);
         }
 
         @Override
@@ -276,24 +270,21 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         }
     }
 
-    private final ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> storeStatuses;
+    private final Map<String, ImmutableOpenIntMap<List<StoreStatus>>> storeStatuses;
     private final List<Failure> failures;
 
-    public IndicesShardStoresResponse(
-        ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> storeStatuses,
-        List<Failure> failures
-    ) {
-        this.storeStatuses = storeStatuses;
+    public IndicesShardStoresResponse(final Map<String, ImmutableOpenIntMap<List<StoreStatus>>> storeStatuses, List<Failure> failures) {
+        this.storeStatuses = Collections.unmodifiableMap(storeStatuses);
         this.failures = failures;
     }
 
     IndicesShardStoresResponse() {
-        this(ImmutableOpenMap.of(), Collections.emptyList());
+        this(Map.of(), Collections.emptyList());
     }
 
     public IndicesShardStoresResponse(StreamInput in) throws IOException {
         super(in);
-        storeStatuses = in.readImmutableMap(StreamInput::readString, i -> {
+        storeStatuses = in.readMap(StreamInput::readString, i -> {
             int indexEntries = i.readVInt();
             ImmutableOpenIntMap.Builder<List<StoreStatus>> shardEntries = ImmutableOpenIntMap.builder();
             for (int shardCount = 0; shardCount < indexEntries; shardCount++) {
@@ -308,7 +299,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
      * Returns {@link StoreStatus}s
      * grouped by their index names and shard ids.
      */
-    public ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> getStoreStatuses() {
+    public Map<String, ImmutableOpenIntMap<List<StoreStatus>>> getStoreStatuses() {
         return storeStatuses;
     }
 
@@ -343,11 +334,11 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         }
 
         builder.startObject(Fields.INDICES);
-        for (ObjectObjectCursor<String, ImmutableOpenIntMap<List<StoreStatus>>> indexShards : storeStatuses) {
-            builder.startObject(indexShards.key);
+        for (final Map.Entry<String, ImmutableOpenIntMap<List<StoreStatus>>> indexShards : storeStatuses.entrySet()) {
+            builder.startObject(indexShards.getKey());
 
             builder.startObject(Fields.SHARDS);
-            for (IntObjectCursor<List<StoreStatus>> shardStatusesEntry : indexShards.value) {
+            for (IntObjectCursor<List<StoreStatus>> shardStatusesEntry : indexShards.getValue()) {
                 builder.startObject(String.valueOf(shardStatusesEntry.key));
                 builder.startArray(Fields.STORES);
                 for (StoreStatus storeStatus : shardStatusesEntry.value) {
@@ -367,6 +358,11 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         return builder;
     }
 
+    /**
+     * Fields for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String INDICES = "indices";
         static final String SHARDS = "shards";

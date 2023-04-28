@@ -36,15 +36,14 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.LegacyESVersion;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.ConstantFieldType;
 import org.opensearch.index.query.support.QueryParsers;
@@ -54,6 +53,8 @@ import java.util.Objects;
 
 /**
  * A Query that matches documents containing terms with a specified prefix.
+ *
+ * @opensearch.internal
  */
 public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "prefix";
@@ -96,9 +97,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         fieldName = in.readString();
         value = in.readString();
         rewrite = in.readOptionalString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            caseInsensitive = in.readBoolean();
-        }
+        caseInsensitive = in.readBoolean();
     }
 
     @Override
@@ -106,9 +105,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         out.writeString(fieldName);
         out.writeString(value);
         out.writeOptionalString(rewrite);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            out.writeBoolean(caseInsensitive);
-        }
+        out.writeBoolean(caseInsensitive);
     }
 
     @Override

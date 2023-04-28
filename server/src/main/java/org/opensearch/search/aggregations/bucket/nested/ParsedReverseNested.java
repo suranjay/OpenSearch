@@ -31,11 +31,16 @@
 
 package org.opensearch.search.aggregations.bucket.nested;
 
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 
 import java.io.IOException;
 
+/**
+ * A reverse nested agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedReverseNested extends ParsedSingleBucketAggregation implements ReverseNested {
 
     @Override

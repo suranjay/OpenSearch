@@ -40,7 +40,6 @@ import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.TransportNodesAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.health.ClusterHealthStatus;
@@ -57,6 +56,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.node.NodeService;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.Transports;
 
@@ -64,6 +64,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Transport action for obtaining cluster state
+ *
+ * @opensearch.internal
+ */
 public class TransportClusterStatsAction extends TransportNodesAction<
     ClusterStatsRequest,
     ClusterStatsResponse,
@@ -140,7 +145,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
     @Override
     protected ClusterStatsNodeResponse nodeOperation(ClusterStatsNodeRequest nodeRequest) {
-        NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, true, false, false, false);
+        NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, true, false, false, false, false);
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,
             true,
@@ -154,6 +159,10 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             false,
             false,
             true,
+            false,
+            false,
+            false,
+            false,
             false,
             false,
             false,
@@ -192,21 +201,20 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         }
 
         ClusterHealthStatus clusterStatus = null;
-        if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
+        if (clusterService.state().nodes().isLocalNodeElectedClusterManager()) {
             clusterStatus = new ClusterStateHealth(clusterService.state()).getStatus();
         }
 
-        return new ClusterStatsNodeResponse(
-            nodeInfo.getNode(),
-            clusterStatus,
-            nodeInfo,
-            nodeStats,
-            shardsStats.toArray(new ShardStats[shardsStats.size()])
-        );
+        return new ClusterStatsNodeResponse(nodeInfo.getNode(), clusterStatus, nodeInfo, nodeStats, shardsStats.toArray(new ShardStats[0]));
 
     }
 
-    public static class ClusterStatsNodeRequest extends BaseNodeRequest {
+    /**
+     * Inner Cluster Stats Node Request
+     *
+     * @opensearch.internal
+     */
+    public static class ClusterStatsNodeRequest extends TransportRequest {
 
         ClusterStatsRequest request;
 

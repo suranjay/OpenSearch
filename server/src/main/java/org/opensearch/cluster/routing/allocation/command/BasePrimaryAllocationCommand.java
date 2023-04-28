@@ -32,16 +32,18 @@
 
 package org.opensearch.cluster.routing.allocation.command;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 /**
  * Abstract base class for allocating an unassigned primary shard to a node
+ *
+ * @opensearch.internal
  */
 public abstract class BasePrimaryAllocationCommand extends AbstractAllocateAllocationCommand {
 
@@ -83,6 +85,11 @@ public abstract class BasePrimaryAllocationCommand extends AbstractAllocateAlloc
         return acceptDataLoss;
     }
 
+    /**
+     * Base builder class for the primary allocation command.
+     *
+     * @opensearch.internal
+     */
     protected abstract static class Builder<T extends BasePrimaryAllocationCommand> extends AbstractAllocateAllocationCommand.Builder<T> {
         protected boolean acceptDataLoss;
 

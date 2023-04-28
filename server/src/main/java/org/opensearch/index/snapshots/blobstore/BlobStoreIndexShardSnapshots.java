@@ -33,10 +33,10 @@
 package org.opensearch.index.snapshots.blobstore;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParserUtils;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
@@ -55,6 +55,8 @@ import static java.util.Collections.unmodifiableMap;
  * <p>
  * This class is used to find files that were already snapshotted and clear out files that no longer referenced by any
  * snapshots.
+ *
+ * @opensearch.internal
  */
 public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, ToXContentFragment {
 
@@ -176,11 +178,21 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         return shardSnapshots.iterator();
     }
 
+    /**
+     * Fields for blob store index shard snapshot
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String FILES = "files";
         static final String SNAPSHOTS = "snapshots";
     }
 
+    /**
+     * Parse fields for blob store index shard snapshots
+     *
+     * @opensearch.internal
+     */
     static final class ParseFields {
         static final ParseField FILES = new ParseField("files");
         static final ParseField SHARD_STATE_ID = new ParseField("shard_state_id");

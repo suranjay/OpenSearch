@@ -54,7 +54,6 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterApplier;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
@@ -72,6 +71,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -290,7 +290,7 @@ public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
         assertThat("Expecting all snapshot shard size fetches to execute a Reroute", reroutes.get(), equalTo(maxShardsToCreate));
     }
 
-    public void testNoLongerMaster() throws Exception {
+    public void testNoLongerClusterManager() throws Exception {
         final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
             Settings.EMPTY,
             clusterService,
@@ -310,18 +310,18 @@ public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
             final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
             final int nbShards = randomIntBetween(1, 5);
             applyClusterState(
-                "restore-indices-when-master-" + indexName,
+                "restore-indices-when-cluster-manager-" + indexName,
                 clusterState -> addUnassignedShards(clusterState, indexName, nbShards)
             );
         }
 
-        applyClusterState("demote-current-master", this::demoteMasterNode);
+        applyClusterState("demote-current-cluster-manager", this::demoteClusterManagerNode);
 
         for (int i = 0; i < randomIntBetween(1, 10); i++) {
             final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
             final int nbShards = randomIntBetween(1, 5);
             applyClusterState(
-                "restore-indices-when-no-longer-master-" + indexName,
+                "restore-indices-when-no-longer-cluster-manager-" + indexName,
                 clusterState -> addUnassignedShards(clusterState, indexName, nbShards)
             );
         }
@@ -462,7 +462,7 @@ public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
         final RestoreInProgress.Builder restores = new RestoreInProgress.Builder(
             currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)
         );
-        final ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shards = ImmutableOpenMap.builder();
+        final Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = new HashMap<>();
         for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
             shards.put(new ShardId(index, i), new RestoreInProgress.ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId()));
         }
@@ -473,7 +473,7 @@ public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
                 recoverySource.snapshot(),
                 RestoreInProgress.State.INIT,
                 Collections.singletonList(indexName),
-                shards.build()
+                shards
             )
         );
 
@@ -484,7 +484,7 @@ public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
             .build();
     }
 
-    private ClusterState demoteMasterNode(final ClusterState currentState) {
+    private ClusterState demoteClusterManagerNode(final ClusterState currentState) {
         final DiscoveryNode node = new DiscoveryNode(
             "other",
             OpenSearchTestCase.buildNewFakeTransportAddress(),
@@ -495,7 +495,7 @@ public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
         assertThat(currentState.nodes().get(node.getId()), nullValue());
 
         return ClusterState.builder(currentState)
-            .nodes(DiscoveryNodes.builder(currentState.nodes()).add(node).masterNodeId(node.getId()))
+            .nodes(DiscoveryNodes.builder(currentState.nodes()).add(node).clusterManagerNodeId(node.getId()))
             .build();
     }
 

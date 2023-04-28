@@ -34,14 +34,13 @@ package org.opensearch.action.admin.indices.get;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.info.TransportClusterInfoAction;
+import org.opensearch.action.support.clustermanager.info.TransportClusterInfoAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -52,12 +51,17 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Spliterators;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 /**
  * Get index action.
+ *
+ * @opensearch.internal
  */
 public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndexRequest, GetIndexResponse> {
 
@@ -96,22 +100,20 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
     }
 
     @Override
-    protected void doMasterOperation(
+    protected void doClusterManagerOperation(
         final GetIndexRequest request,
         String[] concreteIndices,
         final ClusterState state,
         final ActionListener<GetIndexResponse> listener
     ) {
-        ImmutableOpenMap<String, MappingMetadata> mappingsResult = ImmutableOpenMap.of();
-        ImmutableOpenMap<String, List<AliasMetadata>> aliasesResult = ImmutableOpenMap.of();
-        ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
-        ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
-        ImmutableOpenMap<String, String> dataStreams = ImmutableOpenMap.<String, String>builder()
-            .putAll(
-                StreamSupport.stream(state.metadata().findDataStreams(concreteIndices).spliterator(), false)
-                    .collect(Collectors.toMap(k -> k.key, v -> v.value.getName()))
-            )
-            .build();
+        Map<String, MappingMetadata> mappingsResult = Map.of();
+        Map<String, List<AliasMetadata>> aliasesResult = Map.of();
+        Map<String, Settings> settings = Map.of();
+        Map<String, Settings> defaultSettings = Map.of();
+        final Map<String, String> dataStreams = new HashMap<>(
+            StreamSupport.stream(Spliterators.spliterator(state.metadata().findDataStreams(concreteIndices).entrySet(), 0), false)
+                .collect(Collectors.toMap(k -> k.getKey(), v -> v.getValue().getName()))
+        );
         GetIndexRequest.Feature[] features = request.features();
         boolean doneAliases = false;
         boolean doneMappings = false;
@@ -130,15 +132,15 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                     }
                     break;
                 case ALIASES:
-                    if (!doneAliases) {
+                    if (doneAliases == false) {
                         aliasesResult = state.metadata().findAllAliases(concreteIndices);
                         doneAliases = true;
                     }
                     break;
                 case SETTINGS:
                     if (!doneSettings) {
-                        ImmutableOpenMap.Builder<String, Settings> settingsMapBuilder = ImmutableOpenMap.builder();
-                        ImmutableOpenMap.Builder<String, Settings> defaultSettingsMapBuilder = ImmutableOpenMap.builder();
+                        final Map<String, Settings> settingsMapBuilder = new HashMap<>();
+                        final Map<String, Settings> defaultSettingsMapBuilder = new HashMap<>();
                         for (String index : concreteIndices) {
                             Settings indexSettings = state.metadata().index(index).getSettings();
                             if (request.humanReadable()) {
@@ -152,8 +154,8 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                                 defaultSettingsMapBuilder.put(index, defaultIndexSettings);
                             }
                         }
-                        settings = settingsMapBuilder.build();
-                        defaultSettings = defaultSettingsMapBuilder.build();
+                        settings = settingsMapBuilder;
+                        defaultSettings = defaultSettingsMapBuilder;
                         doneSettings = true;
                     }
                     break;

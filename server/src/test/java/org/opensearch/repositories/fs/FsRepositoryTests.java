@@ -60,7 +60,7 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardId;
@@ -68,6 +68,7 @@ import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.snapshots.Snapshot;
@@ -103,6 +104,7 @@ public class FsRepositoryTests extends OpenSearchTestCase {
                 .put("location", repo)
                 .put("compress", randomBoolean())
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                .put(FsRepository.BASE_PATH_SETTING.getKey(), "my_base_path")
                 .build();
 
             int numDocs = indexDocs(directory);
@@ -203,12 +205,12 @@ public class FsRepositoryTests extends OpenSearchTestCase {
             futureC.actionGet();
             assertEquals(secondState.getIndex().reusedFileCount(), commitFileNames.size() - 2);
             assertEquals(secondState.getIndex().recoveredFileCount(), 2);
-            List<RecoveryState.FileDetail> recoveredFiles = secondState.getIndex()
+            List<ReplicationLuceneIndex.FileMetadata> recoveredFiles = secondState.getIndex()
                 .fileDetails()
                 .stream()
                 .filter(f -> f.reused() == false)
                 .collect(Collectors.toList());
-            Collections.sort(recoveredFiles, Comparator.comparing(RecoveryState.FileDetail::name));
+            Collections.sort(recoveredFiles, Comparator.comparing(ReplicationLuceneIndex.FileMetadata::name));
             assertTrue(recoveredFiles.get(0).name(), recoveredFiles.get(0).name().endsWith(".liv"));
             assertTrue(recoveredFiles.get(1).name(), recoveredFiles.get(1).name().endsWith("segments_" + incIndexCommit.getGeneration()));
         } finally {

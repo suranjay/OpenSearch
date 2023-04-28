@@ -37,7 +37,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.painless.Compiler.Loader;
 import org.opensearch.painless.lookup.PainlessLookup;
 import org.opensearch.painless.lookup.PainlessLookupBuilder;
-import org.opensearch.painless.spi.Whitelist;
+import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.painless.symbol.ScriptScope;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
@@ -101,16 +101,16 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * Constructor.
      * @param settings The settings to initialize the engine with.
      */
-    public PainlessScriptEngine(Settings settings, Map<ScriptContext<?>, List<Whitelist>> contexts) {
+    public PainlessScriptEngine(Settings settings, Map<ScriptContext<?>, List<Allowlist>> contexts) {
         defaultCompilerSettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(settings));
         defaultCompilerSettings.setRegexLimitFactor(CompilerSettings.REGEX_LIMIT_FACTOR.get(settings));
 
         Map<ScriptContext<?>, Compiler> contextsToCompilers = new HashMap<>();
         Map<ScriptContext<?>, PainlessLookup> contextsToLookups = new HashMap<>();
 
-        for (Map.Entry<ScriptContext<?>, List<Whitelist>> entry : contexts.entrySet()) {
+        for (Map.Entry<ScriptContext<?>, List<Allowlist>> entry : contexts.entrySet()) {
             ScriptContext<?> context = entry.getKey();
-            PainlessLookup lookup = PainlessLookupBuilder.buildFromWhitelists(entry.getValue());
+            PainlessLookup lookup = PainlessLookupBuilder.buildFromAllowlists(entry.getValue());
             contextsToCompilers.put(
                 context,
                 new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz, lookup)
@@ -195,11 +195,12 @@ public final class PainlessScriptEngine implements ScriptEngine {
             }
         }
 
-        for (int count = 0; count < newFactory.getParameterTypes().length; ++count) {
+        final Class<?>[] parameterTypes = newFactory.getParameterTypes();
+        for (int count = 0; count < parameterTypes.length; ++count) {
             writer.visitField(
                 Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL,
                 "$arg" + count,
-                Type.getType(newFactory.getParameterTypes()[count]).getDescriptor(),
+                Type.getType(parameterTypes[count]).getDescriptor(),
                 null,
                 null
             ).visitEnd();
@@ -211,7 +212,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         );
         org.objectweb.asm.commons.Method init = new org.objectweb.asm.commons.Method(
             "<init>",
-            MethodType.methodType(void.class, newFactory.getParameterTypes()).toMethodDescriptorString()
+            MethodType.methodType(void.class, parameterTypes).toMethodDescriptorString()
         );
 
         GeneratorAdapter constructor = new GeneratorAdapter(
@@ -223,10 +224,10 @@ public final class PainlessScriptEngine implements ScriptEngine {
         constructor.loadThis();
         constructor.invokeConstructor(OBJECT_TYPE, base);
 
-        for (int count = 0; count < newFactory.getParameterTypes().length; ++count) {
+        for (int count = 0; count < parameterTypes.length; ++count) {
             constructor.loadThis();
             constructor.loadArg(count);
-            constructor.putField(Type.getType("L" + className + ";"), "$arg" + count, Type.getType(newFactory.getParameterTypes()[count]));
+            constructor.putField(Type.getType("L" + className + ";"), "$arg" + count, Type.getType(parameterTypes[count]));
         }
 
         constructor.returnValue();
@@ -247,7 +248,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
             MethodType.methodType(newInstance.getReturnType(), newInstance.getParameterTypes()).toMethodDescriptorString()
         );
 
-        List<Class<?>> parameters = new ArrayList<>(Arrays.asList(newFactory.getParameterTypes()));
+        List<Class<?>> parameters = new ArrayList<>(Arrays.asList(parameterTypes));
         parameters.addAll(Arrays.asList(newInstance.getParameterTypes()));
 
         org.objectweb.asm.commons.Method constru = new org.objectweb.asm.commons.Method(
@@ -264,9 +265,9 @@ public final class PainlessScriptEngine implements ScriptEngine {
         adapter.newInstance(WriterConstants.CLASS_TYPE);
         adapter.dup();
 
-        for (int count = 0; count < newFactory.getParameterTypes().length; ++count) {
+        for (int count = 0; count < parameterTypes.length; ++count) {
             adapter.loadThis();
-            adapter.getField(Type.getType("L" + className + ";"), "$arg" + count, Type.getType(newFactory.getParameterTypes()[count]));
+            adapter.getField(Type.getType("L" + className + ";"), "$arg" + count, Type.getType(parameterTypes[count]));
         }
 
         adapter.loadArgs();
@@ -334,13 +335,14 @@ public final class PainlessScriptEngine implements ScriptEngine {
             }
         }
 
+        final Class<?>[] parameterTypes = reflect.getParameterTypes();
         org.objectweb.asm.commons.Method instance = new org.objectweb.asm.commons.Method(
             reflect.getName(),
-            MethodType.methodType(reflect.getReturnType(), reflect.getParameterTypes()).toMethodDescriptorString()
+            MethodType.methodType(reflect.getReturnType(), parameterTypes).toMethodDescriptorString()
         );
         org.objectweb.asm.commons.Method constru = new org.objectweb.asm.commons.Method(
             "<init>",
-            MethodType.methodType(void.class, reflect.getParameterTypes()).toMethodDescriptorString()
+            MethodType.methodType(void.class, parameterTypes).toMethodDescriptorString()
         );
 
         GeneratorAdapter adapter = new GeneratorAdapter(
@@ -421,9 +423,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
     private void writeNeedsMethods(Class<?> clazz, ClassWriter writer, Set<String> extractedVariables) {
         for (Method method : clazz.getMethods()) {
-            if (method.getName().startsWith("needs")
-                && method.getReturnType().equals(boolean.class)
-                && method.getParameterTypes().length == 0) {
+            if (method.getName().startsWith("needs") && method.getReturnType().equals(boolean.class) && method.getParameterCount() == 0) {
                 String name = method.getName();
                 name = name.substring(5);
                 name = Character.toLowerCase(name.charAt(0)) + name.substring(1);

@@ -54,9 +54,9 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.NodeMetadata;
@@ -70,6 +70,11 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Main set of node commands
+ *
+ * @opensearch.internal
+ */
 public abstract class OpenSearchNodeCommand extends EnvironmentAwareCommand {
     private static final Logger logger = LogManager.getLogger(OpenSearchNodeCommand.class);
     protected static final String DELIMITER = "------------------------------------------------------------------------\n";
@@ -225,6 +230,11 @@ public abstract class OpenSearchNodeCommand extends EnvironmentAwareCommand {
         return parser;
     }
 
+    /**
+     * Custom unknown metadata.
+     *
+     * @opensearch.internal
+     */
     public static class UnknownMetadataCustom implements Metadata.Custom {
 
         private final String name;
@@ -269,6 +279,11 @@ public abstract class OpenSearchNodeCommand extends EnvironmentAwareCommand {
         }
     }
 
+    /**
+     * An unknown condition.
+     *
+     * @opensearch.internal
+     */
     public static class UnknownCondition extends Condition<Object> {
 
         public UnknownCondition(String name, Object value) {

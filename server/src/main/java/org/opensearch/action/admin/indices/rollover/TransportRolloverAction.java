@@ -40,7 +40,7 @@ import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActiveShardsObserver;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
@@ -49,6 +49,8 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
@@ -69,12 +71,15 @@ import java.util.stream.Collectors;
 
 /**
  * Main class to swap the index pointed to by an alias, given some conditions
+ *
+ * @opensearch.internal
  */
-public class TransportRolloverAction extends TransportMasterNodeAction<RolloverRequest, RolloverResponse> {
+public class TransportRolloverAction extends TransportClusterManagerNodeAction<RolloverRequest, RolloverResponse> {
 
     private final MetadataRolloverService rolloverService;
     private final ActiveShardsObserver activeShardsObserver;
     private final Client client;
+    private final ClusterManagerTaskThrottler.ThrottlingKey rolloverIndexTaskKey;
 
     @Inject
     public TransportRolloverAction(
@@ -98,6 +103,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         this.rolloverService = rolloverService;
         this.client = client;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        rolloverIndexTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.ROLLOVER_INDEX_KEY, true);
     }
 
     @Override
@@ -128,13 +135,13 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     }
 
     @Override
-    protected void masterOperation(RolloverRequest request, ClusterState state, ActionListener<RolloverResponse> listener)
+    protected void clusterManagerOperation(RolloverRequest request, ClusterState state, ActionListener<RolloverResponse> listener)
         throws Exception {
         throw new UnsupportedOperationException("The task parameter is required");
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         Task task,
         final RolloverRequest rolloverRequest,
         final ClusterState state,
@@ -203,6 +210,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                             }
 
                             @Override
+                            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                                return rolloverIndexTaskKey;
+                            }
+
+                            @Override
                             public void onFailure(String source, Exception e) {
                                 listener.onFailure(e);
                             }
@@ -213,7 +225,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                     activeShardsObserver.waitForActiveShards(
                                         new String[] { rolloverIndexName },
                                         rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
-                                        rolloverRequest.masterNodeTimeout(),
+                                        rolloverRequest.clusterManagerNodeTimeout(),
                                         isShardsAcknowledged -> listener.onResponse(
                                             new RolloverResponse(
                                                 sourceIndexName,

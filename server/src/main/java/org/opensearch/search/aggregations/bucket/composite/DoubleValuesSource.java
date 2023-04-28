@@ -50,6 +50,8 @@ import java.io.IOException;
 
 /**
  * A {@link SingleDimensionValuesSource} for doubles.
+ *
+ * @opensearch.internal
  */
 class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     private final CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesFunc;
@@ -150,11 +152,9 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
         } else if (value instanceof Number) {
             afterValue = ((Number) value).doubleValue();
         } else {
-            afterValue = format.parseDouble(
-                value.toString(),
-                false,
-                () -> { throw new IllegalArgumentException("now() is not supported in [after] key"); }
-            );
+            afterValue = format.parseDouble(value.toString(), false, () -> {
+                throw new IllegalArgumentException("now() is not supported in [after] key");
+            });
         }
     }
 

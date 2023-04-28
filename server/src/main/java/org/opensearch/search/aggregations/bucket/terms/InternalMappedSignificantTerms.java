@@ -34,7 +34,7 @@ package org.opensearch.search.aggregations.bucket.terms;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 
@@ -46,6 +46,11 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * Implementation of mapped significant terms
+ *
+ * @opensearch.internal
+ */
 public abstract class InternalMappedSignificantTerms<
     A extends InternalMappedSignificantTerms<A, B>,
     B extends InternalSignificantTerms.Bucket<B>> extends InternalSignificantTerms<A, B> {

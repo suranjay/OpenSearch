@@ -37,8 +37,10 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.geometry.Geometry;
 import org.opensearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.opensearch.index.fielddata.AbstractSortedSetDocValues;
+import org.opensearch.index.fielddata.GeoShapeValue;
 import org.opensearch.index.fielddata.MultiGeoPointValues;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
@@ -49,6 +51,8 @@ import java.util.function.LongUnaryOperator;
 /**
  * Utility class that allows to return views of {@link ValuesSource}s that
  * replace the missing value with a configured value.
+ *
+ * @opensearch.internal
  */
 public enum MissingValues {
     ;
@@ -309,6 +313,11 @@ public enum MissingValues {
             }
 
             @Override
+            public int docValueCount() {
+                return values.docValueCount();
+            }
+
+            @Override
             public String toString() {
                 return "anon AbstractSortedDocValues of [" + super.toString() + "]";
             }
@@ -336,6 +345,11 @@ public enum MissingValues {
             @Override
             public long getValueCount() {
                 return 1 + values.getValueCount();
+            }
+
+            @Override
+            public int docValueCount() {
+                return values.docValueCount();
             }
 
             @Override
@@ -469,6 +483,28 @@ public enum MissingValues {
             @Override
             public String toString() {
                 return "anon MultiGeoPointValues of [" + super.toString() + "]";
+            }
+        };
+    }
+
+    /**
+     * Replace the missing value provided in the param while iterating over a ValuesSource which doesn't have the
+     * value for the field.
+     *
+     * @param missing Value to be returned if doc doesn't contain the data for the field.
+     * @return {@link ValuesSource.GeoShape}
+     */
+    public static ValuesSource.GeoShape replaceMissing(final ValuesSource.GeoShape valuesSource, final Geometry missing) {
+        return new ValuesSource.GeoShape() {
+            @Override
+            public GeoShapeValue getGeoShapeValues(LeafReaderContext context) {
+                final GeoShapeValue currentValueSourceValue = valuesSource.getGeoShapeValues(context);
+                return new GeoShapeValue.MissingGeoShapeValue(currentValueSourceValue, missing);
+            }
+
+            @Override
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                return replaceMissing(valuesSource.bytesValues(context), new BytesRef(missing.toString()));
             }
         };
     }

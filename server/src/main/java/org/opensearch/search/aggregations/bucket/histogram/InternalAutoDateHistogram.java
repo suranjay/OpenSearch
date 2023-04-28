@@ -35,7 +35,7 @@ import org.apache.lucene.util.PriorityQueue;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -59,11 +59,18 @@ import java.util.Objects;
 
 /**
  * Implementation of {@link Histogram}.
+ *
+ * @opensearch.internal
  */
 public final class InternalAutoDateHistogram extends InternalMultiBucketAggregation<
     InternalAutoDateHistogram,
     InternalAutoDateHistogram.Bucket> implements Histogram, HistogramFactory {
 
+    /**
+     * Bucket for the internal auto date histogram agg
+     *
+     * @opensearch.internal
+     */
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Histogram.Bucket, KeyComparable<Bucket> {
 
         final long key;
@@ -155,6 +162,11 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         }
     }
 
+    /**
+     * Information about the bucket
+     *
+     * @opensearch.internal
+     */
     static class BucketInfo {
 
         final RoundingInfo[] roundingInfos;
@@ -420,6 +432,11 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         return new InternalAutoDateHistogram.Bucket(buckets.get(0).key, docCount, format, aggs);
     }
 
+    /**
+     * The result from a bucket reduce
+     *
+     * @opensearch.internal
+     */
     private static class BucketReduceResult {
         final List<Bucket> buckets;
         final int roundingIdx;
@@ -465,10 +482,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
 
         Bucket lastBucket = null;
         ListIterator<Bucket> iter = list.listIterator();
-        InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(
-            org.opensearch.common.collect.List.of(bucketInfo.emptySubAggregations),
-            reduceContext
-        );
+        InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(List.of(bucketInfo.emptySubAggregations), reduceContext);
 
         // Add the empty buckets within the data,
         // e.g. if the data series is [1,2,3,7] there're 3 empty buckets that will be created for 4,5,6

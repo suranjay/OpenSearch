@@ -33,7 +33,7 @@ package org.opensearch.search.aggregations.bucket.range;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -49,11 +49,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of range bucket
+ *
+ * @opensearch.internal
+ */
 public class InternalRange<B extends InternalRange.Bucket, R extends InternalRange<B, R>> extends InternalMultiBucketAggregation<R, B>
     implements
         Range {
     static final Factory FACTORY = new Factory();
 
+    /**
+     * Bucket for a range
+     *
+     * @opensearch.internal
+     */
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
 
         protected final transient boolean keyed;
@@ -206,6 +216,11 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         }
     }
 
+    /**
+     * Factory for a range
+     *
+     * @opensearch.internal
+     */
     public static class Factory<B extends Bucket, R extends InternalRange<B, R>> {
         public ValuesSourceType getValueSourceType() {
             return CoreValuesSourceType.NUMERIC;

@@ -51,15 +51,15 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.util.concurrent.CountDown;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterAware;
@@ -79,6 +79,11 @@ import java.util.Spliterators;
 import java.util.TreeMap;
 import java.util.stream.StreamSupport;
 
+/**
+ * Transport action to resolve an index.
+ *
+ * @opensearch.internal
+ */
 public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> {
 
     public static final ResolveIndexAction INSTANCE = new ResolveIndexAction();
@@ -88,6 +93,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         super(NAME, Response::new);
     }
 
+    /**
+     * Request for resolving an index
+     *
+     * @opensearch.internal
+     */
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
 
         public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
@@ -157,6 +167,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
     }
 
+    /**
+     * Abstraction class for resolving an index
+     *
+     * @opensearch.internal
+     */
     public static class ResolvedIndexAbstraction {
 
         static final ParseField NAME_FIELD = new ParseField("name");
@@ -178,6 +193,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
     }
 
+    /**
+     * The resolved index
+     *
+     * @opensearch.internal
+     */
     public static class ResolvedIndex extends ResolvedIndexAbstraction implements Writeable, ToXContentObject {
 
         static final ParseField ALIASES_FIELD = new ParseField("aliases");
@@ -261,6 +281,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
     }
 
+    /**
+     * The resolved index alias
+     *
+     * @opensearch.internal
+     */
     public static class ResolvedAlias extends ResolvedIndexAbstraction implements Writeable, ToXContentObject {
 
         static final ParseField INDICES_FIELD = new ParseField("indices");
@@ -318,6 +343,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
     }
 
+    /**
+     * The resolved data stream
+     *
+     * @opensearch.internal
+     */
     public static class ResolvedDataStream extends ResolvedIndexAbstraction implements Writeable, ToXContentObject {
 
         static final ParseField BACKING_INDICES_FIELD = new ParseField("backing_indices");
@@ -385,6 +415,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
     }
 
+    /**
+     * Response for resolving an index
+     *
+     * @opensearch.internal
+     */
     public static class Response extends ActionResponse implements ToXContentObject {
 
         static final ParseField INDICES_FIELD = new ParseField("indices");
@@ -450,6 +485,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
     }
 
+    /**
+     * Transport action for resolving an index
+     *
+     * @opensearch.internal
+     */
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
         private final ThreadPool threadPool;
@@ -595,7 +635,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         IndexAbstraction.Index index = (IndexAbstraction.Index) ia;
 
                         String[] aliasNames = StreamSupport.stream(
-                            Spliterators.spliteratorUnknownSize(index.getWriteIndex().getAliases().keysIt(), 0),
+                            Spliterators.spliteratorUnknownSize(index.getWriteIndex().getAliases().keySet().iterator(), 0),
                             false
                         ).toArray(String[]::new);
                         Arrays.sort(aliasNames);

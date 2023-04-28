@@ -46,7 +46,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.discovery.PeerFinder.TransportAddressConnector;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.ConnectionProfile;
@@ -57,6 +57,11 @@ import org.opensearch.transport.TransportService;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
+/**
+ * Connector for transport handshake
+ *
+ * @opensearch.internal
+ */
 public class HandshakingTransportAddressConnector implements TransportAddressConnector {
 
     private static final Logger logger = LogManager.getLogger(HandshakingTransportAddressConnector.class);
@@ -136,7 +141,7 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
 
                                         if (remoteNode.equals(transportService.getLocalNode())) {
                                             listener.onFailure(new ConnectTransportException(remoteNode, "local node found"));
-                                        } else if (remoteNode.isMasterNode() == false) {
+                                        } else if (remoteNode.isClusterManagerNode() == false) {
                                             listener.onFailure(
                                                 new ConnectTransportException(remoteNode, "non-cluster-manager-eligible node found")
                                             );

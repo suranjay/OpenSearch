@@ -33,7 +33,7 @@
 package org.opensearch.search.aggregations.bucket.range;
 
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregationBuilder;
@@ -47,6 +47,11 @@ import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Builder for range agg
+ *
+ * @opensearch.internal
+ */
 public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregationBuilder, Range> {
     public static final String NAME = "range";
     public static final ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(

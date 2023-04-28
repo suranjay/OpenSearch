@@ -32,9 +32,8 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
@@ -59,6 +58,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
+/**
+ * Aggregation Factory for significant_terms agg
+ *
+ * @opensearch.internal
+ */
 public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SignificantTermsAggregatorFactory.class);
 
@@ -307,6 +311,11 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         );
     }
 
+    /**
+     * The execution mode for the significant terms agg
+     *
+     * @opensearch.internal
+     */
     public enum ExecutionMode {
 
         MAP(new ParseField("map")) {
@@ -326,10 +335,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 CardinalityUpperBound cardinality,
                 Map<String, Object> metadata
             ) throws IOException {
-                IndexSettings indexSettings = aggregationContext.getQueryShardContext().getIndexSettings();
+                int maxRegexLength = aggregationContext.getQueryShardContext().getIndexSettings().getMaxRegexLength();
                 final IncludeExclude.StringFilter filter = includeExclude == null
                     ? null
-                    : includeExclude.convertToStringFilter(format, indexSettings);
+                    : includeExclude.convertToStringFilter(format, maxRegexLength);
                 return new MapStringTermsAggregator(
                     name,
                     factories,
@@ -367,10 +376,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 CardinalityUpperBound cardinality,
                 Map<String, Object> metadata
             ) throws IOException {
-                IndexSettings indexSettings = aggregationContext.getQueryShardContext().getIndexSettings();
+                int maxRegexLength = aggregationContext.getQueryShardContext().getIndexSettings().getMaxRegexLength();
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null
                     ? null
-                    : includeExclude.convertToOrdinalsFilter(format, indexSettings);
+                    : includeExclude.convertToOrdinalsFilter(format, maxRegexLength);
                 boolean remapGlobalOrd = true;
                 if (cardinality == CardinalityUpperBound.ONE && factories == AggregatorFactories.EMPTY && includeExclude == null) {
                     /*

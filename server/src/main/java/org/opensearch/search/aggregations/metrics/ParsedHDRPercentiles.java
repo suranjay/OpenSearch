@@ -32,11 +32,16 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 
+/**
+ * An HDR percentiles agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedHDRPercentiles extends ParsedPercentiles implements Percentiles {
 
     @Override

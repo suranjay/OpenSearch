@@ -32,20 +32,22 @@
 
 package org.opensearch.action.admin.cluster.snapshots.status;
 
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
 
-import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Status of a snapshot shards
+ *
+ * @opensearch.internal
  */
 public class SnapshotShardsStats implements ToXContentObject {
 
@@ -139,6 +141,11 @@ public class SnapshotShardsStats implements ToXContentObject {
         return totalShards;
     }
 
+    /**
+     * Inner Fields used for creating XContent and parsing
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String SHARDS_STATS = "shards_stats";
         static final String INITIALIZING = "initializing";

@@ -33,7 +33,6 @@
 package org.opensearch.action.delete;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.CompositeIndicesRequest;
@@ -64,6 +63,8 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * @see DeleteResponse
  * @see org.opensearch.client.Client#delete(DeleteRequest)
  * @see org.opensearch.client.Requests#deleteRequest(String)
+ *
+ * @opensearch.internal
  */
 public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     implements
@@ -94,9 +95,6 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         }
         id = in.readString();
         routing = in.readOptionalString();
-        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            in.readOptionalString(); // _parent
-        }
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
         ifSeqNo = in.readZLong();
@@ -278,9 +276,6 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         }
         out.writeString(id);
         out.writeOptionalString(routing());
-        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            out.writeOptionalString(null); // _parent
-        }
         out.writeLong(version);
         out.writeByte(versionType.getValue());
         out.writeZLong(ifSeqNo);

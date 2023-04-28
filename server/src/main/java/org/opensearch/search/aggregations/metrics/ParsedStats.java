@@ -32,11 +32,11 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.ObjectParser.ValueType;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ObjectParser.ValueType;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.aggregations.ParsedAggregation;
 import org.opensearch.search.aggregations.metrics.InternalStats.Fields;
 
@@ -44,6 +44,11 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * A stats agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedStats extends ParsedAggregation implements Stats {
 
     protected long count;

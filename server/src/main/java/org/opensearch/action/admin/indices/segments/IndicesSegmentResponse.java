@@ -36,18 +36,15 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
-import org.apache.lucene.util.Accountable;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.engine.Segment;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -55,6 +52,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Transport response for retrieving indices segment information
+ *
+ * @opensearch.internal
+ */
 public class IndicesSegmentResponse extends BroadcastResponse {
 
     private final ShardSegments[] shards;
@@ -95,7 +97,7 @@ public class IndicesSegmentResponse extends BroadcastResponse {
                     shards.add(shard);
                 }
             }
-            indicesSegments.put(indexName, new IndexSegments(indexName, shards.toArray(new ShardSegments[shards.size()])));
+            indicesSegments.put(indexName, new IndexSegments(indexName, shards.toArray(new ShardSegments[0])));
         }
         this.indicesSegments = indicesSegments;
         return indicesSegments;
@@ -192,21 +194,11 @@ public class IndicesSegmentResponse extends BroadcastResponse {
         builder.endArray();
     }
 
-    private static void toXContent(XContentBuilder builder, Accountable tree) throws IOException {
-        builder.startObject();
-        builder.field(Fields.DESCRIPTION, tree.toString());
-        builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(tree.ramBytesUsed()));
-        Collection<Accountable> children = tree.getChildResources();
-        if (children.isEmpty() == false) {
-            builder.startArray(Fields.CHILDREN);
-            for (Accountable child : children) {
-                toXContent(builder, child);
-            }
-            builder.endArray();
-        }
-        builder.endObject();
-    }
-
+    /**
+     * Fields for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String INDICES = "indices";
         static final String SHARDS = "shards";

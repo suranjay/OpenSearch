@@ -33,10 +33,9 @@
 package org.opensearch.cluster.routing;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
-import org.opensearch.Assertions;
+import org.opensearch.core.Assertions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -77,6 +76,8 @@ import java.util.function.Predicate;
  * <li> {@link #relocateShard} starts relocation of a started shard.
  * <li> {@link #failShard} fails/cancels an assigned shard.
  * </ul>
+ *
+ * @opensearch.internal
  */
 public class RoutingNodes implements Iterable<RoutingNode> {
 
@@ -108,15 +109,15 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         final RoutingTable routingTable = clusterState.routingTable();
 
         // fill in the nodeToShards with the "live" nodes
-        for (ObjectCursor<DiscoveryNode> cursor : clusterState.nodes().getDataNodes().values()) {
-            String nodeId = cursor.value.getId();
-            this.nodesToShards.put(cursor.value.getId(), new RoutingNode(nodeId, clusterState.nodes().get(nodeId)));
+        for (final DiscoveryNode cursor : clusterState.nodes().getDataNodes().values()) {
+            String nodeId = cursor.getId();
+            this.nodesToShards.put(cursor.getId(), new RoutingNode(nodeId, clusterState.nodes().get(nodeId)));
         }
 
         // fill in the inverse of node -> shards allocated
         // also fill replicaSet information
-        for (ObjectCursor<IndexRoutingTable> indexRoutingTable : routingTable.indicesRouting().values()) {
-            for (IndexShardRoutingTable indexShard : indexRoutingTable.value) {
+        for (final IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
+            for (IndexShardRoutingTable indexShard : indexRoutingTable) {
                 assert indexShard.primary != null;
                 for (ShardRouting shard : indexShard) {
                     // to get all the shards belonging to an index, including the replicas,
@@ -700,6 +701,23 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             + " was matched but wasn't removed";
     }
 
+    public void swapPrimaryWithReplica(
+        Logger logger,
+        ShardRouting primaryShard,
+        ShardRouting replicaShard,
+        RoutingChangesObserver changes
+    ) {
+        assert primaryShard.primary() : "Invalid primary shard provided";
+        assert !replicaShard.primary() : "Invalid Replica shard provided";
+
+        ShardRouting newPrimary = primaryShard.moveActivePrimaryToReplica();
+        ShardRouting newReplica = replicaShard.moveActiveReplicaToPrimary();
+        updateAssigned(primaryShard, newPrimary);
+        updateAssigned(replicaShard, newReplica);
+        logger.info("Swap relocation performed for shard [{}]", newPrimary.shortSummary());
+        changes.replicaPromoted(newPrimary);
+    }
+
     private void unassignPrimaryAndPromoteActiveReplicaIfExists(
         ShardRouting failedShard,
         UnassignedInfo unassignedInfo,
@@ -891,6 +909,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return nodesToShards.size();
     }
 
+    /**
+     * Unassigned shard list.
+     *
+     * @opensearch.internal
+     */
     public static final class UnassignedShards implements Iterable<ShardRouting> {
 
         private final RoutingNodes nodes;
@@ -987,6 +1010,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             ignored.add(shard);
         }
 
+        /**
+         * An unassigned iterator.
+         *
+         * @opensearch.internal
+         */
         public class UnassignedIterator implements Iterator<ShardRouting>, ExistingShardsAllocator.UnassignedAllocationHandler {
 
             private final ListIterator<ShardRouting> iterator;
@@ -1110,9 +1138,21 @@ public class RoutingNodes implements Iterable<RoutingNode> {
          */
         public ShardRouting[] drain() {
             nodes.ensureMutable();
-            ShardRouting[] mutableShardRoutings = unassigned.toArray(new ShardRouting[unassigned.size()]);
+            ShardRouting[] mutableShardRoutings = unassigned.toArray(new ShardRouting[0]);
             unassigned.clear();
             primaries = 0;
+            return mutableShardRoutings;
+        }
+
+        /**
+         * Drains all ignored shards and returns it.
+         * This method will not drain unassigned shards.
+         */
+        public ShardRouting[] drainIgnored() {
+            nodes.ensureMutable();
+            ShardRouting[] mutableShardRoutings = ignored.toArray(new ShardRouting[0]);
+            ignored.clear();
+            ignoredPrimaries = 0;
             return mutableShardRoutings;
         }
     }
@@ -1367,6 +1407,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
     }
 
+    /**
+     * A collection of recoveries.
+     *
+     * @opensearch.internal
+     */
     private static final class Recoveries {
         private static final Recoveries EMPTY = new Recoveries();
         private int incoming = 0;

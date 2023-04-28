@@ -47,7 +47,7 @@ import org.opensearch.common.geo.builders.PointBuilder;
 import org.opensearch.common.geo.builders.PolygonBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.logging.Loggers;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.AbstractShapeGeometryFieldMapper;
 
 import java.io.IOException;
@@ -60,6 +60,8 @@ import java.util.List;
  *
  * complies with OGC® document: 12-063r5 and ISO/IEC 13249-3:2016 standard
  * located at http://docs.opengeospatial.org/is/12-063r5/12-063r5.html
+ *
+ * @opensearch.internal
  */
 public class GeoWKTParser {
     public static final String EMPTY = "EMPTY";

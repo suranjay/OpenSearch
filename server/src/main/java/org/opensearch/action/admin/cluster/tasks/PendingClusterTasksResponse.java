@@ -36,13 +36,18 @@ import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.service.PendingClusterTask;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
+/**
+ * Transport response for getting pending cluster tasks
+ *
+ * @opensearch.internal
+ */
 public class PendingClusterTasksResponse extends ActionResponse implements Iterable<PendingClusterTask>, ToXContentObject {
 
     private final List<PendingClusterTask> pendingTasks;
@@ -108,6 +113,11 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
         return builder;
     }
 
+    /**
+     * Inner Fields used for creating XContent and parsing
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
 
         static final String TASKS = "tasks";

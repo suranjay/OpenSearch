@@ -48,6 +48,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * A utility for forwarding ingest requests to ingest nodes in a round-robin fashion.
  *
  * TODO: move this into IngestService and make index/bulk actions call that
+ *
+ * @opensearch.internal
  */
 public final class IngestActionForwarder implements ClusterStateApplier {
 
@@ -80,6 +82,6 @@ public final class IngestActionForwarder implements ClusterStateApplier {
 
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
-        ingestNodes = event.state().getNodes().getIngestNodes().values().toArray(DiscoveryNode.class);
+        ingestNodes = event.state().getNodes().getIngestNodes().values().toArray(new DiscoveryNode[0]);
     }
 }

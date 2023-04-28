@@ -52,7 +52,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.monitor.StatusInfo;
@@ -82,15 +82,16 @@ import static org.opensearch.cluster.coordination.FollowersChecker.FOLLOWER_CHEC
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
-import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ALL;
-import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_METADATA_WRITES;
-import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING;
-import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
+import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ALL;
+import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_METADATA_WRITES;
+import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING;
+import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_WRITES;
 import static org.opensearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
+import static org.opensearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_DURING_DECOMMISSION_SETTING;
 import static org.opensearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
-import static org.opensearch.test.NodeRoles.nonMasterNode;
+import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -107,7 +108,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
     /**
-     * This test was added to verify that state recovery is properly reset on a node after it has become master and successfully
+     * This test was added to verify that state recovery is properly reset on a node after it has become cluster-manager and successfully
      * recovered a state (see {@link GatewayService}). The situation which triggers this with a decent likelihood is as follows:
      * 3 cluster-manager-eligible nodes (leader, follower1, follower2), the followers are shut down (leader remains), when followers come back
      * one of them becomes leader and publishes first state (with STATE_NOT_RECOVERED_BLOCK) to old leader, which accepts it.
@@ -164,13 +165,13 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    public void testDoesNotElectNonMasterNode() {
+    public void testDoesNotElectNonClusterManagerNode() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5), false, Settings.EMPTY)) {
             cluster.runRandomly();
             cluster.stabilise();
 
             final ClusterNode leader = cluster.getAnyLeader();
-            assertTrue(leader.getLocalNode().isMasterNode());
+            assertTrue(leader.getLocalNode().isClusterManagerNode());
         }
     }
 
@@ -191,7 +192,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.clusterNodes.add(newNode1);
             cluster.clusterNodes.add(newNode2);
             cluster.stabilise(
-                // The first pinging discovers the master
+                // The first pinging discovers the cluster-manager
                 defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING)
                     // One message delay to send a join
                     + DEFAULT_DELAY_VARIABILITY
@@ -627,7 +628,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.clusterNodes.add(newNode2);
             cluster.clusterNodes.add(newNode3);
             cluster.stabilise(
-                // The first pinging discovers the master
+                // The first pinging discovers the cluster-manager
                 defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING)
                     // One message delay to send a join
                     + DEFAULT_DELAY_VARIABILITY
@@ -1096,7 +1097,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
      * does not notice the node disconnecting, it is important for the node not to be turned back into a follower but try
      * and join the leader again.
      */
-    public void testStayCandidateAfterReceivingFollowerCheckFromKnownMaster() {
+    public void testStayCandidateAfterReceivingFollowerCheckFromKnownClusterManager() {
         try (Cluster cluster = new Cluster(2, false, Settings.EMPTY)) {
             cluster.runRandomly();
             cluster.stabilise();
@@ -1121,23 +1122,23 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    public void testAppliesNoMasterBlockWritesByDefault() {
-        testAppliesNoMasterBlock(null, NO_MASTER_BLOCK_WRITES);
+    public void testAppliesNoClusterManagerBlockWritesByDefault() {
+        testAppliesNoClusterManagerBlock(null, NO_CLUSTER_MANAGER_BLOCK_WRITES);
     }
 
-    public void testAppliesNoMasterBlockWritesIfConfigured() {
-        testAppliesNoMasterBlock("write", NO_MASTER_BLOCK_WRITES);
+    public void testAppliesNoClusterManagerBlockWritesIfConfigured() {
+        testAppliesNoClusterManagerBlock("write", NO_CLUSTER_MANAGER_BLOCK_WRITES);
     }
 
-    public void testAppliesNoMasterBlockAllIfConfigured() {
-        testAppliesNoMasterBlock("all", NO_MASTER_BLOCK_ALL);
+    public void testAppliesNoClusterManagerBlockAllIfConfigured() {
+        testAppliesNoClusterManagerBlock("all", NO_CLUSTER_MANAGER_BLOCK_ALL);
     }
 
-    public void testAppliesNoMasterBlockMetadataWritesIfConfigured() {
-        testAppliesNoMasterBlock("metadata_write", NO_MASTER_BLOCK_METADATA_WRITES);
+    public void testAppliesNoClusterManagerBlockMetadataWritesIfConfigured() {
+        testAppliesNoClusterManagerBlock("metadata_write", NO_CLUSTER_MANAGER_BLOCK_METADATA_WRITES);
     }
 
-    private void testAppliesNoMasterBlock(String noMasterBlockSetting, ClusterBlock expectedBlock) {
+    private void testAppliesNoClusterManagerBlock(String noClusterManagerBlockSetting, ClusterBlock expectedBlock) {
         try (Cluster cluster = new Cluster(3)) {
             cluster.runRandomly();
             cluster.stabilise();
@@ -1145,7 +1146,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final ClusterNode leader = cluster.getAnyLeader();
             leader.submitUpdateTask("update NO_CLUSTER_MANAGER_BLOCK_SETTING", cs -> {
                 final Builder settingsBuilder = Settings.builder().put(cs.metadata().persistentSettings());
-                settingsBuilder.put(NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), noMasterBlockSetting);
+                settingsBuilder.put(NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), noClusterManagerBlockSetting);
                 return ClusterState.builder(cs)
                     .metadata(Metadata.builder(cs.metadata()).persistentSettings(settingsBuilder.build()))
                     .build();
@@ -1175,12 +1176,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    public void testNodeCannotJoinIfJoinValidationFailsOnMaster() {
+    public void testNodeCannotJoinIfJoinValidationFailsOnClusterManager() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 3))) {
             cluster.runRandomly();
             cluster.stabilise();
 
-            // check that if node join validation fails on master, the nodes can't join
+            // check that if node join validation fails on cluster-manager, the nodes can't join
             List<ClusterNode> addedNodes = cluster.addNodes(randomIntBetween(1, 2));
             final Set<DiscoveryNode> validatedNodes = new HashSet<>();
             cluster.getAnyLeader().extraJoinValidators.add((discoveryNode, clusterState) -> {
@@ -1231,11 +1232,9 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     nodes.stream().map(ClusterNode::getLocalNode).map(DiscoveryNode::getId).collect(Collectors.toSet())
                 ) == false,
                 () -> randomSubsetOf(cluster.clusterNodes)
-            ).forEach(
-                cn -> cn.extraJoinValidators.add(
-                    (discoveryNode, clusterState) -> { throw new IllegalArgumentException("join validation failed"); }
-                )
-            );
+            ).forEach(cn -> cn.extraJoinValidators.add((discoveryNode, clusterState) -> {
+                throw new IllegalArgumentException("join validation failed");
+            }));
             cluster.bootstrapIfNecessary();
             cluster.runFor(10000, "failing join validation");
             assertTrue(cluster.clusterNodes.stream().allMatch(cn -> cn.getLastAppliedClusterState().version() == 0));
@@ -1305,7 +1304,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    public void testFollowerRemovedIfUnableToSendRequestsToMaster() {
+    public void testFollowerRemovedIfUnableToSendRequestsToClusterManager() {
         try (Cluster cluster = new Cluster(3)) {
             cluster.runRandomly();
             cluster.stabilise();
@@ -1333,7 +1332,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.clearBlackholedConnections();
 
             cluster.stabilise(
-                // time for the disconnected node to find the master again
+                // time for the disconnected node to find the cluster-manager again
                 defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2
                     // time for joining
                     + 4 * DEFAULT_DELAY_VARIABILITY
@@ -1679,7 +1678,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    public void testReconfiguresToExcludeMasterIneligibleNodesInVotingConfig() {
+    public void testReconfiguresToExcludeClusterManagerIneligibleNodesInVotingConfig() {
         try (Cluster cluster = new Cluster(3)) {
             cluster.runRandomly();
             cluster.stabilise();
@@ -1698,11 +1697,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final boolean chosenNodeIsLeader = chosenNode == cluster.getAnyLeader();
             final long termBeforeRestart = cluster.getAnyNode().coordinator.getCurrentTerm();
 
-            logger.info("--> restarting [{}] as a master-ineligible node", chosenNode);
+            logger.info("--> restarting [{}] as a cluster-manager-ineligible node", chosenNode);
 
             chosenNode.close();
             cluster.clusterNodes.replaceAll(
-                cn -> cn == chosenNode ? cn.restartedNode(Function.identity(), Function.identity(), nonMasterNode()) : cn
+                cn -> cn == chosenNode ? cn.restartedNode(Function.identity(), Function.identity(), nonClusterManagerNode()) : cn
             );
             cluster.stabilise();
 
@@ -1729,7 +1728,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final ClusterNode leader = cluster.getAnyLeader();
             final long expectedTerm = leader.coordinator.getCurrentTerm();
 
-            if (cluster.clusterNodes.stream().filter(n -> n.getLocalNode().isMasterNode()).count() == 2) {
+            if (cluster.clusterNodes.stream().filter(n -> n.getLocalNode().isClusterManagerNode()).count() == 2) {
                 // in the 2-node case, auto-shrinking the voting configuration is required to reduce the voting configuration down to just
                 // the leader, otherwise restarting the other cluster-manager-eligible node triggers an election
                 leader.submitSetAutoShrinkVotingConfiguration(true);
@@ -1777,6 +1776,48 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             ClusterState newState2 = buildNewClusterStateWithVotingConfigExclusion(currentState, newVotingConfigExclusion2);
 
             assertFalse(Coordinator.validVotingConfigExclusionState(newState2));
+        }
+    }
+
+    public void testLocalNodeAlwaysCommissionedWithoutDecommissionedException() {
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            for (ClusterNode node : cluster.clusterNodes) {
+                assertTrue(node.coordinator.localNodeCommissioned());
+            }
+        }
+    }
+
+    public void testClusterStabilisesForPreviouslyDecommissionedNode() {
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            for (ClusterNode node : cluster.clusterNodes) {
+                assertTrue(node.coordinator.localNodeCommissioned());
+            }
+            final ClusterNode leader = cluster.getAnyLeader();
+
+            ClusterNode decommissionedNode = cluster.new ClusterNode(
+                nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, () -> new StatusInfo(HEALTHY, "healthy-info")
+            );
+            decommissionedNode.coordinator.onNodeCommissionStatusChange(false);
+            cluster.clusterNodes.add(decommissionedNode);
+
+            assertFalse(decommissionedNode.coordinator.localNodeCommissioned());
+
+            cluster.stabilise(
+                // Interval is updated to decommissioned find peer interval
+                defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_DURING_DECOMMISSION_SETTING)
+                    // One message delay to send a join
+                    + DEFAULT_DELAY_VARIABILITY
+                    // Commit a new cluster state with the new node(s). Might be split into multiple commits, and each might need a
+                    // followup reconfiguration
+                    + 3 * 2 * DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+            );
+
+            // once cluster stabilises the node joins and would be commissioned
+            assertTrue(decommissionedNode.coordinator.localNodeCommissioned());
         }
     }
 

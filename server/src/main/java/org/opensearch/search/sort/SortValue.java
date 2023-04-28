@@ -36,7 +36,7 @@ import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -45,6 +45,8 @@ import java.util.List;
 
 /**
  * A {@link Comparable}, {@link DocValueFormat} aware wrapper around a sort value.
+ *
+ * @opensearch.internal
  */
 public abstract class SortValue implements NamedWriteable, Comparable<SortValue> {
     /**

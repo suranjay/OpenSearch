@@ -32,15 +32,20 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.aggregations.metrics.ParsedPercentiles;
 import org.opensearch.search.aggregations.metrics.Percentiles;
 
 import java.io.IOException;
 import java.util.Map.Entry;
 
+/**
+ * A percentiles bucket agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedPercentilesBucket extends ParsedPercentiles implements Percentiles {
 
     @Override

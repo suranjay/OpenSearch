@@ -45,6 +45,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Spell checker based on a noisy channel
+ *
+ * @opensearch.internal
+ */
 final class NoisyChannelSpellChecker {
     public static final double REAL_WORD_LIKELIHOOD = 0.95d;
     public static final int DEFAULT_TOKEN_LIMIT = 10;
@@ -124,7 +129,7 @@ final class NoisyChannelSpellChecker {
         }
         double cutoffScore = Double.MIN_VALUE;
         CandidateScorer scorer = new CandidateScorer(wordScorer, numCorrections, gramSize);
-        CandidateSet[] candidateSets = candidateSetsList.toArray(new CandidateSet[candidateSetsList.size()]);
+        CandidateSet[] candidateSets = candidateSetsList.toArray(new CandidateSet[0]);
         if (confidence > 0.0) {
             Candidate[] candidates = new Candidate[candidateSets.length];
             for (int i = 0; i < candidates.length; i++) {

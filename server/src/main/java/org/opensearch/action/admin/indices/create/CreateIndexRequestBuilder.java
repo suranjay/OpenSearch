@@ -39,13 +39,15 @@ import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 
 import java.util.Map;
 
 /**
  * Builder for a create index request
+ *
+ * @opensearch.internal
  */
 public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
     CreateIndexRequest,

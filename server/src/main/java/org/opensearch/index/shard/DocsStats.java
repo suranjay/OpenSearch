@@ -35,12 +35,17 @@ package org.opensearch.index.shard;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.store.StoreStats;
 
 import java.io.IOException;
 
+/**
+ * Document statistics
+ *
+ * @opensearch.internal
+ */
 public class DocsStats implements Writeable, ToXContentFragment {
 
     private long count = 0;
@@ -116,6 +121,11 @@ public class DocsStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Fields for document statistics
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String DOCS = "docs";
         static final String COUNT = "count";

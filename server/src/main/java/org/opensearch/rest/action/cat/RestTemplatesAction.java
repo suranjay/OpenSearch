@@ -32,7 +32,6 @@
 
 package org.opensearch.rest.action.cat;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
@@ -53,6 +52,11 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * _cat API action to get template information
+ *
+ * @opensearch.api
+ */
 public class RestTemplatesAction extends AbstractCatAction {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestTemplatesAction.class);
@@ -78,7 +82,9 @@ public class RestTemplatesAction extends AbstractCatAction {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().metadata(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", clusterStateRequest.clusterManagerNodeTimeout())
+        );
         parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
 
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestResponseListener<ClusterStateResponse>(channel) {
@@ -105,8 +111,7 @@ public class RestTemplatesAction extends AbstractCatAction {
     private Table buildTable(RestRequest request, ClusterStateResponse clusterStateResponse, String patternString) {
         Table table = getTableWithHeader(request);
         Metadata metadata = clusterStateResponse.getState().metadata();
-        for (ObjectObjectCursor<String, IndexTemplateMetadata> entry : metadata.templates()) {
-            IndexTemplateMetadata indexData = entry.value;
+        for (final IndexTemplateMetadata indexData : metadata.templates().values()) {
             if (patternString == null || Regex.simpleMatch(patternString, indexData.name())) {
                 table.startRow();
                 table.addCell(indexData.name());

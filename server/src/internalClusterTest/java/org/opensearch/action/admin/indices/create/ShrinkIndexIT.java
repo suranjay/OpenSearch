@@ -64,8 +64,8 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.common.Priority;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
@@ -75,8 +75,8 @@ import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.util.Arrays;
@@ -112,15 +112,9 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
                 .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON)
                 .get();
         }
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin()
-            .cluster()
-            .prepareState()
-            .get()
-            .getState()
-            .nodes()
-            .getDataNodes();
+        final Map<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
-        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
+        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(new DiscoveryNode[0]);
         String mergeNode = discoveryNodes[0].getName();
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
         // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
@@ -211,15 +205,9 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_shards", numberOfShards)).get();
 
-        final ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin()
-            .cluster()
-            .prepareState()
-            .get()
-            .getState()
-            .nodes()
-            .getDataNodes();
+        final Map<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
         assertThat(dataNodes.size(), greaterThanOrEqualTo(2));
-        final DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
+        final DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(new DiscoveryNode[0]);
         final String mergeNode = discoveryNodes[0].getName();
         // This needs more than the default timeout if a large number of shards were created.
         ensureGreen(TimeValue.timeValueSeconds(120));
@@ -297,15 +285,9 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < docs; i++) {
             client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin()
-            .cluster()
-            .prepareState()
-            .get()
-            .getState()
-            .nodes()
-            .getDataNodes();
+        final Map<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
-        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
+        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(new DiscoveryNode[0]);
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
         // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
         // to the require._name below.
@@ -425,15 +407,9 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
         for (int i = 0; i < 20; i++) {
             client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin()
-            .cluster()
-            .prepareState()
-            .get()
-            .getState()
-            .nodes()
-            .getDataNodes();
+        final Map<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
-        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
+        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(new DiscoveryNode[0]);
         String spareNode = discoveryNodes[0].getName();
         String mergeNode = discoveryNodes[1].getName();
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
@@ -496,7 +472,7 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
 
         final InternalClusterInfoService infoService = (InternalClusterInfoService) internalCluster().getInstance(
             ClusterInfoService.class,
-            internalCluster().getMasterName()
+            internalCluster().getClusterManagerName()
         );
         infoService.refresh();
         // kick off a retry and wait until it's done!
@@ -533,15 +509,9 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
                 .setSource("{\"foo\" : \"bar\", \"id\" : " + i + "}", XContentType.JSON)
                 .get();
         }
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin()
-            .cluster()
-            .prepareState()
-            .get()
-            .getState()
-            .nodes()
-            .getDataNodes();
+        final Map<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
-        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
+        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(new DiscoveryNode[0]);
         String mergeNode = discoveryNodes[0].getName();
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
         // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
@@ -613,14 +583,8 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
             client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         client().admin().indices().prepareFlush("source").get();
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin()
-            .cluster()
-            .prepareState()
-            .get()
-            .getState()
-            .nodes()
-            .getDataNodes();
-        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
+        final Map<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
+        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(new DiscoveryNode[0]);
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
         // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
         // to the require._name below.
@@ -759,5 +723,73 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
                 .setResizeType(ResizeType.SPLIT)
         );
         ensureGreen("splitagain");
+    }
+
+    public void testCreateShrinkIndexWithMaxShardSize() {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        final String shrinkNode = internalCluster().startDataOnlyNode();
+
+        final int shardCount = between(2, 5);
+        prepareCreate("source").setSettings(
+            Settings.builder()
+                .put(indexSettings())
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount)
+        ).get();
+        for (int i = 0; i < 20; i++) {
+            client().prepareIndex("source").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+        }
+        client().admin().indices().prepareFlush("source").get();
+        ensureGreen();
+
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("source")
+            .setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), shrinkNode)
+                    .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
+            )
+            .get();
+        ensureGreen();
+
+        // Cannot set max_shard_size and index.number_of_shards at the same time
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .indices()
+                .prepareResizeIndex("source", "target")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .build()
+                )
+                .setMaxShardSize(new ByteSizeValue(1))
+                .setResizeType(ResizeType.SHRINK)
+                .get()
+        );
+        assertTrue(exc.getMessage().contains("Cannot set max_shard_size and index.number_of_shards at the same time!"));
+
+        // use max_shard_size to calculate the target index's shards number
+        // set max_shard_size to 1 then the target index's shards number will be same with the source index's
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareResizeIndex("source", "target")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .putNull(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
+                        .build()
+                )
+                .setMaxShardSize(new ByteSizeValue(1))
+                .setResizeType(ResizeType.SHRINK)
+                .get()
+        );
+        ensureGreen();
+
+        GetSettingsResponse target = client().admin().indices().prepareGetSettings("target").get();
+        assertEquals(String.valueOf(shardCount), target.getIndexToSettings().get("target").get("index.number_of_shards"));
     }
 }

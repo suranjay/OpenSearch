@@ -34,8 +34,8 @@ package org.opensearch.search.aggregations.bucket.global;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.AbstractAggregationBuilder;
 import org.opensearch.search.aggregations.AggregationBuilder;
@@ -45,6 +45,11 @@ import org.opensearch.search.aggregations.AggregatorFactory;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregation Builder for global agg
+ *
+ * @opensearch.internal
+ */
 public class GlobalAggregationBuilder extends AbstractAggregationBuilder<GlobalAggregationBuilder> {
     public static GlobalAggregationBuilder parse(XContentParser parser, String aggregationName) throws IOException {
         parser.nextToken();

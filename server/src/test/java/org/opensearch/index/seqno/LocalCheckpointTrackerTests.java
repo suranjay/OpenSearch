@@ -235,7 +235,7 @@ public class LocalCheckpointTrackerTests extends OpenSearchTestCase {
             seqNoPerThread[t] = randomSubsetOf(size, seqNos).toArray(new Integer[size]);
             seqNos.removeAll(Arrays.asList(seqNoPerThread[t]));
         }
-        seqNoPerThread[threads.length - 1] = seqNos.toArray(new Integer[seqNos.size()]);
+        seqNoPerThread[threads.length - 1] = seqNos.toArray(new Integer[0]);
         logger.info("--> will run [{}] threads, maxOps [{}], unfinished seq no [{}]", threads.length, maxOps, unFinishedSeq);
         final CyclicBarrier barrier = new CyclicBarrier(threads.length);
         for (int t = 0; t < threads.length; t++) {
@@ -330,5 +330,24 @@ public class LocalCheckpointTrackerTests extends OpenSearchTestCase {
         }
         final long seqNo = randomNonNegativeLong();
         assertThat(tracker.hasProcessed(seqNo), equalTo(seqNo <= localCheckpoint || seqNos.contains(seqNo)));
+    }
+
+    public void testFastForwardProcessedSeqNo() {
+        // base case with no persistent checkpoint update
+        long seqNo1;
+        assertThat(tracker.getProcessedCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+        seqNo1 = tracker.generateSeqNo();
+        assertThat(seqNo1, equalTo(0L));
+        tracker.fastForwardProcessedSeqNo(seqNo1);
+        assertThat(tracker.getProcessedCheckpoint(), equalTo(seqNo1));
+
+        // idempotent case
+        tracker.fastForwardProcessedSeqNo(seqNo1);
+        assertThat(tracker.getProcessedCheckpoint(), equalTo(0L));
+        assertThat(tracker.hasProcessed(0L), equalTo(true));
+
+        tracker.fastForwardProcessedSeqNo(-1);
+        assertThat(tracker.getProcessedCheckpoint(), equalTo(0L));
+        assertThat(tracker.hasProcessed(0L), equalTo(true));
     }
 }

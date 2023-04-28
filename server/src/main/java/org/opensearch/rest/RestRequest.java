@@ -32,11 +32,11 @@
 
 package org.opensearch.rest;
 
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
@@ -44,9 +44,9 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpRequest;
@@ -67,6 +67,11 @@ import java.util.stream.Collectors;
 import static org.opensearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 
+/**
+ * REST Request
+ *
+ * @opensearch.api
+ */
 public class RestRequest implements ToXContent.Params {
 
     // tchar pattern as defined by RFC7230 section 3.2.6
@@ -223,6 +228,11 @@ public class RestRequest implements ToXContent.Params {
         );
     }
 
+    /**
+     * The method used.
+     *
+     * @opensearch.internal
+     */
     public enum Method {
         GET,
         POST,
@@ -372,7 +382,7 @@ public class RestRequest implements ToXContent.Params {
      *
      * @return the list of currently consumed parameters.
      */
-    List<String> consumedParams() {
+    public List<String> consumedParams() {
         return new ArrayList<>(consumedParams);
     }
 
@@ -578,6 +588,11 @@ public class RestRequest implements ToXContent.Params {
         throw new IllegalArgumentException("empty Content-Type header");
     }
 
+    /**
+     * Thrown if there is an error in the content type header.
+     *
+     * @opensearch.internal
+     */
     public static class ContentTypeHeaderException extends RuntimeException {
 
         ContentTypeHeaderException(final IllegalArgumentException cause) {
@@ -586,6 +601,11 @@ public class RestRequest implements ToXContent.Params {
 
     }
 
+    /**
+     * Thrown if there is a bad parameter.
+     *
+     * @opensearch.internal
+     */
     public static class BadParameterException extends RuntimeException {
 
         BadParameterException(final IllegalArgumentException cause) {

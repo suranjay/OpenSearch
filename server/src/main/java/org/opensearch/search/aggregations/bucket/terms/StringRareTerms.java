@@ -35,7 +35,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.util.SetBackedScalingCuckooFilter;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregations;
@@ -45,9 +45,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of string rare terms
+ *
+ * @opensearch.internal
+ */
 public class StringRareTerms extends InternalMappedRareTerms<StringRareTerms, StringRareTerms.Bucket> {
     public static final String NAME = "srareterms";
 
+    /**
+     * Bucket for rare string terms
+     *
+     * @opensearch.internal
+     */
     public static class Bucket extends InternalRareTerms.Bucket<Bucket> {
         BytesRef termBytes;
 

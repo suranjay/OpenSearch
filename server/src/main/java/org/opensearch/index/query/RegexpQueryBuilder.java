@@ -38,16 +38,15 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.opensearch.LegacyESVersion;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.support.QueryParsers;
@@ -57,6 +56,8 @@ import java.util.Objects;
 
 /**
  * A Query that does fuzzy matching for a specific value.
+ *
+ * @opensearch.internal
  */
 public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "regexp";
@@ -110,9 +111,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         syntaxFlagsValue = in.readVInt();
         maxDeterminizedStates = in.readVInt();
         rewrite = in.readOptionalString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            caseInsensitive = in.readBoolean();
-        }
+        caseInsensitive = in.readBoolean();
     }
 
     @Override
@@ -122,9 +121,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         out.writeVInt(syntaxFlagsValue);
         out.writeVInt(maxDeterminizedStates);
         out.writeOptionalString(rewrite);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            out.writeBoolean(caseInsensitive);
-        }
+        out.writeBoolean(caseInsensitive);
     }
 
     /** Returns the field name used in this query. */
@@ -309,16 +306,17 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             query = fieldType.regexpQuery(value, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates, method, context);
         }
         if (query == null) {
-            RegexpQuery regexpQuery = new RegexpQuery(
+            if (method == null) {
+                method = MultiTermQuery.CONSTANT_SCORE_REWRITE;
+            }
+            query = new RegexpQuery(
                 new Term(fieldName, BytesRefs.toBytesRef(value)),
                 sanitisedSyntaxFlag,
                 matchFlagsValue,
-                maxDeterminizedStates
+                RegexpQuery.DEFAULT_PROVIDER,
+                maxDeterminizedStates,
+                method
             );
-            if (method != null) {
-                regexpQuery.setRewriteMethod(method);
-            }
-            query = regexpQuery;
         }
         return query;
     }

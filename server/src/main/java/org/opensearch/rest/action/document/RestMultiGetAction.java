@@ -36,7 +36,7 @@ import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -50,6 +50,11 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to perform a multi get
+ *
+ * @opensearch.api
+ */
 public class RestMultiGetAction extends BaseRestHandler {
     private final boolean allowExplicitIndex;
 

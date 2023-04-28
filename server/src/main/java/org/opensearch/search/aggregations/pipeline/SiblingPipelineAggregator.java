@@ -32,26 +32,22 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.opensearch.search.aggregations.InternalAggregations;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Aggregate all docs into a sibling bucket
+ *
+ * @opensearch.internal
+ */
 public abstract class SiblingPipelineAggregator extends PipelineAggregator {
     protected SiblingPipelineAggregator(String name, String[] bucketsPaths, Map<String, Object> metadata) {
         super(name, bucketsPaths, metadata);
-    }
-
-    /**
-     * Read from a stream.
-     */
-    SiblingPipelineAggregator(StreamInput in) throws IOException {
-        super(in);
     }
 
     @Override

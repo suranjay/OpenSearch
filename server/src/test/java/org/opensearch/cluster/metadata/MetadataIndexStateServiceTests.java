@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse;
@@ -44,9 +43,6 @@ import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlocks;
-import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNodeRole;
-import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
@@ -56,7 +52,6 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
@@ -97,7 +92,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -179,91 +173,6 @@ public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
         ).v1();
         assertIsOpened(index.getName(), updatedState);
         assertThat(updatedState.blocks().hasIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID), is(true));
-    }
-
-    public void testCloseRoutingTableRemovesRoutingTable() {
-        final Set<Index> nonBlockedIndices = new HashSet<>();
-        final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
-        final Map<Index, IndexResult> results = new HashMap<>();
-        final ClusterBlock closingBlock = MetadataIndexStateService.createIndexClosingBlock();
-
-        ClusterState state = ClusterState.builder(new ClusterName("testCloseRoutingTableRemovesRoutingTable")).build();
-        for (int i = 0; i < randomIntBetween(1, 25); i++) {
-            final String indexName = "index-" + i;
-
-            if (randomBoolean()) {
-                state = addOpenedIndex(indexName, randomIntBetween(1, 5), randomIntBetween(0, 5), state);
-                nonBlockedIndices.add(state.metadata().index(indexName).getIndex());
-            } else {
-                state = addBlockedIndex(indexName, randomIntBetween(1, 5), randomIntBetween(0, 5), state, closingBlock);
-                final Index index = state.metadata().index(indexName).getIndex();
-                blockedIndices.put(index, closingBlock);
-                if (randomBoolean()) {
-                    results.put(index, new CloseIndexResponse.IndexResult(index));
-                } else {
-                    results.put(index, new CloseIndexResponse.IndexResult(index, new Exception("test")));
-                }
-            }
-        }
-
-        state = ClusterState.builder(state)
-            .nodes(
-                DiscoveryNodes.builder(state.nodes())
-                    .add(
-                        new DiscoveryNode(
-                            "old_node",
-                            buildNewFakeTransportAddress(),
-                            emptyMap(),
-                            new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES),
-                            LegacyESVersion.V_7_0_0
-                        )
-                    )
-                    .add(
-                        new DiscoveryNode(
-                            "new_node",
-                            buildNewFakeTransportAddress(),
-                            emptyMap(),
-                            new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES),
-                            LegacyESVersion.V_7_2_0
-                        )
-                    )
-            )
-            .build();
-
-        state = MetadataIndexStateService.closeRoutingTable(state, blockedIndices, results).v1();
-        assertThat(state.metadata().indices().size(), equalTo(nonBlockedIndices.size() + blockedIndices.size()));
-
-        for (Index nonBlockedIndex : nonBlockedIndices) {
-            assertIsOpened(nonBlockedIndex.getName(), state);
-            assertThat(state.blocks().hasIndexBlockWithId(nonBlockedIndex.getName(), INDEX_CLOSED_BLOCK_ID), is(false));
-        }
-        for (Index blockedIndex : blockedIndices.keySet()) {
-            if (results.get(blockedIndex).hasFailures() == false) {
-                IndexMetadata indexMetadata = state.metadata().index(blockedIndex);
-                assertThat(indexMetadata.getState(), is(IndexMetadata.State.CLOSE));
-                Settings indexSettings = indexMetadata.getSettings();
-                assertThat(indexSettings.hasValue(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()), is(false));
-                assertThat(state.blocks().hasIndexBlock(blockedIndex.getName(), MetadataIndexStateService.INDEX_CLOSED_BLOCK), is(true));
-                assertThat(
-                    "Index must have only 1 block with [id=" + MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID + "]",
-                    state.blocks()
-                        .indices()
-                        .getOrDefault(blockedIndex.getName(), emptySet())
-                        .stream()
-                        .filter(clusterBlock -> clusterBlock.id() == MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID)
-                        .count(),
-                    equalTo(1L)
-                );
-                assertThat(
-                    "Index routing table should have been removed when closing the index on mixed cluster version",
-                    state.routingTable().index(blockedIndex),
-                    nullValue()
-                );
-            } else {
-                assertIsOpened(blockedIndex.getName(), state);
-                assertThat(state.blocks().hasIndexBlock(blockedIndex.getName(), closingBlock), is(true));
-            }
-        }
     }
 
     public void testAddIndexClosedBlocks() {
@@ -450,10 +359,7 @@ public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
             dataStreamsToCreate.add(new Tuple<>(dataStreamName, numBackingIndices));
             writeIndices.add(DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices));
         }
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
-            dataStreamsToCreate,
-            org.opensearch.common.collect.List.of()
-        );
+        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dataStreamsToCreate, List.of());
 
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(cs);
@@ -496,7 +402,7 @@ public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
     private static ClusterState addRestoredIndex(final String index, final int numShards, final int numReplicas, final ClusterState state) {
         ClusterState newState = addOpenedIndex(index, numShards, numReplicas, state);
 
-        final ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder();
+        final Map<ShardId, RestoreInProgress.ShardRestoreStatus> shardsBuilder = new HashMap<>();
         for (ShardRouting shardRouting : newState.routingTable().index(index).randomAllActiveShardsIt()) {
             shardsBuilder.put(shardRouting.shardId(), new RestoreInProgress.ShardRestoreStatus(shardRouting.currentNodeId()));
         }
@@ -507,7 +413,7 @@ public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
             snapshot,
             RestoreInProgress.State.INIT,
             Collections.singletonList(index),
-            shardsBuilder.build()
+            shardsBuilder
         );
         return ClusterState.builder(newState).putCustom(RestoreInProgress.TYPE, new RestoreInProgress.Builder().add(entry).build()).build();
     }
@@ -515,7 +421,7 @@ public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
     private static ClusterState addSnapshotIndex(final String index, final int numShards, final int numReplicas, final ClusterState state) {
         ClusterState newState = addOpenedIndex(index, numShards, numReplicas, state);
 
-        final ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardsBuilder = ImmutableOpenMap.builder();
+        final Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardsBuilder = new HashMap<>();
         for (ShardRouting shardRouting : newState.routingTable().index(index).randomAllActiveShardsIt()) {
             shardsBuilder.put(shardRouting.shardId(), new SnapshotsInProgress.ShardSnapshotStatus(shardRouting.currentNodeId(), "1"));
         }
@@ -530,7 +436,7 @@ public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
             Collections.emptyList(),
             randomNonNegativeLong(),
             randomLong(),
-            shardsBuilder.build(),
+            shardsBuilder,
             null,
             SnapshotInfoTests.randomUserMetadata(),
             VersionUtils.randomVersion(random())

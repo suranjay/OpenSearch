@@ -35,18 +35,18 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.Version;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.NamedDiff;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
-import org.opensearch.common.xcontent.ContextParser;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ContextParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.Index;
 
 import java.io.IOException;
@@ -67,6 +67,8 @@ import java.util.Objects;
  * nodes and a node could be removed from the cluster for a period of time, the
  * tombstones remain in the cluster state for a fixed period of time, after which
  * they are purged.
+ *
+ * @opensearch.internal
  */
 public final class IndexGraveyard implements Metadata.Custom {
 
@@ -188,6 +190,8 @@ public final class IndexGraveyard implements Metadata.Custom {
 
     /**
      * A class to build an IndexGraveyard.
+     *
+     * @opensearch.internal
      */
     public static final class Builder {
         private List<Tombstone> tombstones;
@@ -273,6 +277,8 @@ public final class IndexGraveyard implements Metadata.Custom {
 
     /**
      * A class representing a diff of two IndexGraveyard objects.
+     *
+     * @opensearch.internal
      */
     public static final class IndexGraveyardDiff implements NamedDiff<Metadata.Custom> {
 
@@ -360,6 +366,8 @@ public final class IndexGraveyard implements Metadata.Custom {
 
     /**
      * An individual tombstone entry for representing a deleted index.
+     *
+     * @opensearch.internal
      */
     public static final class Tombstone implements ToXContentObject, Writeable {
 
@@ -458,6 +466,8 @@ public final class IndexGraveyard implements Metadata.Custom {
 
         /**
          * A builder for building tombstone entries.
+         *
+         * @opensearch.internal
          */
         private static final class Builder {
             private Index index;

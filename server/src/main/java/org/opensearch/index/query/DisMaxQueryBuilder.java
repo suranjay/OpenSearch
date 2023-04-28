@@ -34,13 +34,13 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.search.Queries;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,6 +53,8 @@ import java.util.Objects;
  * A query that generates the union of documents produced by its sub-queries, and that scores each document
  * with the maximum score for that document as produced by any sub-query, plus a tie breaking increment for any
  * additional matching sub-queries.
+ *
+ * @opensearch.internal
  */
 public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder> {
     public static final String NAME = "dis_max";

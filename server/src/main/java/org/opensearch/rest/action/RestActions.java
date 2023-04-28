@@ -38,14 +38,14 @@ import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.util.CollectionUtils;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContent.Params;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContent.Params;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.Operator;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -61,6 +61,11 @@ import java.util.List;
 
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
+/**
+ * REST actions
+ *
+ * @opensearch.api
+ */
 public class RestActions {
 
     public static final ParseField _SHARDS_FIELD = new ParseField("_shards");

@@ -109,7 +109,9 @@ public class GetIndexActionTests extends OpenSearchSingleNodeTestCase {
                     "index.refresh_interval should be set as we are including defaults",
                     defaultsResponse.getSetting(indexName, "index.refresh_interval")
                 ),
-                exception -> { throw new AssertionError(exception); }
+                exception -> {
+                    throw new AssertionError(exception);
+                }
             )
         );
     }
@@ -124,7 +126,9 @@ public class GetIndexActionTests extends OpenSearchSingleNodeTestCase {
                     "index.refresh_interval should be null as it was never set",
                     noDefaultsResponse.getSetting(indexName, "index.refresh_interval")
                 ),
-                exception -> { throw new AssertionError(exception); }
+                exception -> {
+                    throw new AssertionError(exception);
+                }
             )
         );
     }
@@ -145,14 +149,14 @@ public class GetIndexActionTests extends OpenSearchSingleNodeTestCase {
         }
 
         @Override
-        protected void doMasterOperation(
+        protected void doClusterManagerOperation(
             GetIndexRequest request,
             String[] concreteIndices,
             ClusterState state,
             ActionListener<GetIndexResponse> listener
         ) {
             ClusterState stateWithIndex = ClusterStateCreationUtils.state(indexName, 1, 1);
-            super.doMasterOperation(request, concreteIndices, stateWithIndex, listener);
+            super.doClusterManagerOperation(request, concreteIndices, stateWithIndex, listener);
         }
     }
 

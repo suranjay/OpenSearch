@@ -32,12 +32,12 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
@@ -55,6 +55,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Aggregation Builder for significant text agg
+ *
+ * @opensearch.internal
+ */
 public class SignificantTextAggregationBuilder extends AbstractAggregationBuilder<SignificantTextAggregationBuilder> {
     public static final String NAME = "significant_text";
 
@@ -211,7 +216,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
      * to also be the name of the JSON field holding the value
      */
     public SignificantTextAggregationBuilder sourceFieldNames(List<String> names) {
-        this.sourceFieldNames = names.toArray(new String[names.size()]);
+        this.sourceFieldNames = names.toArray(new String[0]);
         return this;
     }
 

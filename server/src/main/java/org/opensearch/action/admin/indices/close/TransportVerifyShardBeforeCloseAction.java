@@ -33,7 +33,6 @@ package org.opensearch.action.admin.indices.close;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.support.ActionFilters;
@@ -60,6 +59,11 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Transport action for verifying a shard before closing an index
+ *
+ * @opensearch.internal
+ */
 public class TransportVerifyShardBeforeCloseAction extends TransportReplicationAction<
     TransportVerifyShardBeforeCloseAction.ShardRequest,
     TransportVerifyShardBeforeCloseAction.ShardRequest,
@@ -186,6 +190,11 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         }
     }
 
+    /**
+     * Shard Request for verifying shards before closing
+     *
+     * @opensearch.internal
+     */
     public static class ShardRequest extends ReplicationRequest<ShardRequest> {
 
         private final ClusterBlock clusterBlock;
@@ -195,11 +204,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         ShardRequest(StreamInput in) throws IOException {
             super(in);
             clusterBlock = new ClusterBlock(in);
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
-                phase1 = in.readBoolean();
-            } else {
-                phase1 = false;
-            }
+            phase1 = in.readBoolean();
         }
 
         public ShardRequest(final ShardId shardId, final ClusterBlock clusterBlock, final boolean phase1, final TaskId parentTaskId) {
@@ -218,9 +223,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
             clusterBlock.writeTo(out);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
-                out.writeBoolean(phase1);
-            }
+            out.writeBoolean(phase1);
         }
 
         public ClusterBlock clusterBlock() {

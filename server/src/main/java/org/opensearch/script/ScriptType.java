@@ -32,7 +32,7 @@
 
 package org.opensearch.script;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -44,6 +44,8 @@ import java.util.Locale;
  * ScriptType represents the way a script is stored and retrieved from the {@link ScriptService}.
  * It's also used to by {@link ScriptService} to determine whether or not a {@link Script} is
  * allowed to be executed based on both default and user-defined settings.
+ *
+ * @opensearch.internal
  */
 public enum ScriptType implements Writeable {
 

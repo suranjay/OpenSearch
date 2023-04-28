@@ -56,6 +56,8 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
  * Cat API class to display information about snapshots
+ *
+ * @opensearch.api
  */
 public class RestSnapshotAction extends AbstractCatAction {
 
@@ -78,7 +80,9 @@ public class RestSnapshotAction extends AbstractCatAction {
 
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
 
-        getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", getSnapshotsRequest.masterNodeTimeout()));
+        getSnapshotsRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", getSnapshotsRequest.clusterManagerNodeTimeout())
+        );
         parseDeprecatedMasterTimeoutParameter(getSnapshotsRequest, request, deprecationLogger, getName());
 
         return channel -> client.admin()

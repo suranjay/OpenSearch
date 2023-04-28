@@ -35,8 +35,8 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.client.Client;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.util.concurrent.CountDown;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,6 +45,8 @@ import java.util.function.LongSupplier;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
+ *
+ * @opensearch.internal
  */
 public class QueryRewriteContext {
     private final NamedXContentRegistry xContentRegistry;

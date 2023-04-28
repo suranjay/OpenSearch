@@ -34,7 +34,7 @@ package org.opensearch.search.aggregations.bucket.terms;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
@@ -50,6 +50,8 @@ import static java.util.Collections.emptyList;
 
 /**
  * Result of the running the significant terms aggregation on an unmapped field.
+ *
+ * @opensearch.internal
  */
 public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedSignificantTerms, UnmappedSignificantTerms.Bucket> {
 
@@ -58,6 +60,8 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     /**
      * Concrete type that can't be built because Java needs a concrete type so {@link InternalTerms.Bucket} can have a self type but
      * {@linkplain UnmappedTerms} doesn't ever need to build it because it never returns any buckets.
+     *
+     * @opensearch.internal
      */
     protected abstract static class Bucket extends InternalSignificantTerms.Bucket<Bucket> {
         private Bucket(

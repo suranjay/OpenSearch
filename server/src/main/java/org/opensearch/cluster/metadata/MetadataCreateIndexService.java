@@ -36,7 +36,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.Version;
@@ -59,6 +58,9 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -71,7 +73,7 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.env.Environment;
 import org.opensearch.index.Index;
@@ -88,8 +90,8 @@ import org.opensearch.indices.IndexCreationException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexNameException;
 import org.opensearch.indices.ShardLimitValidator;
-import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -103,6 +105,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -116,14 +120,32 @@ import java.util.stream.IntStream;
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REPLICATION_TYPE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
+import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_REPOSITORY_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 
 /**
  * Service responsible for submitting create index requests
+ *
+ * @opensearch.internal
  */
 public class MetadataCreateIndexService {
     private static final Logger logger = LogManager.getLogger(MetadataCreateIndexService.class);
@@ -144,6 +166,8 @@ public class MetadataCreateIndexService {
     private final ShardLimitValidator shardLimitValidator;
     private final boolean forbidPrivateIndexSettings;
     private final Set<IndexSettingProvider> indexSettingProviders = new HashSet<>();
+    private final ClusterManagerTaskThrottler.ThrottlingKey createIndexTaskKey;
+    private AwarenessReplicaBalance awarenessReplicaBalance;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -157,7 +181,8 @@ public class MetadataCreateIndexService {
         final ThreadPool threadPool,
         final NamedXContentRegistry xContentRegistry,
         final SystemIndices systemIndices,
-        final boolean forbidPrivateIndexSettings
+        final boolean forbidPrivateIndexSettings,
+        final AwarenessReplicaBalance awarenessReplicaBalance
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
@@ -171,6 +196,10 @@ public class MetadataCreateIndexService {
         this.systemIndices = systemIndices;
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
         this.shardLimitValidator = shardLimitValidator;
+        this.awarenessReplicaBalance = awarenessReplicaBalance;
+
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        createIndexTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_INDEX_KEY, true);
     }
 
     /**
@@ -214,17 +243,9 @@ public class MetadataCreateIndexService {
      * @param isHidden Whether or not this is a hidden index
      */
     public boolean validateDotIndex(String index, @Nullable Boolean isHidden) {
-        boolean isSystem = false;
         if (index.charAt(0) == '.') {
-            SystemIndexDescriptor matchingDescriptor = systemIndices.findMatchingDescriptor(index);
-            if (matchingDescriptor != null) {
-                logger.trace(
-                    "index [{}] is a system index because it matches index pattern [{}] with description [{}]",
-                    index,
-                    matchingDescriptor.getIndexPattern(),
-                    matchingDescriptor.getDescription()
-                );
-                isSystem = true;
+            if (systemIndices.validateSystemIndex(index)) {
+                return true;
             } else if (isHidden) {
                 logger.trace("index [{}] is a hidden index", index);
             } else {
@@ -237,7 +258,7 @@ public class MetadataCreateIndexService {
             }
         }
 
-        return isSystem;
+        return false;
     }
 
     /**
@@ -326,6 +347,11 @@ public class MetadataCreateIndexService {
                 @Override
                 protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                     return new ClusterStateUpdateResponse(acknowledged);
+                }
+
+                @Override
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                    return createIndexTaskKey;
                 }
 
                 @Override
@@ -546,7 +572,6 @@ public class MetadataCreateIndexService {
                 xContentRegistry
             )
         );
-
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
             currentState,
             request,
@@ -722,7 +747,7 @@ public class MetadataCreateIndexService {
                 // shard id and the current timestamp
                 indexService.newQueryShardContext(0, null, () -> 0L, null)
             ),
-            org.opensearch.common.collect.List.of(),
+            List.of(),
             metadataTransformer
         );
     }
@@ -854,7 +879,7 @@ public class MetadataCreateIndexService {
             indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, INDEX_NUMBER_OF_SHARDS_SETTING.get(settings));
         }
         if (INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettingsBuilder) == false) {
-            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings));
+            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, DEFAULT_REPLICA_COUNT_SETTING.get(currentState.metadata().settings()));
         }
         if (settings.get(SETTING_AUTO_EXPAND_REPLICAS) != null && indexSettingsBuilder.get(SETTING_AUTO_EXPAND_REPLICAS) == null) {
             indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, settings.get(SETTING_AUTO_EXPAND_REPLICAS));
@@ -865,6 +890,8 @@ public class MetadataCreateIndexService {
         }
         indexSettingsBuilder.put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
         indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+
+        updateRemoteStoreSettings(indexSettingsBuilder, request.settings(), settings);
 
         if (sourceMetadata != null) {
             assert request.resizeType() != null;
@@ -884,7 +911,7 @@ public class MetadataCreateIndexService {
          * We can not validate settings until we have applied templates, otherwise we do not know the actual settings
          * that will be used to create this index.
          */
-        shardLimitValidator.validateShardLimit(indexSettings, currentState);
+        shardLimitValidator.validateShardLimit(request.index(), indexSettings, currentState);
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) == false
             && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings).onOrAfter(Version.V_2_0_0)) {
             throw new IllegalArgumentException(
@@ -896,6 +923,66 @@ public class MetadataCreateIndexService {
         validateStoreTypeSettings(indexSettings);
 
         return indexSettings;
+    }
+
+    /**
+     * Updates index settings to enable remote store by default based on cluster level settings
+     * @param settingsBuilder index settings builder to be updated with relevant settings
+     * @param requestSettings settings passed in during index create request
+     * @param clusterSettings cluster level settings
+     */
+    private static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings requestSettings, Settings clusterSettings) {
+        if (CLUSTER_REMOTE_STORE_ENABLED_SETTING.get(clusterSettings)) {
+            // Verify if we can create a remote store based index based on user provided settings
+            if (canCreateRemoteStoreIndex(requestSettings) == false) {
+                return;
+            }
+
+            // Verify REPLICATION_TYPE cluster level setting is not conflicting with Remote Store
+            if (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == false
+                && CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings).equals(ReplicationType.DOCUMENT)) {
+                throw new IllegalArgumentException(
+                    "Cannot enable ["
+                        + SETTING_REMOTE_STORE_ENABLED
+                        + "] when ["
+                        + CLUSTER_REPLICATION_TYPE_SETTING.getKey()
+                        + "] is "
+                        + ReplicationType.DOCUMENT
+                );
+            }
+
+            settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).put(SETTING_REMOTE_STORE_ENABLED, true);
+
+            String remoteStoreRepo;
+            if (Objects.equals(requestSettings.get(INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()), "true")) {
+                remoteStoreRepo = requestSettings.get(INDEX_REMOTE_STORE_REPOSITORY_SETTING.getKey());
+            } else {
+                remoteStoreRepo = CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.get(clusterSettings);
+            }
+            settingsBuilder.put(SETTING_REMOTE_STORE_REPOSITORY, remoteStoreRepo);
+
+            boolean translogStoreEnabled = false;
+            String translogStoreRepo = null;
+            if (Objects.equals(requestSettings.get(INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey()), "true")) {
+                translogStoreEnabled = true;
+                translogStoreRepo = requestSettings.get(INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey());
+            } else if (Objects.equals(requestSettings.get(INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey()), "false") == false
+                && CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.get(clusterSettings)) {
+                    translogStoreEnabled = true;
+                    translogStoreRepo = CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(clusterSettings);
+                }
+            if (translogStoreEnabled) {
+                settingsBuilder.put(SETTING_REMOTE_TRANSLOG_STORE_ENABLED, translogStoreEnabled)
+                    .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, translogStoreRepo);
+            }
+        }
+    }
+
+    private static boolean canCreateRemoteStoreIndex(Settings requestSettings) {
+        return (INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == false
+            || INDEX_REPLICATION_TYPE_SETTING.get(requestSettings).equals(ReplicationType.SEGMENT))
+            && (INDEX_REMOTE_STORE_ENABLED_SETTING.exists(requestSettings) == false
+                || INDEX_REMOTE_STORE_ENABLED_SETTING.get(requestSettings));
     }
 
     public static void validateStoreTypeSettings(Settings settings) {
@@ -1157,7 +1244,7 @@ public class MetadataCreateIndexService {
 
     public void validateIndexSettings(String indexName, final Settings settings, final boolean forbidPrivateIndexSettings)
         throws IndexCreationException {
-        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);
+        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings, indexName);
 
         if (validationErrors.isEmpty() == false) {
             ValidationException validationException = new ValidationException();
@@ -1166,10 +1253,31 @@ public class MetadataCreateIndexService {
         }
     }
 
-    List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {
+    List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings, String indexName) {
+        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings, Optional.of(indexName));
+        return validationErrors;
+    }
+
+    List<String> getIndexSettingsValidationErrors(
+        final Settings settings,
+        final boolean forbidPrivateIndexSettings,
+        Optional<String> indexName
+    ) {
         List<String> validationErrors = validateIndexCustomPath(settings, env.sharedDataDir());
         if (forbidPrivateIndexSettings) {
             validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, indexScopedSettings));
+        }
+        if (indexName.isEmpty() || indexName.get().charAt(0) != '.') {
+            // Apply aware replica balance validation only to non system indices
+            int replicaCount = settings.getAsInt(
+                IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
+                DEFAULT_REPLICA_COUNT_SETTING.get(this.clusterService.state().metadata().settings())
+            );
+            AutoExpandReplicas autoExpandReplica = AutoExpandReplicas.SETTING.get(settings);
+            Optional<String> error = awarenessReplicaBalance.validate(replicaCount, autoExpandReplica);
+            if (error.isPresent()) {
+                validationErrors.add(error.get());
+            }
         }
         return validationErrors;
     }
@@ -1367,21 +1475,17 @@ public class MetadataCreateIndexService {
      * the less default split operations are supported
      */
     public static int calculateNumRoutingShards(int numShards, Version indexVersionCreated) {
-        if (indexVersionCreated.onOrAfter(LegacyESVersion.V_7_0_0)) {
-            // only select this automatically for indices that are created on or after 7.0 this will prevent this new behaviour
-            // until we have a fully upgraded cluster. Additionally it will make integratin testing easier since mixed clusters
-            // will always have the behavior of the min node in the cluster.
-            //
-            // We use as a default number of routing shards the higher number that can be expressed
-            // as {@code numShards * 2^x`} that is less than or equal to the maximum number of shards: 1024.
-            int log2MaxNumShards = 10; // logBase2(1024)
-            int log2NumShards = 32 - Integer.numberOfLeadingZeros(numShards - 1); // ceil(logBase2(numShards))
-            int numSplits = log2MaxNumShards - log2NumShards;
-            numSplits = Math.max(1, numSplits); // Ensure the index can be split at least once
-            return numShards * 1 << numSplits;
-        } else {
-            return numShards;
-        }
+        // only select this automatically for indices that are created on or after 7.0 this will prevent this new behaviour
+        // until we have a fully upgraded cluster. Additionally it will make integratin testing easier since mixed clusters
+        // will always have the behavior of the min node in the cluster.
+        //
+        // We use as a default number of routing shards the higher number that can be expressed
+        // as {@code numShards * 2^x`} that is less than or equal to the maximum number of shards: 1024.
+        int log2MaxNumShards = 10; // logBase2(1024)
+        int log2NumShards = 32 - Integer.numberOfLeadingZeros(numShards - 1); // ceil(logBase2(numShards))
+        int numSplits = log2MaxNumShards - log2NumShards;
+        numSplits = Math.max(1, numSplits); // Ensure the index can be split at least once
+        return numShards * 1 << numSplits;
     }
 
     public static void validateTranslogRetentionSettings(Settings indexSettings) {

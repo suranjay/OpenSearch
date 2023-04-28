@@ -35,13 +35,13 @@ package org.opensearch.search.aggregations.bucket.filter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -60,12 +60,22 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+/**
+ * Aggregate all docs that match multiple filters.
+ *
+ * @opensearch.internal
+ */
 public class FiltersAggregator extends BucketsAggregator {
 
     public static final ParseField FILTERS_FIELD = new ParseField("filters");
     public static final ParseField OTHER_BUCKET_FIELD = new ParseField("other_bucket");
     public static final ParseField OTHER_BUCKET_KEY_FIELD = new ParseField("other_bucket_key");
 
+    /**
+     * Keyed filter for the filters agg
+     *
+     * @opensearch.internal
+     */
     public static class KeyedFilter implements Writeable, ToXContentFragment {
         private final String key;
         private final QueryBuilder filter;

@@ -34,13 +34,18 @@ package org.opensearch.search.aggregations.bucket.terms.heuristic;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * GND significance heuristic for significant terms agg
+ *
+ * @opensearch.internal
+ */
 public class GND extends NXYSignificanceHeuristic {
     public static final String NAME = "gnd";
     public static final ConstructingObjectParser<GND, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
@@ -122,6 +127,11 @@ public class GND extends NXYSignificanceHeuristic {
         return builder;
     }
 
+    /**
+     * Builder for a GND heuristic
+     *
+     * @opensearch.internal
+     */
     public static class GNDBuilder extends NXYBuilder {
         public GNDBuilder(boolean backgroundIsSuperset) {
             super(true, backgroundIsSuperset);

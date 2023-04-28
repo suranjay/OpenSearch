@@ -32,7 +32,6 @@
 
 package org.opensearch.persistent;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
@@ -153,7 +152,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("_node", buildNewFakeTransportAddress(), Version.CURRENT))
             .localNodeId("_node")
-            .masterNodeId("_node")
+            .clusterManagerNodeId("_node")
             .build();
 
         boolean unassigned = randomBoolean();
@@ -201,7 +200,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
 
     public void testReassignTasksWithNoTasks() {
         ClusterState clusterState = initialState();
-        assertThat(reassign(clusterState).metadata().custom(PersistentTasksCustomMetadata.TYPE), nullValue());
+        assertThat(reassign(createService(), clusterState).metadata().custom(PersistentTasksCustomMetadata.TYPE), nullValue());
     }
 
     public void testReassignConsidersClusterStateUpdates() {
@@ -219,7 +218,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
 
         Metadata.Builder metadata = Metadata.builder(clusterState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
         clusterState = builder.metadata(metadata).nodes(nodes).build();
-        ClusterState newClusterState = reassign(clusterState);
+        ClusterState newClusterState = reassign(createService(), clusterState);
 
         PersistentTasksCustomMetadata tasksInProgress = newClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         assertThat(tasksInProgress, notNullValue());
@@ -238,7 +237,8 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         clusterState = builder.metadata(metadata).nodes(nodes).build();
 
         nonClusterStateCondition = false;
-        ClusterState newClusterState = reassign(clusterState);
+        PersistentTasksClusterService service = createService();
+        ClusterState newClusterState = reassign(service, clusterState);
 
         PersistentTasksCustomMetadata tasksInProgress = newClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         assertThat(tasksInProgress, notNullValue());
@@ -250,7 +250,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         assertThat(tasksInProgress.tasks().size(), equalTo(1));
 
         nonClusterStateCondition = true;
-        ClusterState finalClusterState = reassign(newClusterState);
+        ClusterState finalClusterState = reassign(service, newClusterState);
 
         tasksInProgress = finalClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         assertThat(tasksInProgress, notNullValue());
@@ -289,7 +289,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         }
         Metadata.Builder metadata = Metadata.builder(clusterState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
         clusterState = builder.metadata(metadata).nodes(nodes).build();
-        ClusterState newClusterState = reassign(clusterState);
+        ClusterState newClusterState = reassign(createService(), clusterState);
 
         PersistentTasksCustomMetadata tasksInProgress = newClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         assertThat(tasksInProgress, notNullValue());
@@ -494,7 +494,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         });
     }
 
-    public void testPeriodicRecheckOffMaster() {
+    public void testPeriodicRecheckOffClusterManager() {
         ClusterState initialState = initialState();
         ClusterState.Builder builder = ClusterState.builder(initialState);
         PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder(
@@ -528,20 +528,20 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
             assertThat(tasksInProgress.tasks().size(), equalTo(1));
         }
 
-        // The rechecker should recheck indefinitely on the master node as the
+        // The rechecker should recheck indefinitely on the cluster-manager node as the
         // task can never be assigned while nonClusterStateCondition = false
         assertTrue(service.getPeriodicRechecker().isScheduled());
 
-        // Now simulate the node ceasing to be the master
+        // Now simulate the node ceasing to be the cluster-manager
         builder = ClusterState.builder(clusterState);
         nodes = DiscoveryNodes.builder(clusterState.nodes());
-        nodes.add(DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), "a_new_master_node"));
-        nodes.masterNodeId("a_new_master_node");
+        nodes.add(DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), "a_new_cluster_manager_node"));
+        nodes.clusterManagerNodeId("a_new_cluster_manager_node");
         ClusterState nonMasterClusterState = builder.nodes(nodes).build();
         event = new ClusterChangedEvent("test", nonMasterClusterState, clusterState);
         service.clusterChanged(event);
 
-        // The service should have cancelled the rechecker on learning it is no longer running on the master node
+        // The service should have cancelled the rechecker on learning it is no longer running on the cluster-manager node
         assertFalse(service.getPeriodicRechecker().isScheduled());
     }
 
@@ -554,7 +554,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("_node_1", buildNewFakeTransportAddress(), Version.CURRENT))
             .localNodeId("_node_1")
-            .masterNodeId("_node_1")
+            .clusterManagerNodeId("_node_1")
             .add(new DiscoveryNode("_node_2", buildNewFakeTransportAddress(), Version.CURRENT));
 
         String unassignedId = addTask(tasks, "unassign", "_node_2");
@@ -579,7 +579,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("_node_1", buildNewFakeTransportAddress(), Version.CURRENT))
             .localNodeId("_node_1")
-            .masterNodeId("_node_1")
+            .clusterManagerNodeId("_node_1")
             .add(new DiscoveryNode("_node_2", buildNewFakeTransportAddress(), Version.CURRENT));
 
         Metadata.Builder metadata = Metadata.builder(clusterState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
@@ -624,8 +624,8 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         }
     }
 
-    private ClusterState reassign(ClusterState clusterState) {
-        PersistentTasksClusterService service = createService((params, currentState) -> {
+    private PersistentTasksClusterService createService() {
+        return createService((params, currentState) -> {
             TestParams testParams = (TestParams) params;
             switch (testParams.getTestParam()) {
                 case "assign_me":
@@ -644,7 +644,9 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
             }
             return NO_NODE_FOUND;
         });
+    }
 
+    private ClusterState reassign(PersistentTasksClusterService service, ClusterState clusterState) {
         return service.reassignTasks(clusterState);
     }
 
@@ -674,8 +676,8 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
             return NO_NODE_FOUND;
         }
         List<String> nodeList = new ArrayList<>();
-        for (ObjectCursor<String> node : nodes.getNodes().keys()) {
-            nodeList.add(node.value);
+        for (final String node : nodes.getNodes().keySet()) {
+            nodeList.add(node);
         }
         String node = randomFrom(nodeList);
         if (node != null) {
@@ -796,7 +798,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
             }
         }
         if (randomBoolean()) {
-            // remove a node that doesn't have any tasks assigned to it and it's not the master node
+            // remove a node that doesn't have any tasks assigned to it and it's not the cluster-manager node
             for (DiscoveryNode node : clusterState.nodes()) {
                 if (hasTasksAssignedTo(tasks, node.getId()) == false && "this_node".equals(node.getId()) == false) {
                     logger.info("removed unassigned node {}", node.getId());
@@ -902,7 +904,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         nodes.add(DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), "this_node"));
         nodes.localNodeId("this_node");
-        nodes.masterNodeId("this_node");
+        nodes.clusterManagerNodeId("this_node");
 
         return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).routingTable(routingTable.build()).build();
     }

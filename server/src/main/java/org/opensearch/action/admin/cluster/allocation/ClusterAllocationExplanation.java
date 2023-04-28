@@ -43,8 +43,8 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -57,6 +57,8 @@ import static org.opensearch.cluster.routing.allocation.AbstractAllocationDecisi
  * A {@code ClusterAllocationExplanation} is an explanation of why a shard is unassigned,
  * or if it is not unassigned, then which nodes it could possibly be relocated to.
  * It is an immutable class.
+ *
+ * @opensearch.internal
  */
 public final class ClusterAllocationExplanation implements ToXContentObject, Writeable {
 

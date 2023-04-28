@@ -37,7 +37,6 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
@@ -52,11 +51,17 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Lists gateway meta state
+ *
+ * @opensearch.internal
+ */
 public class TransportNodesListGatewayMetaState extends TransportNodesAction<
     TransportNodesListGatewayMetaState.Request,
     TransportNodesListGatewayMetaState.NodesGatewayMetaState,
@@ -116,6 +121,11 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<
         return new NodeGatewayMetaState(clusterService.localNode(), metaState.getMetadata());
     }
 
+    /**
+     * The request.
+     *
+     * @opensearch.internal
+     */
     public static class Request extends BaseNodesRequest<Request> {
 
         public Request(StreamInput in) throws IOException {
@@ -127,6 +137,11 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<
         }
     }
 
+    /**
+     * The nodes gateway metastate.
+     *
+     * @opensearch.internal
+     */
     public static class NodesGatewayMetaState extends BaseNodesResponse<NodeGatewayMetaState> {
 
         public NodesGatewayMetaState(StreamInput in) throws IOException {
@@ -148,7 +163,12 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<
         }
     }
 
-    public static class NodeRequest extends BaseNodeRequest {
+    /**
+     * The node request.
+     *
+     * @opensearch.internal
+     */
+    public static class NodeRequest extends TransportRequest {
         NodeRequest() {}
 
         NodeRequest(StreamInput in) throws IOException {
@@ -156,6 +176,11 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<
         }
     }
 
+    /**
+     * The node gateway metastate.
+     *
+     * @opensearch.internal
+     */
     public static class NodeGatewayMetaState extends BaseNodeResponse {
 
         private Metadata metadata;

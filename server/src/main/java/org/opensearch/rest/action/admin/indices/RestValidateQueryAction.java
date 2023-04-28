@@ -39,7 +39,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
@@ -56,6 +56,11 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestStatus.OK;
 
+/**
+ * Transport action to validate a query
+ *
+ * @opensearch.api
+ */
 public class RestValidateQueryAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {

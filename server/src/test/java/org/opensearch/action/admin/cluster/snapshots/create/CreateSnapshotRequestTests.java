@@ -38,11 +38,11 @@ import org.opensearch.action.support.IndicesOptions.Option;
 import org.opensearch.action.support.IndicesOptions.WildcardStates;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContent.MapParams;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent.MapParams;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -120,7 +120,7 @@ public class CreateSnapshotRequestTests extends OpenSearchTestCase {
         }
 
         if (randomBoolean()) {
-            original.masterNodeTimeout("60s");
+            original.clusterManagerNodeTimeout("60s");
         }
 
         XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new MapParams(Collections.emptyMap()));
@@ -129,7 +129,7 @@ public class CreateSnapshotRequestTests extends OpenSearchTestCase {
         Map<String, Object> map = parser.mapOrdered();
         CreateSnapshotRequest processed = new CreateSnapshotRequest((String) map.get("repository"), (String) map.get("snapshot"));
         processed.waitForCompletion(original.waitForCompletion());
-        processed.masterNodeTimeout(original.masterNodeTimeout());
+        processed.clusterManagerNodeTimeout(original.clusterManagerNodeTimeout());
         processed.source(map);
 
         assertEquals(original, processed);

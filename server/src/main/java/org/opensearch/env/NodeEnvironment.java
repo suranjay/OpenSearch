@@ -61,8 +61,8 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.gateway.MetadataStateFormat;
 import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.index.Index;
@@ -107,8 +107,15 @@ import static java.util.Collections.unmodifiableSet;
 
 /**
  * A component that holds all data paths for a single node.
+ *
+ * @opensearch.internal
  */
 public final class NodeEnvironment implements Closeable {
+    /**
+     * A node path.
+     *
+     * @opensearch.internal
+     */
     public static class NodePath {
         /* ${data.paths}/nodes/{node.id} */
         public final Path path;
@@ -116,14 +123,20 @@ public final class NodeEnvironment implements Closeable {
         public final Path indicesPath;
         /** Cached FileStore from path */
         public final FileStore fileStore;
-
+        public final Path fileCachePath;
+        /*
+          Cache reserved size can default to a different value depending on configuration
+        */
+        public ByteSizeValue fileCacheReservedSize;
         public final int majorDeviceNumber;
         public final int minorDeviceNumber;
 
         public NodePath(Path path) throws IOException {
             this.path = path;
             this.indicesPath = path.resolve(INDICES_FOLDER);
+            this.fileCachePath = path.resolve(CACHE_FOLDER);
             this.fileStore = Environment.getFileStore(path);
+            this.fileCacheReservedSize = ByteSizeValue.ZERO;
             if (fileStore.supportsFileAttributeView("lucene")) {
                 this.majorDeviceNumber = (int) fileStore.getAttribute("lucene:major_device_number");
                 this.minorDeviceNumber = (int) fileStore.getAttribute("lucene:minor_device_number");
@@ -173,6 +186,7 @@ public final class NodeEnvironment implements Closeable {
 
     private final Logger logger = LogManager.getLogger(NodeEnvironment.class);
     private final NodePath[] nodePaths;
+    private final NodePath fileCacheNodePath;
     private final Path sharedDataPath;
     private final Lock[] locks;
 
@@ -210,8 +224,14 @@ public final class NodeEnvironment implements Closeable {
 
     public static final String NODES_FOLDER = "nodes";
     public static final String INDICES_FOLDER = "indices";
+    public static final String CACHE_FOLDER = "cache";
     public static final String NODE_LOCK_FILENAME = "node.lock";
 
+    /**
+     * The node lock.
+     *
+     * @opensearch.internal
+     */
     public static class NodeLock implements Releasable {
 
         private final int nodeId;
@@ -279,6 +299,7 @@ public final class NodeEnvironment implements Closeable {
     public NodeEnvironment(Settings settings, Environment environment) throws IOException {
         if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
             nodePaths = null;
+            fileCacheNodePath = null;
             sharedDataPath = null;
             locks = null;
             nodeLockId = -1;
@@ -330,6 +351,8 @@ public final class NodeEnvironment implements Closeable {
             }
             this.locks = nodeLock.locks;
             this.nodePaths = nodeLock.nodePaths;
+            this.fileCacheNodePath = nodePaths[0];
+
             this.nodeLockId = nodeLock.nodeId;
 
             if (logger.isDebugEnabled()) {
@@ -342,16 +365,20 @@ public final class NodeEnvironment implements Closeable {
             applySegmentInfosTrace(settings);
             assertCanWrite();
 
-            if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
+            if (DiscoveryNode.isClusterManagerNode(settings) || DiscoveryNode.isDataNode(settings)) {
                 ensureAtomicMoveSupported(nodePaths);
             }
 
             if (DiscoveryNode.isDataNode(settings) == false) {
-                if (DiscoveryNode.isMasterNode(settings) == false) {
+                if (DiscoveryNode.isClusterManagerNode(settings) == false) {
                     ensureNoIndexMetadata(nodePaths);
                 }
 
                 ensureNoShardData(nodePaths);
+            }
+
+            if (DiscoveryNode.isSearchNode(settings) == false) {
+                ensureNoFileCacheData(fileCacheNodePath);
             }
 
             this.nodeMetadata = loadNodeMetadata(settings, logger, nodePaths);
@@ -876,6 +903,17 @@ public final class NodeEnvironment implements Closeable {
         return nodePaths;
     }
 
+    /**
+     * Returns the {@link NodePath} used for file caching.
+     */
+    public NodePath fileCacheNodePath() {
+        assertEnvIsLocked();
+        if (nodePaths == null || locks == null) {
+            throw new IllegalStateException("node is not configured to store local location");
+        }
+        return fileCacheNodePath;
+    }
+
     public int getNodeLockId() {
         assertEnvIsLocked();
         if (nodePaths == null || locks == null) {
@@ -993,7 +1031,7 @@ public final class NodeEnvironment implements Closeable {
                 paths.add(indexFolder);
             }
         }
-        return paths.toArray(new Path[paths.size()]);
+        return paths.toArray(new Path[0]);
     }
 
     /**
@@ -1131,6 +1169,22 @@ public final class NodeEnvironment implements Closeable {
         }
     }
 
+    /**
+     * Throws an exception if cache exists on a non-search node.
+     */
+    private void ensureNoFileCacheData(final NodePath fileCacheNodePath) throws IOException {
+        List<Path> cacheDataPaths = collectFileCacheDataPath(fileCacheNodePath);
+        if (cacheDataPaths.isEmpty() == false) {
+            final String message = String.format(
+                Locale.ROOT,
+                "node does not have the %s role but has data within node search cache: %s. Use 'opensearch-node repurpose' tool to clean up",
+                DiscoveryNodeRole.SEARCH_ROLE.roleName(),
+                cacheDataPaths
+            );
+            throw new IllegalStateException(message);
+        }
+    }
+
     private void ensureNoIndexMetadata(final NodePath[] nodePaths) throws IOException {
         List<Path> indexMetadataPaths = collectIndexMetadataPaths(nodePaths);
         if (indexMetadataPaths.isEmpty() == false) {
@@ -1189,6 +1243,29 @@ public final class NodeEnvironment implements Closeable {
     }
 
     /**
+     * Collect the path containing cache data in the indicated cache node path.
+     * The returned paths will point to the shard data folder.
+     */
+    public static List<Path> collectFileCacheDataPath(NodePath fileCacheNodePath) throws IOException {
+        // Structure is: <file cache path>/<index uuid>/<shard id>/...
+        List<Path> indexSubPaths = new ArrayList<>();
+        Path fileCachePath = fileCacheNodePath.fileCachePath;
+        if (Files.isDirectory(fileCachePath)) {
+            try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(fileCachePath)) {
+                for (Path indexPath : indexStream) {
+                    if (Files.isDirectory(indexPath)) {
+                        try (Stream<Path> shardStream = Files.list(indexPath)) {
+                            shardStream.filter(NodeEnvironment::isShardPath).map(Path::toAbsolutePath).forEach(indexSubPaths::add);
+                        }
+                    }
+                }
+            }
+        }
+
+        return indexSubPaths;
+    }
+
+    /**
      * Resolve the custom path for a index's shard.
      */
     public static Path resolveBaseCustomLocation(String customDataPath, Path sharedDataPath, int nodeLockId) {
@@ -1214,6 +1291,16 @@ public final class NodeEnvironment implements Closeable {
 
     private static Path resolveIndexCustomLocation(String customDataPath, String indexUUID, Path sharedDataPath, int nodeLockId) {
         return resolveBaseCustomLocation(customDataPath, sharedDataPath, nodeLockId).resolve(indexUUID);
+    }
+
+    /**
+     * Resolve the file cache path for remote shards.
+     *
+     * @param fileCachePath the file cache path
+     * @param shardId shard to resolve the path to
+     */
+    public Path resolveFileCacheLocation(final Path fileCachePath, final ShardId shardId) {
+        return fileCachePath.resolve(shardId.getIndex().getUUID()).resolve(Integer.toString(shardId.id()));
     }
 
     /**

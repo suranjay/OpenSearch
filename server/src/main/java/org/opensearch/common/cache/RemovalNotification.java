@@ -32,12 +32,12 @@
 
 package org.opensearch.common.cache;
 
+/**
+ * Notification when an element is removed from the cache
+ *
+ * @opensearch.internal
+ */
 public class RemovalNotification<K, V> {
-    public enum RemovalReason {
-        REPLACED,
-        INVALIDATED,
-        EVICTED
-    }
 
     private final K key;
     private final V value;

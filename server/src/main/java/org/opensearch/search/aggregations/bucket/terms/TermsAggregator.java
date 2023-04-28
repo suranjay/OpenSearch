@@ -36,8 +36,8 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -56,8 +56,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * Base aggregator class to aggregate documents by terms
+ *
+ * @opensearch.internal
+ */
 public abstract class TermsAggregator extends DeferableBucketAggregator {
 
+    /**
+     * Bucket count thresholds
+     *
+     * @opensearch.internal
+     */
     public static class BucketCountThresholds implements Writeable, ToXContentFragment {
         private long minDocCount;
         private long shardMinDocCount;

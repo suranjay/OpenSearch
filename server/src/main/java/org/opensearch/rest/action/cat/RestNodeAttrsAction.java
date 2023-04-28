@@ -55,6 +55,11 @@ import java.util.Map;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * _cat API action to get node attributes
+ *
+ * @opensearch.api
+ */
 public class RestNodeAttrsAction extends AbstractCatAction {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestNodeAttrsAction.class);
@@ -79,7 +84,9 @@ public class RestNodeAttrsAction extends AbstractCatAction {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", clusterStateRequest.clusterManagerNodeTimeout())
+        );
         parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
 
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {

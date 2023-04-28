@@ -51,7 +51,7 @@ import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -66,7 +66,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.BiFunction;
 
-/** Enum defining the type of range */
+/**
+ * Enum defining the type of range
+ *
+ * @opensearch.internal
+ */
 public enum RangeType {
     IP("ip_range", LengthType.FIXED_16) {
         @Override
@@ -978,6 +982,11 @@ public enum RangeType {
     private final NumberFieldMapper.NumberType numberType;
     public final LengthType lengthType;
 
+    /**
+     * Type of length
+     *
+     * @opensearch.internal
+     */
     public enum LengthType {
         FIXED_4 {
             @Override

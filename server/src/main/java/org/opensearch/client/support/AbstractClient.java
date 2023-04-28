@@ -43,6 +43,18 @@ import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainAc
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequestBuilder;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateResponse;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateRequestBuilder;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateResponse;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionAction;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequestBuilder;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
@@ -77,6 +89,9 @@ import org.opensearch.action.admin.cluster.node.usage.NodesUsageAction;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequestBuilder;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageResponse;
+import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreAction;
+import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
+import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequestBuilder;
@@ -107,6 +122,18 @@ import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterAddWeightedRoutingAction;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotAction;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequestBuilder;
@@ -154,9 +181,6 @@ import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
-import org.opensearch.action.admin.indices.alias.exists.AliasesExistAction;
-import org.opensearch.action.admin.indices.alias.exists.AliasesExistRequestBuilder;
-import org.opensearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
@@ -192,10 +216,6 @@ import org.opensearch.action.admin.indices.exists.indices.IndicesExistsAction;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsRequestBuilder;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsResponse;
-import org.opensearch.action.admin.indices.exists.types.TypesExistsAction;
-import org.opensearch.action.admin.indices.exists.types.TypesExistsRequest;
-import org.opensearch.action.admin.indices.exists.types.TypesExistsRequestBuilder;
-import org.opensearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.opensearch.action.admin.indices.flush.FlushAction;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.flush.FlushRequestBuilder;
@@ -240,10 +260,16 @@ import org.opensearch.action.admin.indices.rollover.RolloverAction;
 import org.opensearch.action.admin.indices.rollover.RolloverRequest;
 import org.opensearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.opensearch.action.admin.indices.rollover.RolloverResponse;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsAction;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsRequest;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsRequestBuilder;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
+import org.opensearch.action.admin.indices.segments.PitSegmentsAction;
+import org.opensearch.action.admin.indices.segments.PitSegmentsRequest;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsRequestBuilder;
@@ -331,10 +357,26 @@ import org.opensearch.action.search.ClearScrollAction;
 import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.ClearScrollRequestBuilder;
 import org.opensearch.action.search.ClearScrollResponse;
+import org.opensearch.action.search.CreatePitAction;
+import org.opensearch.action.search.CreatePitRequest;
+import org.opensearch.action.search.CreatePitResponse;
+import org.opensearch.action.search.DeletePitAction;
+import org.opensearch.action.search.DeletePitRequest;
+import org.opensearch.action.search.DeletePitResponse;
+import org.opensearch.action.search.DeleteSearchPipelineAction;
+import org.opensearch.action.search.DeleteSearchPipelineRequest;
+import org.opensearch.action.search.GetAllPitNodesRequest;
+import org.opensearch.action.search.GetAllPitNodesResponse;
+import org.opensearch.action.search.GetSearchPipelineAction;
+import org.opensearch.action.search.GetSearchPipelineRequest;
+import org.opensearch.action.search.GetSearchPipelineResponse;
 import org.opensearch.action.search.MultiSearchAction;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchRequestBuilder;
 import org.opensearch.action.search.MultiSearchResponse;
+import org.opensearch.action.search.GetAllPitsAction;
+import org.opensearch.action.search.PutSearchPipelineAction;
+import org.opensearch.action.search.PutSearchPipelineRequest;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchRequestBuilder;
@@ -373,6 +415,11 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Map;
 
+/**
+ * Base client used to create concrete client implementations
+ *
+ * @opensearch.internal
+ */
 public abstract class AbstractClient implements Client {
 
     protected final Logger logger;
@@ -574,6 +621,26 @@ public abstract class AbstractClient implements Client {
     @Override
     public SearchScrollRequestBuilder prepareSearchScroll(String scrollId) {
         return new SearchScrollRequestBuilder(this, SearchScrollAction.INSTANCE, scrollId);
+    }
+
+    @Override
+    public void createPit(final CreatePitRequest createPITRequest, final ActionListener<CreatePitResponse> listener) {
+        execute(CreatePitAction.INSTANCE, createPITRequest, listener);
+    }
+
+    @Override
+    public void deletePits(final DeletePitRequest deletePITRequest, final ActionListener<DeletePitResponse> listener) {
+        execute(DeletePitAction.INSTANCE, deletePITRequest, listener);
+    }
+
+    @Override
+    public void getAllPits(final GetAllPitNodesRequest getAllPitNodesRequest, final ActionListener<GetAllPitNodesResponse> listener) {
+        execute(GetAllPitsAction.INSTANCE, getAllPitNodesRequest, listener);
+    }
+
+    @Override
+    public void pitSegments(final PitSegmentsRequest request, final ActionListener<IndicesSegmentResponse> listener) {
+        execute(PitSegmentsAction.INSTANCE, request, listener);
     }
 
     @Override
@@ -1096,6 +1163,11 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
+        public void restoreRemoteStore(RestoreRemoteStoreRequest request, ActionListener<RestoreRemoteStoreResponse> listener) {
+            execute(RestoreRemoteStoreAction.INSTANCE, request, listener);
+        }
+
+        @Override
         public RestoreSnapshotRequestBuilder prepareRestoreSnapshot(String repository, String snapshot) {
             return new RestoreSnapshotRequestBuilder(this, RestoreSnapshotAction.INSTANCE, repository, snapshot);
         }
@@ -1236,6 +1308,60 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
+        public ActionFuture<ClusterPutWeightedRoutingResponse> putWeightedRouting(ClusterPutWeightedRoutingRequest request) {
+            return execute(ClusterAddWeightedRoutingAction.INSTANCE, request);
+        }
+
+        @Override
+        public void putWeightedRouting(
+            ClusterPutWeightedRoutingRequest request,
+            ActionListener<ClusterPutWeightedRoutingResponse> listener
+        ) {
+            execute(ClusterAddWeightedRoutingAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ClusterPutWeightedRoutingRequestBuilder prepareWeightedRouting() {
+            return new ClusterPutWeightedRoutingRequestBuilder(this, ClusterAddWeightedRoutingAction.INSTANCE);
+        }
+
+        @Override
+        public ActionFuture<ClusterGetWeightedRoutingResponse> getWeightedRouting(ClusterGetWeightedRoutingRequest request) {
+            return execute(ClusterGetWeightedRoutingAction.INSTANCE, request);
+        }
+
+        @Override
+        public void getWeightedRouting(
+            ClusterGetWeightedRoutingRequest request,
+            ActionListener<ClusterGetWeightedRoutingResponse> listener
+        ) {
+            execute(ClusterGetWeightedRoutingAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ClusterGetWeightedRoutingRequestBuilder prepareGetWeightedRouting() {
+            return new ClusterGetWeightedRoutingRequestBuilder(this, ClusterGetWeightedRoutingAction.INSTANCE);
+        }
+
+        @Override
+        public ActionFuture<ClusterDeleteWeightedRoutingResponse> deleteWeightedRouting(ClusterDeleteWeightedRoutingRequest request) {
+            return execute(ClusterDeleteWeightedRoutingAction.INSTANCE, request);
+        }
+
+        @Override
+        public void deleteWeightedRouting(
+            ClusterDeleteWeightedRoutingRequest request,
+            ActionListener<ClusterDeleteWeightedRoutingResponse> listener
+        ) {
+            execute(ClusterDeleteWeightedRoutingAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ClusterDeleteWeightedRoutingRequestBuilder prepareDeleteWeightedRouting() {
+            return new ClusterDeleteWeightedRoutingRequestBuilder(this, ClusterDeleteWeightedRoutingAction.INSTANCE);
+        }
+
+        @Override
         public void deleteDanglingIndex(DeleteDanglingIndexRequest request, ActionListener<AcknowledgedResponse> listener) {
             execute(DeleteDanglingIndexAction.INSTANCE, request, listener);
         }
@@ -1285,6 +1411,84 @@ public abstract class AbstractClient implements Client {
         public DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(String id) {
             return prepareDeleteStoredScript().setId(id);
         }
+
+        @Override
+        public ActionFuture<DecommissionResponse> decommission(DecommissionRequest request) {
+            return execute(DecommissionAction.INSTANCE, request);
+        }
+
+        @Override
+        public void decommission(DecommissionRequest request, ActionListener<DecommissionResponse> listener) {
+            execute(DecommissionAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public DecommissionRequestBuilder prepareDecommission(DecommissionRequest request) {
+            return new DecommissionRequestBuilder(this, DecommissionAction.INSTANCE, request);
+        }
+
+        @Override
+        public ActionFuture<GetDecommissionStateResponse> getDecommissionState(GetDecommissionStateRequest request) {
+            return execute(GetDecommissionStateAction.INSTANCE, request);
+        }
+
+        @Override
+        public void getDecommissionState(GetDecommissionStateRequest request, ActionListener<GetDecommissionStateResponse> listener) {
+            execute(GetDecommissionStateAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public GetDecommissionStateRequestBuilder prepareGetDecommissionState() {
+            return new GetDecommissionStateRequestBuilder(this, GetDecommissionStateAction.INSTANCE);
+        }
+
+        @Override
+        public ActionFuture<DeleteDecommissionStateResponse> deleteDecommissionState(DeleteDecommissionStateRequest request) {
+            return execute(DeleteDecommissionStateAction.INSTANCE, request);
+        }
+
+        @Override
+        public void deleteDecommissionState(
+            DeleteDecommissionStateRequest request,
+            ActionListener<DeleteDecommissionStateResponse> listener
+        ) {
+            execute(DeleteDecommissionStateAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public DeleteDecommissionStateRequestBuilder prepareDeleteDecommissionRequest() {
+            return new DeleteDecommissionStateRequestBuilder(this, DeleteDecommissionStateAction.INSTANCE);
+        }
+
+        @Override
+        public void putSearchPipeline(PutSearchPipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
+            execute(PutSearchPipelineAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<AcknowledgedResponse> putSearchPipeline(PutSearchPipelineRequest request) {
+            return execute(PutSearchPipelineAction.INSTANCE, request);
+        }
+
+        @Override
+        public void getSearchPipeline(GetSearchPipelineRequest request, ActionListener<GetSearchPipelineResponse> listener) {
+            execute(GetSearchPipelineAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<GetSearchPipelineResponse> getSearchPipeline(GetSearchPipelineRequest request) {
+            return execute(GetSearchPipelineAction.INSTANCE, request);
+        }
+
+        @Override
+        public void deleteSearchPipeline(DeleteSearchPipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
+            execute(DeleteSearchPipelineAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<AcknowledgedResponse> deleteSearchPipeline(DeleteSearchPipelineRequest request) {
+            return execute(DeleteSearchPipelineAction.INSTANCE, request);
+        }
     }
 
     static class IndicesAdmin implements IndicesAdminClient {
@@ -1332,22 +1536,6 @@ public abstract class AbstractClient implements Client {
             return new IndicesExistsRequestBuilder(this, IndicesExistsAction.INSTANCE, indices);
         }
 
-        @Deprecated
-        @Override
-        public ActionFuture<TypesExistsResponse> typesExists(TypesExistsRequest request) {
-            return execute(TypesExistsAction.INSTANCE, request);
-        }
-
-        @Override
-        public void typesExists(TypesExistsRequest request, ActionListener<TypesExistsResponse> listener) {
-            execute(TypesExistsAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public TypesExistsRequestBuilder prepareTypesExists(String... index) {
-            return new TypesExistsRequestBuilder(this, TypesExistsAction.INSTANCE, index);
-        }
-
         @Override
         public ActionFuture<AcknowledgedResponse> aliases(final IndicesAliasesRequest request) {
             return execute(IndicesAliasesAction.INSTANCE, request);
@@ -1381,21 +1569,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public ActionFuture<ClearIndicesCacheResponse> clearCache(final ClearIndicesCacheRequest request) {
             return execute(ClearIndicesCacheAction.INSTANCE, request);
-        }
-
-        @Override
-        public void aliasesExist(GetAliasesRequest request, ActionListener<AliasesExistResponse> listener) {
-            execute(AliasesExistAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public ActionFuture<AliasesExistResponse> aliasesExist(GetAliasesRequest request) {
-            return execute(AliasesExistAction.INSTANCE, request);
-        }
-
-        @Override
-        public AliasesExistRequestBuilder prepareAliasesExist(String... aliases) {
-            return new AliasesExistRequestBuilder(this, AliasesExistAction.INSTANCE, aliases);
         }
 
         @Override
@@ -1641,6 +1814,24 @@ public abstract class AbstractClient implements Client {
         @Override
         public RecoveryRequestBuilder prepareRecoveries(String... indices) {
             return new RecoveryRequestBuilder(this, RecoveryAction.INSTANCE).setIndices(indices);
+        }
+
+        @Override
+        public ActionFuture<SegmentReplicationStatsResponse> segmentReplicationStats(final SegmentReplicationStatsRequest request) {
+            return execute(SegmentReplicationStatsAction.INSTANCE, request);
+        }
+
+        @Override
+        public void segmentReplicationStats(
+            final SegmentReplicationStatsRequest request,
+            final ActionListener<SegmentReplicationStatsResponse> listener
+        ) {
+            execute(SegmentReplicationStatsAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public SegmentReplicationStatsRequestBuilder prepareSegmentReplicationStats(String... indices) {
+            return new SegmentReplicationStatsRequestBuilder(this, SegmentReplicationStatsAction.INSTANCE).setIndices(indices);
         }
 
         @Override

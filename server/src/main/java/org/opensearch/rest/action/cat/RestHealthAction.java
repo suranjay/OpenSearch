@@ -46,6 +46,11 @@ import java.util.Locale;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * _cat API action to get cluster health
+ *
+ * @opensearch.api
+ */
 public class RestHealthAction extends AbstractCatAction {
 
     @Override
@@ -114,7 +119,7 @@ public class RestHealthAction extends AbstractCatAction {
         t.addCell(health.getStatus().name().toLowerCase(Locale.ROOT));
         t.addCell(health.getNumberOfNodes());
         t.addCell(health.getNumberOfDataNodes());
-        t.addCell(health.hasDiscoveredMaster());
+        t.addCell(health.hasDiscoveredClusterManager());
         t.addCell(health.getActiveShards());
         t.addCell(health.getActivePrimaryShards());
         t.addCell(health.getRelocatingShards());

@@ -34,10 +34,15 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.opensearch.common.io.stream.NamedWriteable;
-import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.ToXContentObject;
 
 import java.io.IOException;
 
+/**
+ * Foundation class for all OpenSearch query builders
+ *
+ * @opensearch.internal
+ */
 public interface QueryBuilder extends NamedWriteable, ToXContentObject, Rewriteable<QueryBuilder> {
 
     /**

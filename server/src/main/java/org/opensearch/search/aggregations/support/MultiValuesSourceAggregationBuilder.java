@@ -34,7 +34,7 @@ package org.opensearch.search.aggregations.support;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
@@ -53,10 +53,17 @@ import java.util.Objects;
  * can pull values from multiple fields).
  *
  * A limitation of this class is that all the ValuesSource's being refereenced must be of the same type.
+ *
+ * @opensearch.internal
  */
 public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValuesSourceAggregationBuilder<AB>> extends
     AbstractAggregationBuilder<AB> {
 
+    /**
+     * Base leaf only class
+     *
+     * @opensearch.internal
+     */
     public abstract static class LeafOnly<AB extends MultiValuesSourceAggregationBuilder<AB>> extends MultiValuesSourceAggregationBuilder<
         AB> {
 

@@ -38,7 +38,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -46,6 +46,8 @@ import java.util.Objects;
 
 /**
  * A reusable class to encode {@code field -&gt; memory size} mappings
+ *
+ * @opensearch.internal
  */
 public final class FieldMemoryStats implements Writeable, Iterable<ObjectLongCursor<String>> {
 

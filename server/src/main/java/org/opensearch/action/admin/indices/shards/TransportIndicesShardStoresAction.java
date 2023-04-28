@@ -37,7 +37,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeReadAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -54,7 +54,6 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.ImmutableOpenIntMap;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
@@ -69,8 +68,10 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -78,8 +79,10 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 /**
  * Transport action that reads the cluster state for shards with the requested criteria (see {@link ClusterHealthStatus}) of specific
  * indices and fetches store information from all the nodes using {@link TransportNodesListGatewayStartedShards}
+ *
+ * @opensearch.internal
  */
-public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAction<
+public class TransportIndicesShardStoresAction extends TransportClusterManagerNodeReadAction<
     IndicesShardStoresRequest,
     IndicesShardStoresResponse> {
 
@@ -119,7 +122,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         IndicesShardStoresRequest request,
         ClusterState state,
         ActionListener<IndicesShardStoresResponse> listener
@@ -160,6 +163,11 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             .indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
+    /**
+     * Information for async shard stores
+     *
+     * @opensearch.internal
+     */
     private class AsyncShardStoresInfoFetches {
         private final DiscoveryNodes nodes;
         private final RoutingNodes routingNodes;
@@ -193,6 +201,11 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             }
         }
 
+        /**
+         * Internal async fetch
+         *
+         * @opensearch.internal
+         */
         private class InternalAsyncFetch extends AsyncShardFetch<NodeGatewayStartedShards> {
 
             InternalAsyncFetch(
@@ -218,10 +231,8 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             }
 
             void finish() {
-                ImmutableOpenMap.Builder<
-                    String,
-                    ImmutableOpenIntMap<java.util.List<IndicesShardStoresResponse.StoreStatus>>> indicesStoreStatusesBuilder =
-                        ImmutableOpenMap.builder();
+                final Map<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>> indicesStoreStatusesBuilder =
+                    new HashMap<>();
 
                 java.util.List<IndicesShardStoresResponse.Failure> failureBuilder = new ArrayList<>();
                 for (Response fetchResponse : fetchResponses) {
@@ -271,7 +282,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
                     }
                 }
                 listener.onResponse(
-                    new IndicesShardStoresResponse(indicesStoreStatusesBuilder.build(), Collections.unmodifiableList(failureBuilder))
+                    new IndicesShardStoresResponse(indicesStoreStatusesBuilder, Collections.unmodifiableList(failureBuilder))
                 );
             }
 
@@ -307,6 +318,11 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
                 // no-op
             }
 
+            /**
+             * Response for shard stores action
+             *
+             * @opensearch.internal
+             */
             public class Response {
                 private final ShardId shardId;
                 private final List<NodeGatewayStartedShards> responses;

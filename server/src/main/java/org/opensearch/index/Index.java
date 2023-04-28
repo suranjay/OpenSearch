@@ -33,20 +33,22 @@
 package org.opensearch.index;
 
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
  * A value class representing the basic required properties of an OpenSearch index.
+ *
+ * @opensearch.internal
  */
 public class Index implements Writeable, ToXContentObject {
 
@@ -134,6 +136,8 @@ public class Index implements Writeable, ToXContentObject {
 
     /**
      * Builder for Index objects.  Used by ObjectParser instances only.
+     *
+     * @opensearch.internal
      */
     private static final class Builder {
         private String name;

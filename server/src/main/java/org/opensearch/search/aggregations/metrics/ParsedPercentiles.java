@@ -32,9 +32,9 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.aggregations.ParsedAggregation;
 
 import java.io.IOException;
@@ -43,6 +43,11 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+/**
+ * A single percentiles agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public abstract class ParsedPercentiles extends ParsedAggregation implements Iterable<Percentile> {
 
     protected final Map<Double, Double> percentiles = new LinkedHashMap<>();

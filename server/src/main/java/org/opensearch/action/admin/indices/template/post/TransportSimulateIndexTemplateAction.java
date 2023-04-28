@@ -35,7 +35,7 @@ package org.opensearch.action.admin.indices.template.post;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeReadAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -54,7 +54,7 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.IndicesService;
@@ -75,7 +75,13 @@ import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findC
 import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
 import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
 
-public class TransportSimulateIndexTemplateAction extends TransportMasterNodeReadAction<
+/**
+ * Transport Action for handling simulating an index template either by name (looking it up in the
+ * cluster state), or by a provided template configuration
+ *
+ * @opensearch.internal
+ */
+public class TransportSimulateIndexTemplateAction extends TransportClusterManagerNodeReadAction<
     SimulateIndexTemplateRequest,
     SimulateIndexTemplateResponse> {
 
@@ -121,7 +127,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         SimulateIndexTemplateRequest request,
         ClusterState state,
         ActionListener<SimulateIndexTemplateResponse> listener

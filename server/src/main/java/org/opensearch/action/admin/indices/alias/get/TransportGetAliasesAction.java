@@ -33,7 +33,7 @@ package org.opensearch.action.admin.indices.alias.get;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeReadAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -41,7 +41,6 @@ import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -53,13 +52,20 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class TransportGetAliasesAction extends TransportMasterNodeReadAction<GetAliasesRequest, GetAliasesResponse> {
+/**
+ * Transport action for listing index aliases
+ *
+ * @opensearch.internal
+ */
+public class TransportGetAliasesAction extends TransportClusterManagerNodeReadAction<GetAliasesRequest, GetAliasesResponse> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportGetAliasesAction.class);
 
     private final SystemIndices systemIndices;
@@ -107,7 +113,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
     }
 
     @Override
-    protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
+    protected void clusterManagerOperation(GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
         String[] concreteIndices;
         // Switch to a context which will drop any deprecation warnings, because there may be indices resolved here which are not
         // returned in the final response. We'll add warnings back later if necessary in checkSystemIndexAccess.
@@ -115,7 +121,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
         }
         final boolean systemIndexAccessAllowed = indexNameExpressionResolver.isSystemIndexAccessAllowed();
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases = state.metadata().findAliases(request, concreteIndices);
+        final Map<String, List<AliasMetadata>> aliases = state.metadata().findAliases(request, concreteIndices);
         listener.onResponse(
             new GetAliasesResponse(postProcess(request, concreteIndices, aliases, state, systemIndexAccessAllowed, systemIndices))
         );
@@ -124,23 +130,23 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
     /**
      * Fills alias result with empty entries for requested indices when no specific aliases were requested.
      */
-    static ImmutableOpenMap<String, List<AliasMetadata>> postProcess(
+    static Map<String, List<AliasMetadata>> postProcess(
         GetAliasesRequest request,
         String[] concreteIndices,
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases,
+        final Map<String, List<AliasMetadata>> aliases,
         ClusterState state,
         boolean systemIndexAccessAllowed,
         SystemIndices systemIndices
     ) {
         boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
-        ImmutableOpenMap.Builder<String, List<AliasMetadata>> mapBuilder = ImmutableOpenMap.builder(aliases);
+        final Map<String, List<AliasMetadata>> mapBuilder = new HashMap<>(aliases);
         for (String index : concreteIndices) {
             if (aliases.get(index) == null && noAliasesSpecified) {
                 List<AliasMetadata> previous = mapBuilder.put(index, Collections.emptyList());
                 assert previous == null;
             }
         }
-        final ImmutableOpenMap<String, List<AliasMetadata>> finalResponse = mapBuilder.build();
+        final Map<String, List<AliasMetadata>> finalResponse = Collections.unmodifiableMap(mapBuilder);
         if (systemIndexAccessAllowed == false) {
             checkSystemIndexAccess(request, systemIndices, state, finalResponse);
         }
@@ -151,10 +157,10 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         GetAliasesRequest request,
         SystemIndices systemIndices,
         ClusterState state,
-        ImmutableOpenMap<String, List<AliasMetadata>> aliasesMap
+        final Map<String, List<AliasMetadata>> aliasesMap
     ) {
         Set<String> systemIndicesNames = new HashSet<>();
-        for (Iterator<String> it = aliasesMap.keysIt(); it.hasNext();) {
+        for (Iterator<String> it = aliasesMap.keySet().iterator(); it.hasNext();) {
             String indexName = it.next();
             IndexMetadata index = state.metadata().index(indexName);
             if (index != null && index.isSystem()) {

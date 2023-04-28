@@ -37,7 +37,7 @@ import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,6 +47,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Transport Response for retrieving status of upgrading an Index
+ *
+ * @opensearch.internal
+ */
 public class UpgradeStatusResponse extends BroadcastResponse {
     private ShardUpgradeStatus[] shards;
 
@@ -89,7 +94,7 @@ public class UpgradeStatusResponse extends BroadcastResponse {
                     shards.add(shard);
                 }
             }
-            indicesUpgradeStats.put(indexName, new IndexUpgradeStatus(indexName, shards.toArray(new ShardUpgradeStatus[shards.size()])));
+            indicesUpgradeStats.put(indexName, new IndexUpgradeStatus(indexName, shards.toArray(new ShardUpgradeStatus[0])));
         }
         this.indicesUpgradeStatus = indicesUpgradeStats;
         return indicesUpgradeStats;
@@ -200,6 +205,11 @@ public class UpgradeStatusResponse extends BroadcastResponse {
         return builder;
     }
 
+    /**
+     * Fields for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String INDICES = "indices";
         static final String SHARDS = "shards";

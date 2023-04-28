@@ -34,7 +34,8 @@ package org.opensearch.search.aggregations;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.opensearch.search.aggregations.support.AggregationPath;
 
@@ -49,6 +50,8 @@ import java.util.function.ToLongFunction;
  * "complete" buckets using {@link #comparator()} or against a combination
  * of the buckets internals with its ordinal with
  * {@link #partiallyBuiltBucketComparator(ToLongFunction, Aggregator)}.
+ *
+ * @opensearch.internal
  */
 public abstract class BucketOrder implements ToXContentObject, Writeable {
     /**
@@ -169,6 +172,6 @@ public abstract class BucketOrder implements ToXContentObject, Writeable {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 }

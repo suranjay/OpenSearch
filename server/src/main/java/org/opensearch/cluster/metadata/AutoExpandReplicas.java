@@ -31,8 +31,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
@@ -52,6 +50,8 @@ import static org.opensearch.cluster.metadata.MetadataIndexStateService.isIndexV
  * This class acts as a functional wrapper around the {@code index.auto_expand_replicas} setting.
  * This setting or rather it's value is expanded into a min and max value which requires special handling
  * based on the number of datanodes in the cluster. This class handles all the parsing and streamlines the access to these values.
+ *
+ * @opensearch.internal
  */
 public final class AutoExpandReplicas {
     // the value we recognize in the "max" position to mean all the nodes
@@ -132,19 +132,22 @@ public final class AutoExpandReplicas {
         return Math.min(maxReplicas, numDataNodes - 1);
     }
 
+    public int getMaxReplicas() {
+        return maxReplicas;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
     private OptionalInt getDesiredNumberOfReplicas(IndexMetadata indexMetadata, RoutingAllocation allocation) {
         if (enabled) {
             int numMatchingDataNodes = 0;
-            // Only start using new logic once all nodes are migrated to 7.6.0, avoiding disruption during an upgrade
-            if (allocation.nodes().getMinNodeVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-                for (ObjectCursor<DiscoveryNode> cursor : allocation.nodes().getDataNodes().values()) {
-                    Decision decision = allocation.deciders().shouldAutoExpandToNode(indexMetadata, cursor.value, allocation);
-                    if (decision.type() != Decision.Type.NO) {
-                        numMatchingDataNodes++;
-                    }
+            for (final DiscoveryNode cursor : allocation.nodes().getDataNodes().values()) {
+                Decision decision = allocation.deciders().shouldAutoExpandToNode(indexMetadata, cursor, allocation);
+                if (decision.type() != Decision.Type.NO) {
+                    numMatchingDataNodes++;
                 }
-            } else {
-                numMatchingDataNodes = allocation.nodes().getDataNodes().size();
             }
 
             final int min = getMinReplicas();

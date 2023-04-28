@@ -39,7 +39,7 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.ReportingService;
 
 import java.io.IOException;
@@ -48,6 +48,11 @@ import java.util.Map;
 
 import static org.opensearch.common.Booleans.parseBoolean;
 
+/**
+ * Transport information
+ *
+ * @opensearch.internal
+ */
 public class TransportInfo implements ReportingService.Info {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportInfo.class);

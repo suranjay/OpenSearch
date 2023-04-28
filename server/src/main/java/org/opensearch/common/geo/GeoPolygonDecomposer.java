@@ -55,6 +55,8 @@ import static org.opensearch.common.geo.GeoUtils.normalizeLon;
 
 /**
  * Splits polygons by datelines.
+ *
+ * @opensearch.internal
  */
 public class GeoPolygonDecomposer {
 
@@ -461,7 +463,7 @@ public class GeoPolygonDecomposer {
             }
         }
 
-        return mainEdges.toArray(new Edge[mainEdges.size()]);
+        return mainEdges.toArray(new Edge[0]);
     }
 
     private static void compose(Edge[] edges, Edge[] holes, int numHoles, List<Polygon> collector) {

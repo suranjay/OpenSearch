@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
@@ -43,12 +42,13 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -58,6 +58,11 @@ import java.util.Set;
 
 import static java.util.Collections.emptySet;
 
+/**
+ * Metadata for index aliases
+ *
+ * @opensearch.internal
+ */
 public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements ToXContentFragment {
 
     private final String alias;
@@ -222,10 +227,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         }
 
         out.writeOptionalBoolean(writeIndex());
-
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            out.writeOptionalBoolean(isHidden());
-        }
+        out.writeOptionalBoolean(isHidden());
     }
 
     public AliasMetadata(StreamInput in) throws IOException {
@@ -248,12 +250,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
             searchRoutingValues = emptySet();
         }
         writeIndex = in.readOptionalBoolean();
-
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            isHidden = in.readOptionalBoolean();
-        } else {
-            isHidden = null;
-        }
+        isHidden = in.readOptionalBoolean();
     }
 
     public static Diff<AliasMetadata> readDiffFrom(StreamInput in) throws IOException {
@@ -262,7 +259,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, true);
+        return Strings.toString(XContentType.JSON, this, true, true);
     }
 
     @Override
@@ -271,6 +268,11 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         return builder;
     }
 
+    /**
+     * Builder of alias metadata.
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
 
         private final String alias;

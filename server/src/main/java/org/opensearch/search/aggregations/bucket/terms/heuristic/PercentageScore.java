@@ -35,13 +35,18 @@ package org.opensearch.search.aggregations.bucket.terms.heuristic;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryShardException;
 
 import java.io.IOException;
 
+/**
+ * Percentage score significance heuristic for significant terms agg
+ *
+ * @opensearch.internal
+ */
 public class PercentageScore extends SignificanceHeuristic {
     public static final String NAME = "percentage";
     public static final ObjectParser<PercentageScore, Void> PARSER = new ObjectParser<>(NAME, PercentageScore::new);
@@ -104,6 +109,11 @@ public class PercentageScore extends SignificanceHeuristic {
         return getClass().hashCode();
     }
 
+    /**
+     * Builder for a Percentage Score heuristic
+     *
+     * @opensearch.internal
+     */
     public static class PercentageScoreBuilder implements SignificanceHeuristicBuilder {
 
         @Override

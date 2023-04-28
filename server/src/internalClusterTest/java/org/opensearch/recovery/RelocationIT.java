@@ -32,7 +32,6 @@
 
 package org.opensearch.recovery;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.tests.util.English;
 import org.opensearch.action.ActionFuture;
@@ -67,7 +66,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
-import org.opensearch.indices.recovery.RecoveryFileChunkRequest;
+import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
@@ -191,7 +190,6 @@ public class RelocationIT extends OpenSearchIntegTestCase {
         assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/2063")
     public void testRelocationWhileIndexingRandom() throws Exception {
         int numberOfRelocations = scaledRandomIntBetween(1, rarely() ? 10 : 4);
         int numberOfReplicas = randomBoolean() ? 0 : 1;
@@ -590,7 +588,7 @@ public class RelocationIT extends OpenSearchIntegTestCase {
             logger.info(" --> checking iteration {}", i);
             SearchResponse afterRelocation = client().prepareSearch().setSize(ids.size()).get();
             assertNoFailures(afterRelocation);
-            assertSearchHits(afterRelocation, ids.toArray(new String[ids.size()]));
+            assertSearchHits(afterRelocation, ids.toArray(new String[0]));
         }
         stopped.set(true);
         for (Thread searchThread : searchThreads) {
@@ -771,8 +769,8 @@ public class RelocationIT extends OpenSearchIntegTestCase {
 
     private void assertActiveCopiesEstablishedPeerRecoveryRetentionLeases() throws Exception {
         assertBusy(() -> {
-            for (ObjectCursor<String> it : client().admin().cluster().prepareState().get().getState().metadata().indices().keys()) {
-                Map<ShardId, List<ShardStats>> byShardId = Stream.of(client().admin().indices().prepareStats(it.value).get().getShards())
+            for (final String it : client().admin().cluster().prepareState().get().getState().metadata().indices().keySet()) {
+                Map<ShardId, List<ShardStats>> byShardId = Stream.of(client().admin().indices().prepareStats(it).get().getShards())
                     .collect(Collectors.groupingBy(l -> l.getShardRouting().shardId()));
                 for (List<ShardStats> shardStats : byShardId.values()) {
                     Set<String> expectedLeaseIds = shardStats.stream()
@@ -809,7 +807,7 @@ public class RelocationIT extends OpenSearchIntegTestCase {
             TransportRequestOptions options
         ) throws IOException {
             if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
-                RecoveryFileChunkRequest chunkRequest = (RecoveryFileChunkRequest) request;
+                FileChunkRequest chunkRequest = (FileChunkRequest) request;
                 if (chunkRequest.name().startsWith(IndexFileNames.SEGMENTS)) {
                     // corrupting the segments_N files in order to make sure future recovery re-send files
                     logger.debug("corrupting [{}] to {}. file name: [{}]", action, connection.getNode(), chunkRequest.name());

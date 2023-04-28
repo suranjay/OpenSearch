@@ -48,6 +48,11 @@ import java.util.List;
 
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
+/**
+ * Transport action to add index block
+ *
+ * @opensearch.api
+ */
 public class RestAddIndexBlockAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestAddIndexBlockAction.class);
@@ -68,7 +73,9 @@ public class RestAddIndexBlockAction extends BaseRestHandler {
             IndexMetadata.APIBlock.fromName(request.param("block")),
             Strings.splitStringByCommaToArray(request.param("index"))
         );
-        addIndexBlockRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", addIndexBlockRequest.masterNodeTimeout()));
+        addIndexBlockRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", addIndexBlockRequest.clusterManagerNodeTimeout())
+        );
         parseDeprecatedMasterTimeoutParameter(addIndexBlockRequest, request, deprecationLogger, getName());
         addIndexBlockRequest.timeout(request.paramAsTime("timeout", addIndexBlockRequest.timeout()));
         addIndexBlockRequest.indicesOptions(IndicesOptions.fromRequest(request, addIndexBlockRequest.indicesOptions()));

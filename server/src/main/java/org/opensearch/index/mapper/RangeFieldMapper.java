@@ -32,6 +32,8 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.document.InvertableType;
+import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -40,7 +42,6 @@ import org.opensearch.Version;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.geo.ShapeRelation;
-import org.opensearch.common.joda.Joda;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.Setting;
@@ -48,7 +49,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.util.LocaleUtils;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
@@ -77,11 +78,20 @@ import static org.opensearch.index.query.RangeQueryBuilder.GT_FIELD;
 import static org.opensearch.index.query.RangeQueryBuilder.LTE_FIELD;
 import static org.opensearch.index.query.RangeQueryBuilder.LT_FIELD;
 
-/** A {@link FieldMapper} for indexing numeric and date ranges, and creating queries */
+/**
+ * A {@link FieldMapper} for indexing numeric and date ranges, and creating queries
+ *
+ * @opensearch.internal
+ */
 public class RangeFieldMapper extends ParametrizedFieldMapper {
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
 
+    /**
+     * Default parameters for range fields
+     *
+     * @opensearch.internal
+     */
     public static class Defaults {
         public static final Explicit<Boolean> COERCE = new Explicit<>(true, false);
         public static final DateFormatter DATE_FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
@@ -94,6 +104,11 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         return (RangeFieldMapper) in;
     }
 
+    /**
+     * Builder for range fields
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).index, true);
@@ -183,12 +198,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
 
                 // The builder context may not have index created version, falling back to indexCreatedVersion
                 // property of this mapper builder.
-                DateFormatter dateTimeFormatter;
-                if (Joda.isJodaPattern(context.indexCreatedVersionOrDefault(indexCreatedVersion), format.getValue())) {
-                    dateTimeFormatter = Joda.forPattern(format.getValue()).withLocale(locale.getValue());
-                } else {
-                    dateTimeFormatter = DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
-                }
+                DateFormatter dateTimeFormatter = DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
                 return new RangeFieldType(
                     buildFullName(context),
                     index.getValue(),
@@ -229,6 +239,11 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Field type for range fields
+     *
+     * @opensearch.internal
+     */
     public static final class RangeFieldType extends MappedFieldType {
         protected final RangeType rangeType;
         protected final DateFormatter dateTimeFormatter;
@@ -555,7 +570,11 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    /** Class defining a range */
+    /**
+     * Class defining a range
+     *
+     * @opensearch.internal
+     */
     public static class Range {
         RangeType type;
         Object from;
@@ -614,6 +633,11 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Doc values field for binary ranges
+     *
+     * @opensearch.internal
+     */
     static class BinaryRangesDocValuesField extends CustomDocValuesField {
 
         private final Set<Range> ranges;
@@ -637,6 +661,16 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
             } catch (IOException e) {
                 throw new OpenSearchException("failed to encode ranges", e);
             }
+        }
+
+        @Override
+        public StoredValue storedValue() {
+            return null;
+        }
+
+        @Override
+        public InvertableType invertableType() {
+            return InvertableType.BINARY;
         }
     }
 }

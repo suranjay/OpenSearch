@@ -36,8 +36,9 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -48,6 +49,8 @@ import static org.opensearch.common.xcontent.XContentHelper.convertToMap;
 
 /**
  * Raw, unparsed status from the task results index.
+ *
+ * @opensearch.internal
  */
 public class RawTaskStatus implements Task.Status {
     public static final String NAME = "raw";
@@ -84,7 +87,7 @@ public class RawTaskStatus implements Task.Status {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
     /**

@@ -39,9 +39,9 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.script.Script;
@@ -58,6 +58,11 @@ import java.util.Map;
 
 import static org.opensearch.script.Script.DEFAULT_TEMPLATE_LANG;
 
+/**
+ * Utility class for ingest processor configurations
+ *
+ * @opensearch.internal
+ */
 public final class ConfigurationUtils {
 
     public static final String TAG_KEY = "tag";

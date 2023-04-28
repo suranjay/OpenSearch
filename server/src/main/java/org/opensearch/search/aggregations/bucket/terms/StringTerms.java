@@ -34,7 +34,7 @@ package org.opensearch.search.aggregations.bucket.terms;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregations;
@@ -46,10 +46,17 @@ import java.util.Objects;
 
 /**
  * Result of the {@link TermsAggregator} when the field is a String.
+ *
+ * @opensearch.internal
  */
 public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bucket> {
     public static final String NAME = "sterms";
 
+    /**
+     * Bucket for string terms
+     *
+     * @opensearch.internal
+     */
     public static class Bucket extends InternalTerms.Bucket<Bucket> {
         BytesRef termBytes;
 

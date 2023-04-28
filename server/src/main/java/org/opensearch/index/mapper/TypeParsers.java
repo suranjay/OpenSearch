@@ -51,6 +51,11 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.isArray;
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 
+/**
+ * Foundation type parsers
+ *
+ * @opensearch.internal
+ */
 public class TypeParsers {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TypeParsers.class);
 
@@ -150,7 +155,7 @@ public class TypeParsers {
                 builder.boost(nodeFloatValue(propNode));
                 deprecationLogger.deprecate(
                     "boost_" + name,
-                    "Parameter [boost] on field [{}] is deprecated and will be removed in 8.0",
+                    "Parameter [boost] on field [{}] is deprecated and will be removed in 3.0",
                     name
                 );
                 iterator.remove();

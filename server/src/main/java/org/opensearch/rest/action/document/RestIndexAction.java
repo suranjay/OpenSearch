@@ -32,7 +32,6 @@
 
 package org.opensearch.rest.action.document;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActiveShardCount;
@@ -54,6 +53,11 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
+/**
+ * Transport action to index a document
+ *
+ * @opensearch.api
+ */
 public class RestIndexAction extends BaseRestHandler {
 
     @Override
@@ -66,6 +70,11 @@ public class RestIndexAction extends BaseRestHandler {
         return "document_index_action";
     }
 
+    /**
+     * Create handler action.
+     *
+     * @opensearch.internal
+     */
     public static final class CreateHandler extends RestIndexAction {
 
         @Override
@@ -92,6 +101,11 @@ public class RestIndexAction extends BaseRestHandler {
         }
     }
 
+    /**
+     * The auto id handler.
+     *
+     * @opensearch.internal
+     */
     public static final class AutoIdHandler extends RestIndexAction {
 
         private final Supplier<DiscoveryNodes> nodesInCluster;
@@ -113,7 +127,7 @@ public class RestIndexAction extends BaseRestHandler {
         @Override
         public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
             assert request.params().get("id") == null : "non-null id: " + request.params().get("id");
-            if (request.params().get("op_type") == null && nodesInCluster.get().getMinNodeVersion().onOrAfter(LegacyESVersion.V_7_5_0)) {
+            if (request.params().get("op_type") == null) {
                 // default to op_type create
                 request.params().put("op_type", "create");
             }

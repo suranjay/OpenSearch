@@ -36,7 +36,7 @@ import org.opensearch.action.search.SearchResponseSections;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.profile.SearchProfileShardResults;
@@ -46,6 +46,8 @@ import java.io.IOException;
 
 /**
  * {@link SearchResponseSections} subclass that can be serialized over the wire.
+ *
+ * @opensearch.internal
  */
 public class InternalSearchResponse extends SearchResponseSections implements Writeable, ToXContentFragment {
     public static InternalSearchResponse empty() {

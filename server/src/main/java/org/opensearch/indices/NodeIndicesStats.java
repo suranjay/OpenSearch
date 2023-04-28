@@ -39,8 +39,8 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.Index;
 import org.opensearch.index.cache.query.QueryCacheStats;
 import org.opensearch.index.cache.request.RequestCacheStats;
@@ -67,6 +67,8 @@ import java.util.Map;
 
 /**
  * Global information on indices stats running on a specific node.
+ *
+ * @opensearch.internal
  */
 public class NodeIndicesStats implements Writeable, ToXContentFragment {
 
@@ -269,6 +271,11 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Fields used for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String INDICES = "indices";
     }

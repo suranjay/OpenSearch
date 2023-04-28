@@ -32,14 +32,17 @@
 
 package org.opensearch.indices.recovery;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 
+/**
+ * Request to finalize recovery
+ *
+ * @opensearch.internal
+ */
 final class RecoveryFinalizeRecoveryRequest extends RecoveryTransportRequest {
 
     private final long recoveryId;
@@ -52,11 +55,7 @@ final class RecoveryFinalizeRecoveryRequest extends RecoveryTransportRequest {
         recoveryId = in.readLong();
         shardId = new ShardId(in);
         globalCheckpoint = in.readZLong();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
-            trimAboveSeqNo = in.readZLong();
-        } else {
-            trimAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        }
+        trimAboveSeqNo = in.readZLong();
     }
 
     RecoveryFinalizeRecoveryRequest(
@@ -95,9 +94,7 @@ final class RecoveryFinalizeRecoveryRequest extends RecoveryTransportRequest {
         out.writeLong(recoveryId);
         shardId.writeTo(out);
         out.writeZLong(globalCheckpoint);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
-            out.writeZLong(trimAboveSeqNo);
-        }
+        out.writeZLong(trimAboveSeqNo);
     }
 
 }

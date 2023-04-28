@@ -47,6 +47,7 @@ import org.opensearch.common.lucene.ScorerAware;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.opensearch.index.fielddata.DocValueBits;
+import org.opensearch.index.fielddata.GeoShapeValue;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexGeoPointFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
@@ -57,6 +58,7 @@ import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.index.fielddata.SortingBinaryDocValues;
 import org.opensearch.index.fielddata.SortingNumericDoubleValues;
+import org.opensearch.index.fielddata.plain.AbstractGeoShapeIndexFieldData;
 import org.opensearch.index.mapper.RangeType;
 import org.opensearch.script.AggregationScript;
 import org.opensearch.search.aggregations.AggregationExecutionException;
@@ -69,6 +71,11 @@ import java.io.IOException;
 import java.util.function.Function;
 import java.util.function.LongUnaryOperator;
 
+/**
+ * Base class for a ValuesSource; the primitive data for an agg
+ *
+ * @opensearch.internal
+ */
 public abstract class ValuesSource {
 
     /**
@@ -98,6 +105,11 @@ public abstract class ValuesSource {
         return false;
     }
 
+    /**
+     * Range type
+     *
+     * @opensearch.internal
+     */
     public static class Range extends ValuesSource {
         private final RangeType rangeType;
         protected final IndexFieldData<?> indexFieldData;
@@ -129,6 +141,11 @@ public abstract class ValuesSource {
         }
     }
 
+    /**
+     * Bytes type
+     *
+     * @opensearch.internal
+     */
     public abstract static class Bytes extends ValuesSource {
 
         @Override
@@ -142,6 +159,11 @@ public abstract class ValuesSource {
             throw new AggregationExecutionException("can't round a [BYTES]");
         }
 
+        /**
+         * Provides ordinals for bytes
+         *
+         * @opensearch.internal
+         */
         public abstract static class WithOrdinals extends Bytes {
 
             public static final WithOrdinals EMPTY = new WithOrdinals() {
@@ -206,6 +228,11 @@ public abstract class ValuesSource {
                 }
             }
 
+            /**
+             * Field data for the bytes values source
+             *
+             * @opensearch.internal
+             */
             public static class FieldData extends WithOrdinals {
 
                 protected final IndexOrdinalsFieldData indexFieldData;
@@ -252,6 +279,11 @@ public abstract class ValuesSource {
             }
         }
 
+        /**
+         * Field data without ordinals
+         *
+         * @opensearch.internal
+         */
         public static class FieldData extends Bytes {
 
             protected final IndexFieldData<?> indexFieldData;
@@ -269,6 +301,8 @@ public abstract class ValuesSource {
 
         /**
          * {@link ValuesSource} implementation for stand alone scripts returning a Bytes value
+         *
+         * @opensearch.internal
          */
         public static class Script extends Bytes {
 
@@ -292,6 +326,8 @@ public abstract class ValuesSource {
         // No need to implement ReaderContextAware here, the delegate already takes care of updating data structures
         /**
          * {@link ValuesSource} subclass for Bytes fields with a Value Script applied
+         *
+         * @opensearch.internal
          */
         public static class WithScript extends Bytes {
 
@@ -313,6 +349,11 @@ public abstract class ValuesSource {
                 return new BytesValues(delegate.bytesValues(context), script.newInstance(context));
             }
 
+            /**
+             * Bytes values
+             *
+             * @opensearch.internal
+             */
             static class BytesValues extends SortingBinaryDocValues implements ScorerAware {
 
                 private final SortedBinaryDocValues bytesValues;
@@ -353,6 +394,11 @@ public abstract class ValuesSource {
         }
     }
 
+    /**
+     * Numeric values source type
+     *
+     * @opensearch.internal
+     */
     public abstract static class Numeric extends ValuesSource {
 
         public static final Numeric EMPTY = new Numeric() {
@@ -406,6 +452,8 @@ public abstract class ValuesSource {
 
         /**
          * {@link ValuesSource} subclass for Numeric fields with a Value Script applied
+         *
+         * @opensearch.internal
          */
         public static class WithScript extends Numeric {
 
@@ -442,6 +490,11 @@ public abstract class ValuesSource {
                 return new DoubleValues(delegate.doubleValues(context), script.newInstance(context));
             }
 
+            /**
+             * Long values source type
+             *
+             * @opensearch.internal
+             */
             static class LongValues extends AbstractSortingNumericDocValues implements ScorerAware {
 
                 private final SortedNumericDocValues longValues;
@@ -473,6 +526,11 @@ public abstract class ValuesSource {
                 }
             }
 
+            /**
+             * Double values source type
+             *
+             * @opensearch.internal
+             */
             static class DoubleValues extends SortingNumericDoubleValues implements ScorerAware {
 
                 private final SortedNumericDoubleValues doubleValues;
@@ -505,6 +563,11 @@ public abstract class ValuesSource {
             }
         }
 
+        /**
+         * Field data for numerics
+         *
+         * @opensearch.internal
+         */
         public static class FieldData extends Numeric {
 
             protected final IndexNumericFieldData indexFieldData;
@@ -536,6 +599,8 @@ public abstract class ValuesSource {
 
         /**
          * {@link ValuesSource} implementation for stand alone scripts returning a Numeric value
+         *
+         * @opensearch.internal
          */
         public static class Script extends Numeric {
             private final AggregationScript.LeafFactory script;
@@ -574,6 +639,11 @@ public abstract class ValuesSource {
 
     }
 
+    /**
+     * Geo point values source
+     *
+     * @opensearch.internal
+     */
     public abstract static class GeoPoint extends ValuesSource {
 
         public static final GeoPoint EMPTY = new GeoPoint() {
@@ -603,6 +673,11 @@ public abstract class ValuesSource {
 
         public abstract MultiGeoPointValues geoPointValues(LeafReaderContext context);
 
+        /**
+         * Field data for geo point values source
+         *
+         * @opensearch.internal
+         */
         public static class Fielddata extends GeoPoint {
 
             protected final IndexGeoPointFieldData indexFieldData;
@@ -618,6 +693,91 @@ public abstract class ValuesSource {
 
             public org.opensearch.index.fielddata.MultiGeoPointValues geoPointValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getGeoPointValues();
+            }
+        }
+    }
+
+    /**
+     * The primitive data type for doing an aggregation on the GeoShape
+     */
+    public abstract static class GeoShape extends ValuesSource {
+        public static final GeoShape EMPTY = new GeoShape() {
+            /**
+             * This provides the {@link GeoShapeValue} after reading from LeafReaderContext
+             *
+             * @param context {@link LeafReaderContext}
+             * @return {@link GeoShapeValue}
+             */
+            @Override
+            public GeoShapeValue getGeoShapeValues(LeafReaderContext context) {
+                return org.opensearch.index.fielddata.FieldData.emptyGeoShape();
+            }
+
+            /**
+             * Get the current {@link BytesValues}.
+             */
+            @Override
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                return org.opensearch.index.fielddata.FieldData.emptySortedBinary();
+            }
+        };
+
+        /**
+         * This is getting used in the {@link org.opensearch.search.aggregations.bucket.missing.MissingAggregator}
+         * @param context {@link LeafReaderContext}
+         * @return DocValueBits
+         */
+        @Override
+        public DocValueBits docsWithValue(LeafReaderContext context) {
+            final GeoShapeValue geoShapeValue = getGeoShapeValues(context);
+            return org.opensearch.index.fielddata.FieldData.docsWithValue(geoShapeValue);
+        }
+
+        @Override
+        public Function<Rounding, Prepared> roundingPreparer(IndexReader reader) {
+            throw new AggregationExecutionException("can't round a [GEO_SHAPE]");
+        }
+
+        /**
+         * This provides the {@link GeoShapeValue} after reading from LeafReaderContext
+         * @param context {@link LeafReaderContext}
+         * @return {@link GeoShapeValue}
+         */
+        public abstract GeoShapeValue getGeoShapeValues(LeafReaderContext context);
+
+        /**
+         * Field data for geo shape values source
+         *
+         * @opensearch.internal
+         */
+        public static class FieldData extends GeoShape {
+
+            protected final AbstractGeoShapeIndexFieldData indexFieldData;
+
+            public FieldData(AbstractGeoShapeIndexFieldData indexFieldData) {
+                this.indexFieldData = indexFieldData;
+            }
+
+            /**
+             * Get the current {@link BytesValues}.
+             *
+             * @param context {@link LeafReaderContext}
+             * @return SortedBinaryDocValues
+             */
+            @Override
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                return indexFieldData.load(context).getBytesValues();
+            }
+
+            /**
+             * This provides the {@link GeoShapeValue} after reading from LeafReaderContext
+             *
+             * @param context {@link LeafReaderContext}
+             * @return {@link GeoShapeValue}
+             */
+            @Override
+            public GeoShapeValue getGeoShapeValues(LeafReaderContext context) {
+                return indexFieldData.load(context).getGeoShapeValue();
             }
         }
     }

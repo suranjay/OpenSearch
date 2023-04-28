@@ -35,8 +35,8 @@ package org.opensearch.search.aggregations.bucket.nested;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.AbstractAggregationBuilder;
@@ -49,6 +49,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Aggregation Builder for nested agg
+ *
+ * @opensearch.internal
+ */
 public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedAggregationBuilder> {
     public static final String NAME = "nested";
 

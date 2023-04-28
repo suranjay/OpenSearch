@@ -39,13 +39,15 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
-import org.apache.lucene.util.SetOnce;
+import org.opensearch.common.SetOnce;
 
 /**
  * Converts {@code %node_name} in log4j patterns into the current node name.
  * We can't use a system property for this because the node name system
  * property is only set if the node name is explicitly defined in
  * opensearch.yml.
+ *
+ * @opensearch.internal
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeNamePatternConverter")
 @ConverterKeys({ "node_name" })

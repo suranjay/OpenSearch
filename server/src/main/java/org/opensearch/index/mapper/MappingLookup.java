@@ -33,6 +33,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.FieldNameAnalyzer;
 
@@ -45,6 +46,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+/**
+ * Looks up a mapping for a field
+ *
+ * @opensearch.internal
+ */
 public final class MappingLookup implements Iterable<Mapper> {
 
     /** Full field name to mapper */
@@ -254,6 +260,15 @@ public final class MappingLookup implements Iterable<Mapper> {
             }
         }
         return null;
+    }
+
+    /**
+     * If this index contains @timestamp field with Date type, it will return true
+     * @return true or false based on above condition
+     */
+    public boolean containsTimeStampField() {
+        MappedFieldType timeSeriesFieldType = this.fieldTypeLookup.get(DataStream.TIMESERIES_FIELDNAME);
+        return timeSeriesFieldType != null && timeSeriesFieldType instanceof DateFieldMapper.DateFieldType; // has to be Date field type
     }
 
     private static String parentObject(String field) {

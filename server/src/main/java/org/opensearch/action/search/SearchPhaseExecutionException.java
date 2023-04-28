@@ -38,7 +38,7 @@ import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.util.CollectionUtils;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -46,6 +46,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Main exception thrown when there is an error in the search phase
+ *
+ * @opensearch.internal
+ */
 public class SearchPhaseExecutionException extends OpenSearchException {
     private final String phaseName;
     private final ShardSearchFailure[] shardFailures;

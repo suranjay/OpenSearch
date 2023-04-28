@@ -35,11 +35,11 @@ package org.opensearch.search.suggest.completion.context;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.Strings;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParser.Token;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.mapper.CompletionFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -57,6 +57,8 @@ import java.util.function.Function;
  * filter and/or boost suggestions at query time for {@link CompletionFieldMapper}.
  *
  * Implementations have to define how contexts are parsed at query/index time
+ *
+ * @opensearch.internal
  */
 public abstract class ContextMapping<T extends ToXContent> implements ToXContentFragment {
 
@@ -65,6 +67,11 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
     protected final Type type;
     protected final String name;
 
+    /**
+     * Type of context mapping
+     *
+     * @opensearch.internal
+     */
     public enum Type {
         CATEGORY,
         GEO;
@@ -187,6 +194,11 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
         }
     }
 
+    /**
+     * The internal query context
+     *
+     * @opensearch.internal
+     */
     public static class InternalQueryContext {
         public final String context;
         public final int boost;

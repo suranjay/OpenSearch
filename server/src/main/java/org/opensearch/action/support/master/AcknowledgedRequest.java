@@ -38,17 +38,21 @@ import org.opensearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
+import static org.opensearch.common.unit.TimeValue.timeValueHours;
 import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * Abstract class that allows to mark action requests that support acknowledgements.
  * Facilitates consistency across different api.
+ *
+ * @opensearch.internal
  */
 public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Request>> extends MasterNodeRequest<Request>
     implements
         AckedRequest {
 
     public static final TimeValue DEFAULT_ACK_TIMEOUT = timeValueSeconds(30);
+    public static final TimeValue DEFAULT_TASK_EXECUTION_TIMEOUT = timeValueHours(1);
 
     protected TimeValue timeout = DEFAULT_ACK_TIMEOUT;
 

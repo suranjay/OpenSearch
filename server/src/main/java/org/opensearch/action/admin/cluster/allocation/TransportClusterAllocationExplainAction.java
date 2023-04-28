@@ -36,7 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterState;
@@ -50,7 +50,6 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation.DebugMode;
 import org.opensearch.cluster.routing.allocation.ShardAllocationDecision;
-import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -64,9 +63,11 @@ import java.util.List;
 
 /**
  * The {@code TransportClusterAllocationExplainAction} is responsible for actually executing the explanation of a shard's allocation on the
- * master node in the cluster.
+ * cluster-manager node in the cluster.
+ *
+ * @opensearch.internal
  */
-public class TransportClusterAllocationExplainAction extends TransportMasterNodeAction<
+public class TransportClusterAllocationExplainAction extends TransportClusterManagerNodeAction<
     ClusterAllocationExplainRequest,
     ClusterAllocationExplainResponse> {
 
@@ -75,7 +76,6 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
     private final ClusterInfoService clusterInfoService;
     private final SnapshotsInfoService snapshotsInfoService;
     private final AllocationDeciders allocationDeciders;
-    private final ShardsAllocator shardAllocator;
     private final AllocationService allocationService;
 
     @Inject
@@ -88,7 +88,6 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
         AllocationDeciders allocationDeciders,
-        ShardsAllocator shardAllocator,
         AllocationService allocationService
     ) {
         super(
@@ -103,7 +102,6 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
         this.allocationDeciders = allocationDeciders;
-        this.shardAllocator = shardAllocator;
         this.allocationService = allocationService;
     }
 
@@ -123,7 +121,7 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final ClusterAllocationExplainRequest request,
         final ClusterState state,
         final ActionListener<ClusterAllocationExplainResponse> listener

@@ -37,7 +37,7 @@ import com.carrotsearch.hppc.procedures.LongProcedure;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.opensearch.Assertions;
+import org.opensearch.core.Assertions;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
@@ -50,7 +50,7 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.ReleasableLock;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 
@@ -68,6 +68,11 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
+/**
+ * Writer that writes operations to the translog
+ *
+ * @opensearch.internal
+ */
 public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private final ShardId shardId;
@@ -354,9 +359,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      *
      * Note: any exception during the sync process will be interpreted as a tragic exception and the writer will be closed before
      * raising the exception.
+     * @return  <code>true</code> if this call caused an actual sync operation
      */
-    public void sync() throws IOException {
-        syncUpTo(Long.MAX_VALUE);
+    public boolean sync() throws IOException {
+        return syncUpTo(Long.MAX_VALUE);
     }
 
     /**

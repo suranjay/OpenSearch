@@ -43,16 +43,17 @@ import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.HttpStats;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.opensearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.rest.FakeRestRequest;
@@ -118,11 +119,9 @@ public class RestControllerTests extends OpenSearchTestCase {
                 new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
             )
         );
-        restController.registerHandler(
-            RestRequest.Method.GET,
-            "/error",
-            (request, channel, client) -> { throw new IllegalArgumentException("test error"); }
-        );
+        restController.registerHandler(RestRequest.Method.GET, "/error", (request, channel, client) -> {
+            throw new IllegalArgumentException("test error");
+        });
 
         httpServerTransport.start();
     }
@@ -553,6 +552,29 @@ public class RestControllerTests extends OpenSearchTestCase {
         assertThat(channel.getRestResponse().getHeaders().get("Allow"), hasItem(equalTo(RestRequest.Method.GET.toString())));
     }
 
+    public void testHandleBadRequestWithHtmlSpecialCharsInUri() {
+        final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath(
+            "/<script>alert('xss');alert(\"&#x6A&#x61&#x76&#x61\");</script>"
+        ).build();
+        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
+        assertThat(channel.getRestResponse().content().utf8ToString(), containsString("invalid uri has been requested"));
+    }
+
+    public void testHandleBadInputWithCreateIndex() {
+        final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/foo")
+            .withMethod(RestRequest.Method.PUT)
+            .withContent(new BytesArray("ddd"), XContentType.JSON)
+            .build();
+        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.BAD_REQUEST);
+        restController.registerHandler(RestRequest.Method.PUT, "/foo", new RestCreateIndexAction());
+        restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
+        assertEquals(
+            channel.getRestResponse().content().utf8ToString(),
+            "{\"error\":{\"root_cause\":[{\"type\":\"not_x_content_exception\",\"reason\":\"Compressor detection can only be called on some xcontent bytes or compressed xcontent bytes\"}],\"type\":\"not_x_content_exception\",\"reason\":\"Compressor detection can only be called on some xcontent bytes or compressed xcontent bytes\"},\"status\":400}"
+        );
+    }
+
     public void testDispatchUnsupportedHttpMethod() {
         final boolean hasContent = randomBoolean();
         final RestRequest request = RestRequest.request(xContentRegistry(), new HttpRequest() {
@@ -623,6 +645,10 @@ public class RestControllerTests extends OpenSearchTestCase {
         assertTrue(channel.getSendResponseCalled());
         assertThat(channel.getRestResponse().getHeaders().containsKey("Allow"), equalTo(true));
         assertThat(channel.getRestResponse().getHeaders().get("Allow"), hasItem(equalTo(RestRequest.Method.GET.toString())));
+        assertThat(
+            channel.getRestResponse().content().utf8ToString(),
+            equalTo("{\"error\":\"Unexpected HTTP method, allowed: [GET]\",\"status\":405}")
+        );
     }
 
     private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {

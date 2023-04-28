@@ -34,6 +34,8 @@ import java.io.IOException;
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * @opensearch.internal
  */
 public class BytesStreamInput extends StreamInput {
     private byte[] bytes;
@@ -78,15 +80,19 @@ public class BytesStreamInput extends StreamInput {
         pos += count;
     }
 
-    // NOTE: AIOOBE not EOF if you read too much
     @Override
-    public byte readByte() {
+    public byte readByte() throws EOFException {
+        if (eof()) {
+            throw new EOFException();
+        }
         return bytes[pos++];
     }
 
-    // NOTE: AIOOBE not EOF if you read too much
     @Override
-    public void readBytes(byte[] b, int offset, int len) {
+    public void readBytes(byte[] b, int offset, int len) throws EOFException {
+        if (available() < len) {
+            throw new EOFException();
+        }
         System.arraycopy(bytes, pos, b, offset, len);
         pos += len;
     }
@@ -109,6 +115,9 @@ public class BytesStreamInput extends StreamInput {
 
     @Override
     public int read() throws IOException {
+        if (eof()) {
+            throw new EOFException();
+        }
         return bytes[pos++] & 0xFF;
     }
 

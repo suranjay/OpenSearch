@@ -39,8 +39,8 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 
@@ -51,8 +51,10 @@ import java.util.List;
 /**
  * {@link ShardRouting} immutably encapsulates information about shard
  * indexRoutings like id, state, version, etc.
+ *
+ * @opensearch.internal
  */
-public final class ShardRouting implements Writeable, ToXContentObject {
+public class ShardRouting implements Writeable, ToXContentObject {
 
     /**
      * Used if shard size is not available
@@ -76,7 +78,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      * A constructor to internally create shard routing instances, note, the internal flag should only be set to true
      * by either this class or tests. Visible for testing.
      */
-    ShardRouting(
+    protected ShardRouting(
         ShardId shardId,
         String currentNodeId,
         String relocatingNodeId,
@@ -529,6 +531,29 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             null,
             allocationId,
             UNAVAILABLE_EXPECTED_SHARD_SIZE
+        );
+    }
+
+    /**
+     * Make the active primary shard as replica
+     *
+     * @throws IllegalShardRoutingStateException if shard is already a replica
+     */
+    public ShardRouting moveActivePrimaryToReplica() {
+        assert active() : "expected an active shard " + this;
+        if (!primary) {
+            throw new IllegalShardRoutingStateException(this, "Not a primary shard, can't move to replica");
+        }
+        return new ShardRouting(
+            shardId,
+            currentNodeId,
+            relocatingNodeId,
+            false,
+            state,
+            recoverySource,
+            unassignedInfo,
+            allocationId,
+            expectedShardSize
         );
     }
 

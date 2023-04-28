@@ -31,6 +31,7 @@
 
 package org.opensearch.action.bulk;
 
+import org.opensearch.common.Randomness;
 import org.opensearch.common.unit.TimeValue;
 
 import java.util.Iterator;
@@ -53,6 +54,8 @@ import java.util.NoSuchElementException;
  * </ul>
  *
  * Note that backoff policies are exposed as <code>Iterables</code> in order to be consumed multiple times.
+ *
+ * @opensearch.internal
  */
 public abstract class BackoffPolicy implements Iterable<TimeValue> {
     private static final BackoffPolicy NO_BACKOFF = new NoBackoff();
@@ -104,6 +107,30 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
     }
 
     /**
+     *  It provides exponential backoff between retries until it reaches maxDelayForRetry.
+     *  It uses equal jitter scheme as it is being used for throttled exceptions.
+     *  It will make random distribution and also guarantees a minimum delay.
+     *
+     * @param baseDelay BaseDelay for exponential Backoff
+     * @param maxDelayForRetry MaxDelay that can be returned from backoff policy
+     * @return A backoff policy with exponential backoff with equal jitter which can't return delay more than given max delay
+     */
+    public static BackoffPolicy exponentialEqualJitterBackoff(long baseDelay, long maxDelayForRetry) {
+        return new ExponentialEqualJitterBackoff(baseDelay, maxDelayForRetry);
+    }
+
+    /**
+     *  It provides exponential backoff between retries until it reaches Integer.MAX_VALUE.
+     *  It uses full jitter scheme for random distribution.
+     *
+     * @param baseDelay BaseDelay for exponential Backoff
+     * @return A backoff policy with exponential backoff with full jitter.
+     */
+    public static BackoffPolicy exponentialFullJitterBackoff(long baseDelay) {
+        return new ExponentialFullJitterBackoff(baseDelay);
+    }
+
+    /**
      * Wraps the backoff policy in one that calls a method every time a new backoff is taken from the policy.
      */
     public static BackoffPolicy wrap(BackoffPolicy delegate, Runnable onBackoff) {
@@ -117,6 +144,11 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         return delay;
     }
 
+    /**
+     * Concrete No Back Off Policy
+     *
+     * @opensearch.internal
+     */
     private static class NoBackoff extends BackoffPolicy {
         @Override
         public Iterator<TimeValue> iterator() {
@@ -134,6 +166,11 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         }
     }
 
+    /**
+     * Concrete Exponential Back Off Policy
+     *
+     * @opensearch.internal
+     */
     private static class ExponentialBackoff extends BackoffPolicy {
         private final int start;
 
@@ -152,6 +189,11 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         }
     }
 
+    /**
+     * Concrete Exponential Back Off Iterator
+     *
+     * @opensearch.internal
+     */
     private static class ExponentialBackoffIterator implements Iterator<TimeValue> {
         private final int numberOfElements;
 
@@ -180,6 +222,112 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         }
     }
 
+    private static class ExponentialEqualJitterBackoff extends BackoffPolicy {
+        private final long maxDelayForRetry;
+        private final long baseDelay;
+
+        private ExponentialEqualJitterBackoff(long baseDelay, long maxDelayForRetry) {
+            this.maxDelayForRetry = maxDelayForRetry;
+            this.baseDelay = baseDelay;
+        }
+
+        @Override
+        public Iterator<TimeValue> iterator() {
+            return new ExponentialEqualJitterBackoffIterator(baseDelay, maxDelayForRetry);
+        }
+    }
+
+    private static class ExponentialEqualJitterBackoffIterator implements Iterator<TimeValue> {
+        /**
+         * Retry limit to avoids integer overflow issues.
+         * Post this limit, max delay will be returned with Equal Jitter.
+         *
+         * NOTE: If the value is greater than 30, there can be integer overflow
+         * issues during delay calculation.
+         **/
+        private final int RETRIES_TILL_JITTER_INCREASE = 30;
+
+        /**
+         * Exponential increase in delay will happen till it reaches maxDelayForRetry.
+         * Once delay has exceeded maxDelayForRetry, it will return maxDelayForRetry only
+         * and not increase the delay.
+         */
+        private final long maxDelayForRetry;
+        private final long baseDelay;
+        private int retriesAttempted;
+
+        private ExponentialEqualJitterBackoffIterator(long baseDelay, long maxDelayForRetry) {
+            this.baseDelay = baseDelay;
+            this.maxDelayForRetry = maxDelayForRetry;
+        }
+
+        /**
+         * There is not any limit for this BackOff.
+         * This Iterator will always return back off delay.
+         *
+         * @return true
+         */
+        @Override
+        public boolean hasNext() {
+            return true;
+        }
+
+        @Override
+        public TimeValue next() {
+            int retries = Math.min(retriesAttempted, RETRIES_TILL_JITTER_INCREASE);
+            int exponentialDelay = (int) Math.min((1L << retries) * baseDelay, maxDelayForRetry);
+            retriesAttempted++;
+            return TimeValue.timeValueMillis((exponentialDelay / 2) + Randomness.get().nextInt(exponentialDelay / 2 + 1));
+        }
+    }
+
+    private static class ExponentialFullJitterBackoff extends BackoffPolicy {
+        private final long baseDelay;
+
+        private ExponentialFullJitterBackoff(long baseDelay) {
+            this.baseDelay = baseDelay;
+        }
+
+        @Override
+        public Iterator<TimeValue> iterator() {
+            return new ExponentialFullJitterBackoffIterator(baseDelay);
+        }
+    }
+
+    private static class ExponentialFullJitterBackoffIterator implements Iterator<TimeValue> {
+        /**
+         * Current delay in exponential backoff
+         */
+        private long currentDelay;
+
+        private ExponentialFullJitterBackoffIterator(long baseDelay) {
+            this.currentDelay = baseDelay;
+        }
+
+        /**
+         * There is not any limit for this BackOff.
+         * This Iterator will always return back off delay.
+         *
+         * @return true
+         */
+        @Override
+        public boolean hasNext() {
+            return true;
+        }
+
+        @Override
+        public TimeValue next() {
+            TimeValue delayToReturn = TimeValue.timeValueMillis(Randomness.get().nextInt(Math.toIntExact(currentDelay)) + 1);
+            currentDelay = Math.min(2 * currentDelay, Integer.MAX_VALUE);
+            return delayToReturn;
+        }
+    }
+
+    /**
+     * Concrete Constant Back Off Policy
+     *
+     * @opensearch.internal
+     */
     private static final class ConstantBackoff extends BackoffPolicy {
         private final TimeValue delay;
 
@@ -197,6 +345,11 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         }
     }
 
+    /**
+     * Concrete Constant Back Off Iterator
+     *
+     * @opensearch.internal
+     */
     private static final class ConstantBackoffIterator implements Iterator<TimeValue> {
         private final TimeValue delay;
         private final int numberOfElements;
@@ -222,6 +375,11 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         }
     }
 
+    /**
+     * Concrete Wrapped Back Off Policy
+     *
+     * @opensearch.internal
+     */
     private static final class WrappedBackoffPolicy extends BackoffPolicy {
         private final BackoffPolicy delegate;
         private final Runnable onBackoff;
@@ -237,6 +395,11 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         }
     }
 
+    /**
+     * Concrete Wrapped Back Off Iterator
+     *
+     * @opensearch.internal
+     */
     private static final class WrappedBackoffIterator implements Iterator<TimeValue> {
         private final Iterator<TimeValue> delegate;
         private final Runnable onBackoff;

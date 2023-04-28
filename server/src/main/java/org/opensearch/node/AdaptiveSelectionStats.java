@@ -37,9 +37,8 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.ToXContent.Params;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -52,6 +51,8 @@ import java.util.stream.Collectors;
  * Class representing statistics about adaptive replica selection. This includes
  * EWMA of queue size, service time, and response time, as well as outgoing
  * searches to each node and the "rank" based on the ARS formula.
+ *
+ * @opensearch.internal
  */
 public class AdaptiveSelectionStats implements Writeable, ToXContentFragment {
 

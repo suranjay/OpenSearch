@@ -60,10 +60,15 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.snapshots.IndexShardRestoreFailedException;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.RemoteFsTranslog;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.transfer.FileTransferTracker;
+import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -79,6 +84,8 @@ import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 /**
  * This package private utility class encapsulates the logic to recover an index shard from either an existing index on
  * disk or from a snapshot in a repository.
+ *
+ * @opensearch.internal
  */
 final class StoreRecovery {
 
@@ -101,12 +108,23 @@ final class StoreRecovery {
      */
     void recoverFromStore(final IndexShard indexShard, ActionListener<Boolean> listener) {
         if (canRecover(indexShard)) {
-            RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
-            assert recoveryType == RecoverySource.Type.EMPTY_STORE || recoveryType == RecoverySource.Type.EXISTING_STORE
-                : "expected store recovery type but was: " + recoveryType;
             ActionListener.completeWith(recoveryListener(indexShard, listener), () -> {
                 logger.debug("starting recovery from store ...");
                 internalRecoverFromStore(indexShard);
+                return true;
+            });
+        } else {
+            listener.onResponse(false);
+        }
+    }
+
+    void recoverFromRemoteStore(final IndexShard indexShard, Repository repository, ActionListener<Boolean> listener) {
+        if (canRecover(indexShard)) {
+            RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
+            assert recoveryType == RecoverySource.Type.REMOTE_STORE : "expected remote store recovery type but was: " + recoveryType;
+            ActionListener.completeWith(recoveryListener(indexShard, listener), () -> {
+                logger.debug("starting recovery from remote store ...");
+                recoverFromRemoteStore(indexShard, repository);
                 return true;
             });
         } else {
@@ -176,7 +194,7 @@ final class StoreRecovery {
     }
 
     void addIndices(
-        final RecoveryState.Index indexRecoveryStats,
+        final ReplicationLuceneIndex indexRecoveryStats,
         final Directory target,
         final Sort indexSort,
         final Directory[] sources,
@@ -229,11 +247,13 @@ final class StoreRecovery {
 
     /**
      * Directory wrapper that records copy process for recovery statistics
+     *
+     * @opensearch.internal
      */
     static final class StatsDirectoryWrapper extends FilterDirectory {
-        private final RecoveryState.Index index;
+        private final ReplicationLuceneIndex index;
 
-        StatsDirectoryWrapper(Directory in, RecoveryState.Index indexRecoveryStats) {
+        StatsDirectoryWrapper(Directory in, ReplicationLuceneIndex indexRecoveryStats) {
             super(in);
             this.index = indexRecoveryStats;
         }
@@ -248,7 +268,9 @@ final class StoreRecovery {
             in.copyFrom(new FilterDirectory(from) {
                 @Override
                 public IndexInput openInput(String name, IOContext context) throws IOException {
-                    index.addFileDetail(dest, l, false);
+                    if (index.getFileDetails(dest) == null) {
+                        index.addFileDetail(dest, l, false);
+                    }
                     copies.set(true);
                     final IndexInput input = in.openInput(name, context);
                     return new IndexInput("StatsDirectoryWrapper(" + input.toString() + ")") {
@@ -291,7 +313,7 @@ final class StoreRecovery {
                     };
                 }
             }, src, dest, context);
-            if (copies.get() == false) {
+            if (copies.get() == false && index.getFileDetails(dest) == null) {
                 index.addFileDetail(dest, l, true); // hardlinked - we treat it as reused since the file was already somewhat there
             } else {
                 assert index.getFileDetails(dest) != null : "File [" + dest + "] has no file details";
@@ -354,7 +376,7 @@ final class StoreRecovery {
                     + "]";
 
                 if (logger.isTraceEnabled()) {
-                    RecoveryState.Index index = recoveryState.getIndex();
+                    ReplicationLuceneIndex index = recoveryState.getIndex();
                     StringBuilder sb = new StringBuilder();
                     sb.append("    index    : files           [")
                         .append(index.totalFileCount())
@@ -419,6 +441,60 @@ final class StoreRecovery {
         });
     }
 
+    private void recoverFromRemoteStore(IndexShard indexShard, Repository repository) throws IndexShardRecoveryException {
+        final Store remoteStore = indexShard.remoteStore();
+        if (remoteStore == null) {
+            throw new IndexShardRecoveryException(
+                indexShard.shardId(),
+                "Remote store is not enabled for this index",
+                new IllegalArgumentException()
+            );
+        }
+        indexShard.preRecovery();
+        indexShard.prepareForIndexRecovery();
+        final Store store = indexShard.store();
+        store.incRef();
+        remoteStore.incRef();
+        try {
+            // Download segments from remote segment store
+            indexShard.syncSegmentsFromRemoteSegmentStore(true);
+
+            if (store.directory().listAll().length == 0) {
+                store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);
+            }
+            if (repository != null) {
+                syncTranslogFilesFromRemoteTranslog(indexShard, repository);
+            } else {
+                bootstrap(indexShard, store);
+            }
+
+            assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
+            indexShard.recoveryState().getIndex().setFileDetailsComplete();
+            indexShard.openEngineAndRecoverFromTranslog();
+            indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
+            indexShard.finalizeRecovery();
+            indexShard.postRecovery("post recovery from remote_store");
+        } catch (IOException | IndexShardRecoveryException e) {
+            throw new IndexShardRecoveryException(indexShard.shardId, "Exception while recovering from remote store", e);
+        } finally {
+            store.decRef();
+            remoteStore.decRef();
+        }
+    }
+
+    private void syncTranslogFilesFromRemoteTranslog(IndexShard indexShard, Repository repository) throws IOException {
+        assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
+        BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
+        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId);
+        TranslogTransferManager translogTransferManager = RemoteFsTranslog.buildTranslogTransferManager(
+            blobStoreRepository,
+            indexShard.getThreadPool(),
+            shardId,
+            fileTransferTracker
+        );
+        RemoteFsTranslog.download(translogTransferManager, indexShard.shardPath().resolveTranslog());
+    }
+
     /**
      * Recovers the state of the shard from the store.
      */
@@ -471,7 +547,7 @@ final class StoreRecovery {
                     writeEmptyRetentionLeasesFile(indexShard);
                 }
                 // since we recover from local, just fill the files and size
-                final RecoveryState.Index index = recoveryState.getIndex();
+                final ReplicationLuceneIndex index = recoveryState.getIndex();
                 try {
                     if (si != null) {
                         addRecoveredFileDetails(si, store, index);
@@ -509,7 +585,7 @@ final class StoreRecovery {
         assert indexShard.loadRetentionLeases().leases().isEmpty();
     }
 
-    private void addRecoveredFileDetails(SegmentInfos si, Store store, RecoveryState.Index index) throws IOException {
+    private void addRecoveredFileDetails(SegmentInfos si, Store store, ReplicationLuceneIndex index) throws IOException {
         final Directory directory = store.directory();
         for (String name : Lucene.files(si)) {
             long length = directory.fileLength(name);
@@ -561,7 +637,7 @@ final class StoreRecovery {
             final StepListener<IndexId> indexIdListener = new StepListener<>();
             // If the index UUID was not found in the recovery source we will have to load RepositoryData and resolve it by index name
             if (indexId.getId().equals(IndexMetadata.INDEX_UUID_NA_VALUE)) {
-                // BwC path, running against an old version master that did not add the IndexId to the recovery source
+                // BwC path, running against an old version cluster-manager that did not add the IndexId to the recovery source
                 repository.getRepositoryData(
                     ActionListener.map(indexIdListener, repositoryData -> repositoryData.resolveIndexId(indexId.getName()))
                 );

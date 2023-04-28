@@ -43,6 +43,7 @@ import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.opensearch.index.snapshots.blobstore.SnapshotFiles;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.snapshots.SnapshotId;
 
@@ -61,6 +62,8 @@ import static java.util.Collections.unmodifiableMap;
  * restore from some form of a snapshot. It will setup a new store, identify files that need to be copied
  * for the source, and perform the copies. Implementers must implement the functionality of opening the
  * underlying file streams for snapshotted lucene file.
+ *
+ * @opensearch.internal
  */
 public abstract class FileRestoreContext {
 
@@ -196,6 +199,10 @@ public abstract class FileRestoreContext {
     }
 
     private void afterRestore(SnapshotFiles snapshotFiles, Store store, StoreFileMetadata restoredSegmentsFile) {
+        // no cleanup needed for searchable snapshots
+        if (store.directory() instanceof RemoteSnapshotDirectory) {
+            return;
+        }
         // read the snapshot data persisted
         try {
             Lucene.pruneUnreferencedFiles(restoredSegmentsFile.name(), store.directory());

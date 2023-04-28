@@ -47,8 +47,9 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.tasks.Task;
@@ -65,6 +66,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Objects.requireNonNull;
 
+/**
+ * Syncer for Primary replica
+ *
+ * @opensearch.internal
+ */
 public class PrimaryReplicaSyncer {
 
     private static final Logger logger = LogManager.getLogger(PrimaryReplicaSyncer.class);
@@ -220,6 +226,11 @@ public class PrimaryReplicaSyncer {
         }
     }
 
+    /**
+     * Synchronous action
+     *
+     * @opensearch.internal
+     */
     public interface SyncAction {
         void sync(
             ResyncReplicationRequest request,
@@ -230,6 +241,11 @@ public class PrimaryReplicaSyncer {
         );
     }
 
+    /**
+     * Sends a snapshot
+     *
+     * @opensearch.internal
+     */
     static class SnapshotSender extends AbstractRunnable implements ActionListener<ResyncReplicationResponse> {
         private final Logger logger;
         private final SyncAction syncAction;
@@ -343,6 +359,11 @@ public class PrimaryReplicaSyncer {
         }
     }
 
+    /**
+     * Request to resync primary and replica
+     *
+     * @opensearch.internal
+     */
     public static class ResyncRequest extends ActionRequest {
 
         private final ShardId shardId;
@@ -374,6 +395,11 @@ public class PrimaryReplicaSyncer {
         }
     }
 
+    /**
+     * Task to resync primary and replica
+     *
+     * @opensearch.internal
+     */
     public static class ResyncTask extends Task {
         private volatile String phase = "starting";
         private volatile int totalOperations;
@@ -436,6 +462,11 @@ public class PrimaryReplicaSyncer {
             return new ResyncTask.Status(phase, totalOperations, resyncedOperations, skippedOperations);
         }
 
+        /**
+         * Status for primary replica syncer
+         *
+         * @opensearch.internal
+         */
         public static class Status implements Task.Status {
             public static final String NAME = "resync";
 
@@ -484,7 +515,7 @@ public class PrimaryReplicaSyncer {
 
             @Override
             public String toString() {
-                return Strings.toString(this);
+                return Strings.toString(XContentType.JSON, this);
             }
 
             @Override

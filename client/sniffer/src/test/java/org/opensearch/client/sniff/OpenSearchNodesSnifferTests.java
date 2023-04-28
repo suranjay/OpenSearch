@@ -40,14 +40,13 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
-import org.apache.http.Consts;
-import org.apache.http.HttpHost;
-import org.apache.http.client.methods.HttpGet;
 import org.opensearch.client.Node;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientTestCase;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.core5.http.HttpHost;
 import org.junit.After;
 import org.junit.Before;
 
@@ -56,6 +55,7 @@ import java.io.OutputStream;
 import java.io.StringWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -181,7 +181,7 @@ public class OpenSearchNodesSnifferTests extends RestClientTestCase {
                     String nodesInfoBody = sniffResponse.nodesInfoBody;
                     httpExchange.sendResponseHeaders(sniffResponse.nodesInfoResponseCode, nodesInfoBody.length());
                     try (OutputStream out = httpExchange.getResponseBody()) {
-                        out.write(nodesInfoBody.getBytes(Consts.UTF_8));
+                        out.write(nodesInfoBody.getBytes(StandardCharsets.UTF_8));
                         return;
                     }
                 }
@@ -210,14 +210,14 @@ public class OpenSearchNodesSnifferTests extends RestClientTestCase {
             String nodeId = RandomStrings.randomAsciiOfLengthBetween(getRandom(), 5, 10);
             String host = "host" + i;
             int port = RandomNumbers.randomIntBetween(getRandom(), 9200, 9299);
-            HttpHost publishHost = new HttpHost(host, port, scheme.toString());
+            HttpHost publishHost = new HttpHost(scheme.toString(), host, port);
             Set<HttpHost> boundHosts = new HashSet<>();
             boundHosts.add(publishHost);
 
             if (randomBoolean()) {
                 int bound = between(1, 5);
                 for (int b = 0; b < bound; b++) {
-                    boundHosts.add(new HttpHost(host + b, port, scheme.toString()));
+                    boundHosts.add(new HttpHost(scheme.toString(), host + b, port));
                 }
             }
 
@@ -234,7 +234,7 @@ public class OpenSearchNodesSnifferTests extends RestClientTestCase {
 
             final Set<String> nodeRoles = new TreeSet<>();
             if (randomBoolean()) {
-                nodeRoles.add("master");
+                nodeRoles.add("cluster_manager");
             }
             if (randomBoolean()) {
                 nodeRoles.add("data");
@@ -283,12 +283,12 @@ public class OpenSearchNodesSnifferTests extends RestClientTestCase {
                 generator.writeEndObject();
             }
 
-            List<String> roles = Arrays.asList(new String[] { "master", "data", "ingest" });
+            List<String> roles = Arrays.asList(new String[] { "cluster_manager", "data", "ingest" });
             Collections.shuffle(roles, getRandom());
             generator.writeArrayFieldStart("roles");
             for (String role : roles) {
-                if ("master".equals(role) && node.getRoles().isMasterEligible()) {
-                    generator.writeString("master");
+                if ("cluster_manager".equals(role) && node.getRoles().isClusterManagerEligible()) {
+                    generator.writeString("cluster_manager");
                 }
                 if ("data".equals(role) && node.getRoles().isData()) {
                     generator.writeString("data");
@@ -307,13 +307,7 @@ public class OpenSearchNodesSnifferTests extends RestClientTestCase {
             if (numAttributes > 0) {
                 generator.writeObjectFieldStart("attributes");
                 for (Map.Entry<String, List<String>> entry : attributes.entrySet()) {
-                    if (entry.getValue().size() == 1) {
-                        generator.writeStringField(entry.getKey(), entry.getValue().get(0));
-                    } else {
-                        for (int v = 0; v < entry.getValue().size(); v++) {
-                            generator.writeStringField(entry.getKey() + "." + v, entry.getValue().get(v));
-                        }
-                    }
+                    generator.writeStringField(entry.getKey(), entry.getValue().toString());
                 }
                 generator.writeEndObject();
             }

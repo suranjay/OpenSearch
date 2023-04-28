@@ -35,7 +35,7 @@ package org.opensearch.repositories.url;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -68,7 +68,7 @@ public class URLRepositoryTests extends OpenSearchTestCase {
         };
     }
 
-    public void testWhiteListingRepoURL() throws IOException {
+    public void testAllowListingRepoURL() throws IOException {
         String repoPath = createTempDir().resolve("repository").toUri().toURL().toString();
         Settings baseSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
@@ -84,7 +84,7 @@ public class URLRepositoryTests extends OpenSearchTestCase {
         assertThat("blobContainer has to initialize blob store", repository.getBlobStore(), not(nullValue()));
     }
 
-    public void testIfNotWhiteListedMustSetRepoURL() throws IOException {
+    public void testIfNotAllowListedMustSetRepoURL() throws IOException {
         String repoPath = createTempDir().resolve("repository").toUri().toURL().toString();
         Settings baseSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())

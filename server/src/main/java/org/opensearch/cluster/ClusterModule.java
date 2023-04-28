@@ -35,6 +35,7 @@ package org.opensearch.cluster;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.action.index.NodeMappingRefreshAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.cluster.metadata.ComponentTemplateMetadata;
 import org.opensearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.opensearch.cluster.metadata.DataStreamMetadata;
@@ -48,6 +49,7 @@ import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.metadata.MetadataMappingService;
 import org.opensearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
+import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.routing.DelayedAllocationService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
@@ -72,9 +74,10 @@ import org.opensearch.cluster.routing.allocation.decider.RestoreInProgressAlloca
 import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.TargetPoolAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.NamedWriteableRegistry.Entry;
@@ -85,13 +88,14 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.ingest.IngestMetadata;
 import org.opensearch.persistent.PersistentTasksCustomMetadata;
 import org.opensearch.persistent.PersistentTasksNodeService;
 import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.script.ScriptMetadata;
+import org.opensearch.search.pipeline.SearchPipelineMetadata;
 import org.opensearch.snapshots.SnapshotsInfoService;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskResultsService;
@@ -110,6 +114,8 @@ import java.util.function.Supplier;
 
 /**
  * Configures classes and services that affect the entire cluster.
+ *
+ * @opensearch.internal
  */
 public class ClusterModule extends AbstractModule {
 
@@ -167,6 +173,7 @@ public class ClusterModule extends AbstractModule {
         // Metadata
         registerMetadataCustom(entries, RepositoriesMetadata.TYPE, RepositoriesMetadata::new, RepositoriesMetadata::readDiffFrom);
         registerMetadataCustom(entries, IngestMetadata.TYPE, IngestMetadata::new, IngestMetadata::readDiffFrom);
+        registerMetadataCustom(entries, SearchPipelineMetadata.TYPE, SearchPipelineMetadata::new, SearchPipelineMetadata::readDiffFrom);
         registerMetadataCustom(entries, ScriptMetadata.TYPE, ScriptMetadata::new, ScriptMetadata::readDiffFrom);
         registerMetadataCustom(entries, IndexGraveyard.TYPE, IndexGraveyard::new, IndexGraveyard::readDiffFrom);
         registerMetadataCustom(
@@ -188,6 +195,13 @@ public class ClusterModule extends AbstractModule {
             ComposableIndexTemplateMetadata::readDiffFrom
         );
         registerMetadataCustom(entries, DataStreamMetadata.TYPE, DataStreamMetadata::new, DataStreamMetadata::readDiffFrom);
+        registerMetadataCustom(entries, WeightedRoutingMetadata.TYPE, WeightedRoutingMetadata::new, WeightedRoutingMetadata::readDiffFrom);
+        registerMetadataCustom(
+            entries,
+            DecommissionAttributeMetadata.TYPE,
+            DecommissionAttributeMetadata::new,
+            DecommissionAttributeMetadata::readDiffFrom
+        );
         // Task Status (not Diffable)
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));
         return entries;
@@ -210,13 +224,13 @@ public class ClusterModule extends AbstractModule {
      */
     public static ClusterState filterCustomsForPre63Clients(ClusterState clusterState) {
         final ClusterState.Builder builder = ClusterState.builder(clusterState);
-        clusterState.customs().keysIt().forEachRemaining(name -> {
+        clusterState.customs().keySet().iterator().forEachRemaining(name -> {
             if (PRE_6_3_CLUSTER_CUSTOMS_WHITE_LIST.contains(name) == false) {
                 builder.removeCustom(name);
             }
         });
         final Metadata.Builder metaBuilder = Metadata.builder(clusterState.metadata());
-        clusterState.metadata().customs().keysIt().forEachRemaining(name -> {
+        clusterState.metadata().customs().keySet().iterator().forEachRemaining(name -> {
             if (PRE_6_3_METADATA_CUSTOMS_WHITE_LIST.contains(name) == false) {
                 metaBuilder.removeCustom(name);
             }
@@ -236,6 +250,13 @@ public class ClusterModule extends AbstractModule {
         );
         entries.add(
             new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(IngestMetadata.TYPE), IngestMetadata::fromXContent)
+        );
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(SearchPipelineMetadata.TYPE),
+                SearchPipelineMetadata::fromXContent
+            )
         );
         entries.add(
             new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(ScriptMetadata.TYPE), ScriptMetadata::fromXContent)
@@ -269,6 +290,20 @@ public class ClusterModule extends AbstractModule {
                 Metadata.Custom.class,
                 new ParseField(DataStreamMetadata.TYPE),
                 DataStreamMetadata::fromXContent
+            )
+        );
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(WeightedRoutingMetadata.TYPE),
+                WeightedRoutingMetadata::fromXContent
+            )
+        );
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(DecommissionAttributeMetadata.TYPE),
+                DecommissionAttributeMetadata::fromXContent
             )
         );
         return entries;
@@ -334,6 +369,7 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new ShardsLimitAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new AwarenessAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new NodeLoadAwareAllocationDecider(settings, clusterSettings));
+        addAllocationDecider(deciders, new TargetPoolAllocationDecider());
 
         clusterPlugins.stream()
             .flatMap(p -> p.createAllocationDeciders(settings, clusterSettings).stream())

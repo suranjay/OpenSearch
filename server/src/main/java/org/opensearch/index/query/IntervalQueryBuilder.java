@@ -38,8 +38,8 @@ import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -49,6 +49,8 @@ import java.util.Set;
 
 /**
  * Builder for {@link IntervalQuery}
+ *
+ * @opensearch.internal
  */
 public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuilder> {
 

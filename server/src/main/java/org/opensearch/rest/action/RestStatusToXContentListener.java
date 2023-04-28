@@ -32,7 +32,7 @@
 package org.opensearch.rest.action;
 
 import org.opensearch.common.xcontent.StatusToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestResponse;
@@ -42,6 +42,8 @@ import java.util.function.Function;
 
 /**
  * Content listener that extracts that {@link RestStatus} from the response.
+ *
+ * @opensearch.api
  */
 public class RestStatusToXContentListener<Response extends StatusToXContentObject> extends RestToXContentListener<Response> {
     private final Function<Response, String> extractLocation;

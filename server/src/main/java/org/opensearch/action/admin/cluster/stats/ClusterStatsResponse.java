@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.cluster.stats;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
 import org.opensearch.cluster.ClusterName;
@@ -41,14 +40,19 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * Transport response for obtaining cluster stats
+ *
+ * @opensearch.internal
+ */
 public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResponse> implements ToXContentFragment {
 
     final ClusterStatsNodes nodesStats;
@@ -60,17 +64,15 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     public ClusterStatsResponse(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
-        // it may be that the master switched on us while doing the operation. In this case the status may be null.
+        // it may be that the cluster-manager switched on us while doing the operation. In this case the status may be null.
         status = in.readOptionalWriteable(ClusterHealthStatus::readFrom);
 
         String clusterUUID = null;
         MappingStats mappingStats = null;
         AnalysisStats analysisStats = null;
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            clusterUUID = in.readOptionalString();
-            mappingStats = in.readOptionalWriteable(MappingStats::new);
-            analysisStats = in.readOptionalWriteable(AnalysisStats::new);
-        }
+        clusterUUID = in.readOptionalString();
+        mappingStats = in.readOptionalWriteable(MappingStats::new);
+        analysisStats = in.readOptionalWriteable(AnalysisStats::new);
         this.clusterUUID = clusterUUID;
 
         // built from nodes rather than from the stream directly
@@ -93,7 +95,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         indicesStats = new ClusterStatsIndices(nodes, MappingStats.of(state), AnalysisStats.of(state));
         ClusterHealthStatus status = null;
         for (ClusterStatsNodeResponse response : nodes) {
-            // only the master node populates the status
+            // only the cluster-manager node populates the status
             if (response.clusterStatus() != null) {
                 status = response.clusterStatus();
                 break;
@@ -127,11 +129,9 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         super.writeTo(out);
         out.writeVLong(timestamp);
         out.writeOptionalWriteable(status);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            out.writeOptionalString(clusterUUID);
-            out.writeOptionalWriteable(indicesStats.getMappings());
-            out.writeOptionalWriteable(indicesStats.getAnalysis());
-        }
+        out.writeOptionalString(clusterUUID);
+        out.writeOptionalWriteable(indicesStats.getMappings());
+        out.writeOptionalWriteable(indicesStats.getAnalysis());
     }
 
     @Override

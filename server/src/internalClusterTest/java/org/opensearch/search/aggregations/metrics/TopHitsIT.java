@@ -40,7 +40,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -1386,7 +1386,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
             SearchResponse response = client().prepareSearch("idx")
                 .addRescorer(new QueryRescorerBuilder(new MatchAllQueryBuilder().boost(3.0f)))
                 .addAggregation(
-                    terms("terms").field(TERMS_AGGS_FIELD).subAggregation(topHits("hits").sort(SortBuilders.fieldSort("_type")))
+                    terms("terms").field(TERMS_AGGS_FIELD).subAggregation(topHits("hits").sort(SortBuilders.fieldSort("_index")))
                 )
                 .get();
             Terms terms = response.getAggregations().get("terms");
@@ -1403,7 +1403,7 @@ public class TopHitsIT extends OpenSearchIntegTestCase {
                 .addRescorer(new QueryRescorerBuilder(new MatchAllQueryBuilder().boost(3.0f)))
                 .addAggregation(
                     terms("terms").field(TERMS_AGGS_FIELD)
-                        .subAggregation(topHits("hits").sort(SortBuilders.scoreSort()).sort(SortBuilders.fieldSort("_type")))
+                        .subAggregation(topHits("hits").sort(SortBuilders.scoreSort()).sort(SortBuilders.fieldSort("_index")))
                 )
                 .get();
             Terms terms = response.getAggregations().get("terms");

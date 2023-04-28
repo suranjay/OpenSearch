@@ -38,7 +38,7 @@ import org.opensearch.cli.EnvironmentAwareCommand;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 
 import java.io.IOException;
@@ -215,7 +215,7 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
         // finally, add the marker file
         pluginPaths.add(removing);
 
-        IOUtils.rm(pluginPaths.toArray(new Path[pluginPaths.size()]));
+        IOUtils.rm(pluginPaths.toArray(new Path[0]));
     }
 
 }

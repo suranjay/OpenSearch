@@ -33,8 +33,7 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.search.IndexSearcher;
-import org.opensearch.common.ParseField;
-import org.opensearch.index.IndexSettings;
+import org.opensearch.core.ParseField;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregationExecutionException;
@@ -63,6 +62,11 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Aggregation Factory for terms agg
+ *
+ * @opensearch.internal
+ */
 public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     static Boolean REMAP_GLOBAL_ORDS, COLLECT_SEGMENT_ORDS;
 
@@ -361,6 +365,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
     }
 
+    /**
+     * The execution mode for the terms agg
+     *
+     * @opensearch.internal
+     */
     public enum ExecutionMode {
 
         MAP(new ParseField("map")) {
@@ -381,10 +390,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 CardinalityUpperBound cardinality,
                 Map<String, Object> metadata
             ) throws IOException {
-                IndexSettings indexSettings = context.getQueryShardContext().getIndexSettings();
+                int maxRegexLength = context.getQueryShardContext().getIndexSettings().getMaxRegexLength();
                 final IncludeExclude.StringFilter filter = includeExclude == null
                     ? null
-                    : includeExclude.convertToStringFilter(format, indexSettings);
+                    : includeExclude.convertToStringFilter(format, maxRegexLength);
                 return new MapStringTermsAggregator(
                     name,
                     factories,
@@ -435,7 +444,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     && ordinalsValuesSource.supportsGlobalOrdinalsMapping()
                     &&
                 // we use the static COLLECT_SEGMENT_ORDS to allow tests to force specific optimizations
-                (COLLECT_SEGMENT_ORDS != null ? COLLECT_SEGMENT_ORDS.booleanValue() : ratio <= 0.5 && maxOrd <= 2048)) {
+                    (COLLECT_SEGMENT_ORDS != null ? COLLECT_SEGMENT_ORDS.booleanValue() : ratio <= 0.5 && maxOrd <= 2048)) {
                     /*
                      * We can use the low cardinality execution mode iff this aggregator:
                      *  - has no sub-aggregator AND
@@ -462,10 +471,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     );
 
                 }
-                IndexSettings indexSettings = context.getQueryShardContext().getIndexSettings();
+                int maxRegexLength = context.getQueryShardContext().getIndexSettings().getMaxRegexLength();
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null
                     ? null
-                    : includeExclude.convertToOrdinalsFilter(format, indexSettings);
+                    : includeExclude.convertToOrdinalsFilter(format, maxRegexLength);
                 boolean remapGlobalOrds;
                 if (cardinality == CardinalityUpperBound.ONE && REMAP_GLOBAL_ORDS != null) {
                     /*

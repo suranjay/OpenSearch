@@ -38,6 +38,8 @@ import org.opensearch.transport.TransportRequestOptions;
 
 /**
  * A generic action. Should strive to make it a singleton.
+ *
+ * @opensearch.api
  */
 public class ActionType<Response extends ActionResponse> {
 

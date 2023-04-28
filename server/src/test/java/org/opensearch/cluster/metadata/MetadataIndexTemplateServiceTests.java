@@ -38,23 +38,25 @@ import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
+import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.Environment;
 import org.opensearch.index.Index;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.IndexTemplateMissingException;
-import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexTemplateException;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -85,7 +87,10 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.opensearch.common.settings.Settings.builder;
+import static org.opensearch.env.Environment.PATH_HOME_SETTING;
 import static org.opensearch.index.mapper.DataStreamFieldMapper.Defaults.TIMESTAMP_FIELD;
 import static org.opensearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 
@@ -411,7 +416,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         );
         ComponentTemplate componentTemplate4 = new ComponentTemplate(template, 1L, new HashMap<>());
         expectThrows(
-            IllegalArgumentException.class,
+            SettingsException.class,
             () -> metadataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate4)
         );
     }
@@ -425,9 +430,9 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         assertNotNull(state.metadata().componentTemplates().get("foo"));
 
         ComposableIndexTemplate firstGlobalIndexTemplate = new ComposableIndexTemplate(
-            org.opensearch.common.collect.List.of("*"),
+            List.of("*"),
             template,
-            org.opensearch.common.collect.List.of("foo"),
+            List.of("foo"),
             1L,
             null,
             null,
@@ -436,9 +441,9 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "globalindextemplate1", firstGlobalIndexTemplate);
 
         ComposableIndexTemplate secondGlobalIndexTemplate = new ComposableIndexTemplate(
-            org.opensearch.common.collect.List.of("*"),
+            List.of("*"),
             template,
-            org.opensearch.common.collect.List.of("foo"),
+            List.of("foo"),
             2L,
             null,
             null,
@@ -447,9 +452,9 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         state = metadataIndexTemplateService.addIndexTemplateV2(state, true, "globalindextemplate2", secondGlobalIndexTemplate);
 
         ComposableIndexTemplate fooPatternIndexTemplate = new ComposableIndexTemplate(
-            org.opensearch.common.collect.List.of("foo-*"),
+            List.of("foo-*"),
             template,
-            org.opensearch.common.collect.List.of("foo"),
+            List.of("foo"),
             3L,
             null,
             null,
@@ -612,9 +617,9 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         waitToCreateComponentTemplate.await(10, TimeUnit.SECONDS);
 
         ComposableIndexTemplate globalIndexTemplate = new ComposableIndexTemplate(
-            org.opensearch.common.collect.List.of("*"),
+            List.of("*"),
             null,
-            org.opensearch.common.collect.List.of("ct-with-index-hidden-setting"),
+            List.of("ct-with-index-hidden-setting"),
             null,
             null,
             null,
@@ -937,9 +942,9 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         try {
             // add an invalid global template that specifies the `index.hidden` setting
             ComposableIndexTemplate invalidGlobalTemplate = new ComposableIndexTemplate(
-                org.opensearch.common.collect.List.of("*"),
+                List.of("*"),
                 templateWithHiddenSetting,
-                org.opensearch.common.collect.List.of("ct"),
+                List.of("ct"),
                 5L,
                 1L,
                 null,
@@ -948,9 +953,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
             Metadata invalidGlobalTemplateMetadata = Metadata.builder()
                 .putCustom(
                     ComposableIndexTemplateMetadata.TYPE,
-                    new ComposableIndexTemplateMetadata(
-                        org.opensearch.common.collect.Map.of("invalid_global_template", invalidGlobalTemplate)
-                    )
+                    new ComposableIndexTemplateMetadata(Map.of("invalid_global_template", invalidGlobalTemplate))
                 )
                 .build();
 
@@ -1209,7 +1212,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
 
         {
             ComposableIndexTemplate it = new ComposableIndexTemplate(
-                org.opensearch.common.collect.List.of("logs*"),
+                List.of("logs*"),
                 new Template(
                     null,
                     new CompressedXContent(
@@ -1223,7 +1226,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
                     ),
                     null
                 ),
-                org.opensearch.common.collect.List.of("ct1"),
+                List.of("ct1"),
                 0L,
                 1L,
                 null,
@@ -1241,7 +1244,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
             assertThat(mappings.size(), equalTo(4));
             List<Map<String, Object>> parsedMappings = mappings.stream().map(m -> {
                 try {
-                    return MapperService.parseMapping(new NamedXContentRegistry(org.opensearch.common.collect.List.of()), m.string());
+                    return MapperService.parseMapping(new NamedXContentRegistry(List.of()), m.string());
                 } catch (Exception e) {
                     logger.error(e);
                     fail("failed to parse mappings: " + m.string());
@@ -1249,38 +1252,23 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
                 }
             }).collect(Collectors.toList());
 
-            Map<String, Object> firstParsedMapping = org.opensearch.common.collect.Map.of(
+            Map<String, Object> firstParsedMapping = Map.of(
                 "_doc",
-                org.opensearch.common.collect.Map.of(
-                    "properties",
-                    org.opensearch.common.collect.Map.of(TIMESTAMP_FIELD.getName(), org.opensearch.common.collect.Map.of("type", "date"))
-                )
+                Map.of("properties", Map.of(TIMESTAMP_FIELD.getName(), Map.of("type", "date")))
             );
             assertThat(parsedMappings.get(0), equalTo(firstParsedMapping));
 
-            Map<String, Object> secondMapping = org.opensearch.common.collect.Map.of(
-                "_doc",
-                org.opensearch.common.collect.Map.of(
-                    "properties",
-                    org.opensearch.common.collect.Map.of("field1", org.opensearch.common.collect.Map.of("type", "keyword"))
-                )
-            );
+            Map<String, Object> secondMapping = Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))));
             assertThat(parsedMappings.get(1), equalTo(secondMapping));
 
-            Map<String, Object> thirdMapping = org.opensearch.common.collect.Map.of(
-                "_doc",
-                org.opensearch.common.collect.Map.of(
-                    "properties",
-                    org.opensearch.common.collect.Map.of("field2", org.opensearch.common.collect.Map.of("type", "integer"))
-                )
-            );
+            Map<String, Object> thirdMapping = Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "integer"))));
             assertThat(parsedMappings.get(2), equalTo(thirdMapping));
         }
 
         {
             // indices matched by templates without the data stream field defined don't get the default @timestamp mapping
             ComposableIndexTemplate it = new ComposableIndexTemplate(
-                org.opensearch.common.collect.List.of("timeseries*"),
+                List.of("timeseries*"),
                 new Template(
                     null,
                     new CompressedXContent(
@@ -1294,7 +1282,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
                     ),
                     null
                 ),
-                org.opensearch.common.collect.List.of("ct1"),
+                List.of("ct1"),
                 0L,
                 1L,
                 null,
@@ -1308,7 +1296,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
             assertThat(mappings.size(), equalTo(2));
             List<Map<String, Object>> parsedMappings = mappings.stream().map(m -> {
                 try {
-                    return MapperService.parseMapping(new NamedXContentRegistry(org.opensearch.common.collect.List.of()), m.string());
+                    return MapperService.parseMapping(new NamedXContentRegistry(List.of()), m.string());
                 } catch (Exception e) {
                     logger.error(e);
                     fail("failed to parse mappings: " + m.string());
@@ -1316,22 +1304,10 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
                 }
             }).collect(Collectors.toList());
 
-            Map<String, Object> firstMapping = org.opensearch.common.collect.Map.of(
-                "_doc",
-                org.opensearch.common.collect.Map.of(
-                    "properties",
-                    org.opensearch.common.collect.Map.of("field1", org.opensearch.common.collect.Map.of("type", "keyword"))
-                )
-            );
+            Map<String, Object> firstMapping = Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))));
             assertThat(parsedMappings.get(0), equalTo(firstMapping));
 
-            Map<String, Object> secondMapping = org.opensearch.common.collect.Map.of(
-                "_doc",
-                org.opensearch.common.collect.Map.of(
-                    "properties",
-                    org.opensearch.common.collect.Map.of("field2", org.opensearch.common.collect.Map.of("type", "integer"))
-                )
-            );
+            Map<String, Object> secondMapping = Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "integer"))));
             assertThat(parsedMappings.get(1), equalTo(secondMapping));
 
             // a default @timestamp mapping will not be added if the matching template doesn't have the data stream field configured, even
@@ -1346,7 +1322,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
             assertThat(mappings.size(), equalTo(2));
             parsedMappings = mappings.stream().map(m -> {
                 try {
-                    return MapperService.parseMapping(new NamedXContentRegistry(org.opensearch.common.collect.List.of()), m.string());
+                    return MapperService.parseMapping(new NamedXContentRegistry(List.of()), m.string());
                 } catch (Exception e) {
                     logger.error(e);
                     fail("failed to parse mappings: " + m.string());
@@ -1354,22 +1330,10 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
                 }
             }).collect(Collectors.toList());
 
-            firstMapping = org.opensearch.common.collect.Map.of(
-                "_doc",
-                org.opensearch.common.collect.Map.of(
-                    "properties",
-                    org.opensearch.common.collect.Map.of("field1", org.opensearch.common.collect.Map.of("type", "keyword"))
-                )
-            );
+            firstMapping = Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))));
             assertThat(parsedMappings.get(0), equalTo(firstMapping));
 
-            secondMapping = org.opensearch.common.collect.Map.of(
-                "_doc",
-                org.opensearch.common.collect.Map.of(
-                    "properties",
-                    org.opensearch.common.collect.Map.of("field2", org.opensearch.common.collect.Map.of("type", "integer"))
-                )
-            );
+            secondMapping = Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "integer"))));
             assertThat(parsedMappings.get(1), equalTo(secondMapping));
         }
     }
@@ -1400,9 +1364,9 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
 
             state = service.addComponentTemplate(state, true, "ct1", ct1);
             ComposableIndexTemplate it = new ComposableIndexTemplate(
-                org.opensearch.common.collect.List.of("logs*"),
+                List.of("logs*"),
                 null,
-                org.opensearch.common.collect.List.of("ct1"),
+                List.of("ct1"),
                 0L,
                 1L,
                 null,
@@ -1420,7 +1384,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
             assertThat(mappings.size(), equalTo(3));
             List<Map<String, Object>> parsedMappings = mappings.stream().map(m -> {
                 try {
-                    return MapperService.parseMapping(new NamedXContentRegistry(org.opensearch.common.collect.List.of()), m.string());
+                    return MapperService.parseMapping(new NamedXContentRegistry(List.of()), m.string());
                 } catch (Exception e) {
                     logger.error(e);
                     fail("failed to parse mappings: " + m.string());
@@ -1428,24 +1392,15 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
                 }
             }).collect(Collectors.toList());
 
-            Map<String, Object> firstMapping = org.opensearch.common.collect.Map.of(
+            Map<String, Object> firstMapping = Map.of(
                 "_doc",
-                org.opensearch.common.collect.Map.of(
-                    "properties",
-                    org.opensearch.common.collect.Map.of(TIMESTAMP_FIELD.getName(), org.opensearch.common.collect.Map.of("type", "date"))
-                )
+                Map.of("properties", Map.of(TIMESTAMP_FIELD.getName(), Map.of("type", "date")))
             );
             assertThat(parsedMappings.get(0), equalTo(firstMapping));
 
-            Map<String, Object> secondMapping = org.opensearch.common.collect.Map.of(
+            Map<String, Object> secondMapping = Map.of(
                 "_doc",
-                org.opensearch.common.collect.Map.of(
-                    "properties",
-                    org.opensearch.common.collect.Map.of(
-                        TIMESTAMP_FIELD.getName(),
-                        org.opensearch.common.collect.Map.of("type", "date_nanos")
-                    )
-                )
+                Map.of("properties", Map.of(TIMESTAMP_FIELD.getName(), Map.of("type", "date_nanos")))
             );
             assertThat(parsedMappings.get(1), equalTo(secondMapping));
         }
@@ -1466,7 +1421,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
                 null
             );
             ComposableIndexTemplate it = new ComposableIndexTemplate(
-                org.opensearch.common.collect.List.of("timeseries*"),
+                List.of("timeseries*"),
                 template,
                 null,
                 0L,
@@ -1486,31 +1441,22 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
             assertThat(mappings.size(), equalTo(3));
             List<Map<String, Object>> parsedMappings = mappings.stream().map(m -> {
                 try {
-                    return MapperService.parseMapping(new NamedXContentRegistry(org.opensearch.common.collect.List.of()), m.string());
+                    return MapperService.parseMapping(new NamedXContentRegistry(List.of()), m.string());
                 } catch (Exception e) {
                     logger.error(e);
                     fail("failed to parse mappings: " + m.string());
                     return null;
                 }
             }).collect(Collectors.toList());
-            Map<String, Object> firstMapping = org.opensearch.common.collect.Map.of(
+            Map<String, Object> firstMapping = Map.of(
                 "_doc",
-                org.opensearch.common.collect.Map.of(
-                    "properties",
-                    org.opensearch.common.collect.Map.of(TIMESTAMP_FIELD.getName(), org.opensearch.common.collect.Map.of("type", "date"))
-                )
+                Map.of("properties", Map.of(TIMESTAMP_FIELD.getName(), Map.of("type", "date")))
             );
             assertThat(parsedMappings.get(0), equalTo(firstMapping));
 
-            Map<String, Object> secondMapping = org.opensearch.common.collect.Map.of(
+            Map<String, Object> secondMapping = Map.of(
                 "_doc",
-                org.opensearch.common.collect.Map.of(
-                    "properties",
-                    org.opensearch.common.collect.Map.of(
-                        TIMESTAMP_FIELD.getName(),
-                        org.opensearch.common.collect.Map.of("type", "date_nanos")
-                    )
-                )
+                Map.of("properties", Map.of(TIMESTAMP_FIELD.getName(), Map.of("type", "date_nanos")))
             );
             assertThat(parsedMappings.get(1), equalTo(secondMapping));
         }
@@ -2084,22 +2030,33 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
+        ClusterService clusterService = mock(ClusterService.class);
+        Settings settings = Settings.builder().put(PATH_HOME_SETTING.getKey(), "dummy").build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        Metadata metadata = Metadata.builder().build();
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .build();
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.getSettings()).thenReturn(settings);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
             Settings.EMPTY,
+            clusterService,
             null,
             null,
             null,
-            null,
-            createTestShardLimitService(randomIntBetween(1, 1000)),
+            createTestShardLimitService(randomIntBetween(1, 1000), false),
             new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             null,
             xContentRegistry,
             new SystemIndices(Collections.emptyMap()),
-            true
+            true,
+            new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
         );
         MetadataIndexTemplateService service = new MetadataIndexTemplateService(
-            null,
+            clusterService,
             createIndexService,
             new AliasValidator(),
             null,
@@ -2144,30 +2101,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
     }
 
     private MetadataIndexTemplateService getMetadataIndexTemplateService() {
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
-            Settings.EMPTY,
-            clusterService,
-            indicesService,
-            null,
-            null,
-            createTestShardLimitService(randomIntBetween(1, 1000)),
-            new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            null,
-            xContentRegistry(),
-            new SystemIndices(Collections.emptyMap()),
-            true
-        );
-        return new MetadataIndexTemplateService(
-            clusterService,
-            createIndexService,
-            new AliasValidator(),
-            indicesService,
-            new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
-            xContentRegistry()
-        );
+        return getInstanceFromNode(MetadataIndexTemplateService.class);
     }
 
     @SuppressWarnings("unchecked")

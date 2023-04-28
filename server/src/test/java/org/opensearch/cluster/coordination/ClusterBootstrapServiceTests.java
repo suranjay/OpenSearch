@@ -58,13 +58,12 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
-import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING;
 import static org.opensearch.common.settings.Settings.builder;
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.opensearch.node.Node.NODE_NAME_SETTING;
-import static org.opensearch.test.NodeRoles.nonMasterNode;
+import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -127,9 +126,9 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
             settings.put(UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.getKey(), timeout + "ms");
         }
 
-        final AtomicReference<Supplier<Iterable<DiscoveryNode>>> discoveredNodesSupplier = new AtomicReference<>(
-            () -> { throw new AssertionError("should not be called yet"); }
-        );
+        final AtomicReference<Supplier<Iterable<DiscoveryNode>>> discoveredNodesSupplier = new AtomicReference<>(() -> {
+            throw new AssertionError("should not be called yet");
+        });
 
         final AtomicBoolean bootstrapped = new AtomicBoolean();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
@@ -170,16 +169,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         testDoesNothingWithSettings(builder().putList(INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey()));
     }
 
-    // Validate the deprecated setting is still valid during the cluster bootstrap.
-    public void testDoesNothingByDefaultIfMasterNodesConfigured() {
-        testDoesNothingWithSettings(builder().putList(INITIAL_MASTER_NODES_SETTING.getKey()));
-        assertWarnings(
-            "[cluster.initial_master_nodes] setting was deprecated in OpenSearch and will be removed in a future release! "
-                + "See the breaking changes documentation for the next major version."
-        );
-    }
-
-    public void testDoesNothingByDefaultOnMasterIneligibleNodes() {
+    public void testDoesNothingByDefaultOnClusterManagerIneligibleNodes() {
         localNode = new DiscoveryNode(
             "local",
             randomAlphaOfLength(10),
@@ -192,13 +182,9 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
     }
 
     private void testDoesNothingWithSettings(Settings.Builder builder) {
-        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            builder.build(),
-            transportService,
-            () -> { throw new AssertionError("should not be called"); },
-            () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
-        );
+        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(builder.build(), transportService, () -> {
+            throw new AssertionError("should not be called");
+        }, () -> false, vc -> { throw new AssertionError("should not be called"); });
         transportService.start();
         clusterBootstrapService.scheduleUnconfiguredBootstrap();
         deterministicTaskQueue.runAllTasks();
@@ -211,7 +197,9 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
                 transportService,
                 Collections::emptyList,
                 () -> false,
-                vc -> { throw new AssertionError("should not be called"); }
+                vc -> {
+                    throw new AssertionError("should not be called");
+                }
             );
         });
 
@@ -340,7 +328,9 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
             transportService,
             Collections::emptyList,
             () -> true,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -363,7 +353,9 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
             transportService,
             () -> Stream.of(otherNode1).collect(Collectors.toList()),
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -387,7 +379,9 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
             transportService,
             () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()),
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -403,7 +397,9 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
             transportService,
             () -> Stream.of(otherNode1, otherNode2).collect(Collectors.toList()),
             () -> true,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -411,7 +407,7 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         deterministicTaskQueue.runAllTasks();
     }
 
-    public void testDoesNotBootstrapsOnNonMasterNode() {
+    public void testDoesNotBootstrapsOnNonClusterManagerNode() {
         localNode = new DiscoveryNode(
             "local",
             randomAlphaOfLength(10),
@@ -427,7 +423,9 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
             transportService,
             () -> Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toList()),
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -440,7 +438,9 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
             transportService,
             () -> Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toList()),
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -453,7 +453,9 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
             transportService,
             () -> Stream.of(localNode, otherNode1, otherNode2).collect(Collectors.toList()),
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
         transportService.start();
         clusterBootstrapService.scheduleUnconfiguredBootstrap();
@@ -494,7 +496,9 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
             transportService,
             discoveredNodes::get,
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -517,7 +521,9 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
             transportService,
             discoveredNodes::get,
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -603,7 +609,9 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
             transportService,
             Collections::emptyList,
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -663,23 +671,6 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         assertFalse(bootstrapped.get()); // should only bootstrap once
     }
 
-    public void testFailBootstrapWithBothSingleNodeDiscoveryAndInitialMasterNodes() {
-        final Settings.Builder settings = Settings.builder()
-            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE)
-            .put(NODE_NAME_SETTING.getKey(), localNode.getName())
-            .put(INITIAL_MASTER_NODES_SETTING.getKey(), "test");
-
-        assertThat(
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> new ClusterBootstrapService(settings.build(), transportService, () -> emptyList(), () -> false, vc -> fail())
-            ).getMessage(),
-            containsString(
-                "setting [" + INITIAL_MASTER_NODES_SETTING.getKey() + "] is not allowed when [discovery.type] is set " + "to [single-node]"
-            )
-        );
-    }
-
     /**
      * Validate the correct setting name of cluster.initial_cluster_manager_nodes is shown in the exception,
      * when discovery type is single-node.
@@ -703,11 +694,11 @@ public class ClusterBootstrapServiceTests extends OpenSearchTestCase {
         );
     }
 
-    public void testFailBootstrapNonMasterEligibleNodeWithSingleNodeDiscovery() {
+    public void testFailBootstrapNonClusterManagerEligibleNodeWithSingleNodeDiscovery() {
         final Settings.Builder settings = Settings.builder()
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE)
             .put(NODE_NAME_SETTING.getKey(), localNode.getName())
-            .put(nonMasterNode());
+            .put(nonClusterManagerNode());
 
         assertThat(
             expectThrows(

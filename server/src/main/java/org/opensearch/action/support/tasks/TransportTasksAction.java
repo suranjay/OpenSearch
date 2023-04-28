@@ -44,7 +44,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -65,6 +64,7 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Consumer;
@@ -73,6 +73,8 @@ import static java.util.Collections.emptyList;
 
 /**
  * The base class for transport actions that are interacting with currently running tasks.
+ *
+ * @opensearch.internal
  */
 public abstract class TransportTasksAction<
     OperationTask extends Task,
@@ -235,6 +237,11 @@ public abstract class TransportTasksAction<
      */
     protected abstract void taskOperation(TasksRequest request, OperationTask task, ActionListener<TaskResponse> listener);
 
+    /**
+     * Asynchronous single action
+     *
+     * @opensearch.internal
+     */
     private class AsyncAction {
 
         private final TasksRequest request;
@@ -252,7 +259,7 @@ public abstract class TransportTasksAction<
             ClusterState clusterState = clusterService.state();
             String[] nodesIds = resolveNodes(request, clusterState);
             this.nodesIds = filterNodeIds(clusterState.nodes(), nodesIds);
-            ImmutableOpenMap<String, DiscoveryNode> nodes = clusterState.nodes().getNodes();
+            final Map<String, DiscoveryNode> nodes = clusterState.nodes().getNodes();
             this.nodes = new DiscoveryNode[nodesIds.length];
             for (int i = 0; i < this.nodesIds.length; i++) {
                 this.nodes[i] = nodes.get(this.nodesIds[i]);
@@ -351,6 +358,11 @@ public abstract class TransportTasksAction<
         }
     }
 
+    /**
+     * Node level transport handler
+     *
+     * @opensearch.internal
+     */
     class NodeTransportHandler implements TransportRequestHandler<NodeTaskRequest> {
 
         @Override
@@ -366,6 +378,11 @@ public abstract class TransportTasksAction<
         }
     }
 
+    /**
+     * Node level task request
+     *
+     * @opensearch.internal
+     */
     private class NodeTaskRequest extends TransportRequest {
         private TasksRequest tasksRequest;
 
@@ -387,6 +404,11 @@ public abstract class TransportTasksAction<
 
     }
 
+    /**
+     * Node level task response
+     *
+     * @opensearch.internal
+     */
     private class NodeTasksResponse extends TransportResponse {
         protected String nodeId;
         protected List<TaskOperationFailure> exceptions;

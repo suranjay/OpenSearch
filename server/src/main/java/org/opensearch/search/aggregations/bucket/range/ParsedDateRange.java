@@ -32,14 +32,19 @@
 
 package org.opensearch.search.aggregations.bucket.range;
 
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 
+/**
+ * A date range agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedDateRange extends ParsedRange {
 
     @Override
@@ -66,6 +71,11 @@ public class ParsedDateRange extends ParsedRange {
         return aggregation;
     }
 
+    /**
+     * Parsed bucket for a date range
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedRange.ParsedBucket {
 
         @Override

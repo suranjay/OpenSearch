@@ -37,9 +37,10 @@ import org.opensearch.action.TaskOperationFailure;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.tasks.TaskInfo;
 
 import java.io.IOException;
@@ -47,6 +48,8 @@ import java.util.List;
 
 /**
  * Returns the list of tasks that were cancelled
+ *
+ * @opensearch.internal
  */
 public class CancelTasksResponse extends ListTasksResponse {
 
@@ -78,6 +81,6 @@ public class CancelTasksResponse extends ListTasksResponse {
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, true);
+        return Strings.toString(XContentType.JSON, this, true, true);
     }
 }

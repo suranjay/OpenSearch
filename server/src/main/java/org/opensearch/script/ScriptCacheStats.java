@@ -35,8 +35,8 @@ package org.opensearch.script;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -45,7 +45,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-// This class is deprecated in favor of ScriptStats and ScriptContextStats.  It is removed in 8.
+/**
+ * Stats for script caching
+ *
+ * @opensearch.internal
+ *
+ * @deprecated This class is deprecated in favor of ScriptStats and ScriptContextStats.  It is removed in OpenSearch 2.0.
+ */
+@Deprecated
 public class ScriptCacheStats implements Writeable, ToXContentFragment {
     private final Map<String, ScriptStats> context;
     private final ScriptStats general;

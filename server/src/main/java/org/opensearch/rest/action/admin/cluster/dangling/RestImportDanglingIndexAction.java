@@ -48,6 +48,11 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.RestToXContentListener;
 
+/**
+ * Transport action to import dangling index
+ *
+ * @opensearch.api
+ */
 public class RestImportDanglingIndexAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestImportDanglingIndexAction.class);
 
@@ -69,7 +74,7 @@ public class RestImportDanglingIndexAction extends BaseRestHandler {
         );
 
         importRequest.timeout(request.paramAsTime("timeout", importRequest.timeout()));
-        importRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", importRequest.masterNodeTimeout()));
+        importRequest.clusterManagerNodeTimeout(request.paramAsTime("cluster_manager_timeout", importRequest.clusterManagerNodeTimeout()));
         parseDeprecatedMasterTimeoutParameter(importRequest, request, deprecationLogger, getName());
 
         return channel -> client.admin()

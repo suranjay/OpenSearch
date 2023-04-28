@@ -34,14 +34,16 @@ package org.opensearch.action.admin.cluster.configuration;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 /**
  * A response to {@link AddVotingConfigExclusionsRequest} indicating that voting config exclusions have been added for the requested nodes
  * and these nodes have been removed from the voting configuration.
+ *
+ * @opensearch.internal
  */
 public class AddVotingConfigExclusionsResponse extends ActionResponse implements ToXContentObject {
 

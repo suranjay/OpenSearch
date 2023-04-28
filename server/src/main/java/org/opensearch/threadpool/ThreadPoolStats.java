@@ -35,17 +35,27 @@ package org.opensearch.threadpool;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
+/**
+ * Stats for a threadpool
+ *
+ * @opensearch.internal
+ */
 public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<ThreadPoolStats.Stats> {
 
+    /**
+     * The statistics.
+     *
+     * @opensearch.internal
+     */
     public static class Stats implements Writeable, ToXContentFragment, Comparable<Stats> {
 
         private final String name;

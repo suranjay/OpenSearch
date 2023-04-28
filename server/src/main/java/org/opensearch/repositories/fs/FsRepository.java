@@ -36,13 +36,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Strings;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.RepositoryException;
@@ -62,6 +63,8 @@ import java.util.function.Function;
  *      Defaults to not chucked.</dd>
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
+ *
+ * @opensearch.internal
  */
 public class FsRepository extends BlobStoreRepository {
     private static final Logger logger = LogManager.getLogger(FsRepository.class);
@@ -96,6 +99,9 @@ public class FsRepository extends BlobStoreRepository {
         Property.NodeScope,
         Property.Deprecated
     );
+
+    public static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path");
+
     private final Environment environment;
 
     private ByteSizeValue chunkSize;
@@ -118,7 +124,7 @@ public class FsRepository extends BlobStoreRepository {
         if (location.isEmpty()) {
             logger.warn(
                 "the repository location is missing, it should point to a shared file system location"
-                    + " that is available on all master and data nodes"
+                    + " that is available on all cluster-manager and data nodes"
             );
             throw new RepositoryException(metadata.name(), "missing location");
         }
@@ -152,7 +158,12 @@ public class FsRepository extends BlobStoreRepository {
         } else {
             this.chunkSize = REPOSITORIES_CHUNK_SIZE_SETTING.get(environment.settings());
         }
-        this.basePath = BlobPath.cleanPath();
+        final String basePath = BASE_PATH_SETTING.get(metadata.settings());
+        if (Strings.hasLength(basePath)) {
+            this.basePath = new BlobPath().add(basePath);
+        } else {
+            this.basePath = BlobPath.cleanPath();
+        }
     }
 
     private static boolean calculateCompress(RepositoryMetadata metadata, Environment environment) {

@@ -32,10 +32,10 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.io.IOException;
@@ -43,6 +43,11 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 
+/**
+ * A auto date histogram result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedAutoDateHistogram extends ParsedMultiBucketAggregation<ParsedAutoDateHistogram.ParsedBucket> implements Histogram {
 
     @Override
@@ -92,6 +97,11 @@ public class ParsedAutoDateHistogram extends ParsedMultiBucketAggregation<Parsed
         return builder;
     }
 
+    /**
+     * A parsed bucket for a parsed auto date histogram agg
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Histogram.Bucket {
 
         private Long key;

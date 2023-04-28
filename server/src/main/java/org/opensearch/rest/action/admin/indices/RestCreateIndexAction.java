@@ -52,6 +52,11 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
+/**
+ * Transport action to create an index
+ *
+ * @opensearch.api
+ */
 public class RestCreateIndexAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestIndexPutAliasAction.class);
@@ -77,7 +82,9 @@ public class RestCreateIndexAction extends BaseRestHandler {
         }
 
         createIndexRequest.timeout(request.paramAsTime("timeout", createIndexRequest.timeout()));
-        createIndexRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", createIndexRequest.masterNodeTimeout()));
+        createIndexRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", createIndexRequest.clusterManagerNodeTimeout())
+        );
         parseDeprecatedMasterTimeoutParameter(createIndexRequest, request, deprecationLogger, getName());
         createIndexRequest.waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
         return channel -> client.admin().indices().create(createIndexRequest, new RestToXContentListener<>(channel));

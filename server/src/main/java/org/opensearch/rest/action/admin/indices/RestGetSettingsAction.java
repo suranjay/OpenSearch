@@ -48,6 +48,11 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * Transport action to get settings
+ *
+ * @opensearch.api
+ */
 public class RestGetSettingsAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetSettingsAction.class);
@@ -82,7 +87,9 @@ public class RestGetSettingsAction extends BaseRestHandler {
             .includeDefaults(renderDefaults)
             .names(names);
         getSettingsRequest.local(request.paramAsBoolean("local", getSettingsRequest.local()));
-        getSettingsRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", getSettingsRequest.masterNodeTimeout()));
+        getSettingsRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", getSettingsRequest.clusterManagerNodeTimeout())
+        );
         parseDeprecatedMasterTimeoutParameter(getSettingsRequest, request, deprecationLogger, getName());
         return channel -> client.admin().indices().getSettings(getSettingsRequest, new RestToXContentListener<>(channel));
     }

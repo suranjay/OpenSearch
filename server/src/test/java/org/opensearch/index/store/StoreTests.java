@@ -31,7 +31,6 @@
 
 package org.opensearch.index.store;
 
-import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -40,6 +39,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexNotFoundException;
@@ -51,7 +51,6 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
@@ -60,30 +59,38 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
+import org.hamcrest.Matchers;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.InputStreamStreamInput;
 import org.opensearch.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.ShardLock;
 import org.opensearch.index.Index;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.opensearch.test.DummyShardLock;
-import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.IndexSettingsModule;
-import org.hamcrest.Matchers;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -93,6 +100,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -102,7 +110,6 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.opensearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -114,6 +121,9 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
+import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
+import static org.opensearch.test.VersionUtils.randomVersion;
 
 public class StoreTests extends OpenSearchTestCase {
 
@@ -121,6 +131,12 @@ public class StoreTests extends OpenSearchTestCase {
         "index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build()
     );
+
+    IndexSettings SEGMENT_REPLICATION_INDEX_SETTINGS = new IndexSettings(
+        INDEX_SETTINGS.getIndexMetadata(),
+        Settings.builder().put(INDEX_SETTINGS.getSettings()).put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build()
+    );
+
     private static final Version MIN_SUPPORTED_LUCENE_VERSION = org.opensearch.Version.CURRENT
         .minimumIndexCompatibilityVersion().luceneVersion;
 
@@ -364,14 +380,14 @@ public class StoreTests extends OpenSearchTestCase {
         Store.MetadataSnapshot metadata;
         // check before we committed
         try {
-            store.getMetadata(null);
+            store.getMetadata();
             fail("no index present - expected exception");
         } catch (IndexNotFoundException ex) {
             // expected
         }
         writer.commit();
         writer.close();
-        metadata = store.getMetadata(null);
+        metadata = store.getMetadata();
         assertThat(metadata.asMap().isEmpty(), is(false));
         for (StoreFileMetadata meta : metadata) {
             try (IndexInput input = store.directory().openInput(meta.name(), IOContext.DEFAULT)) {
@@ -552,7 +568,7 @@ public class StoreTests extends OpenSearchTestCase {
             }
             writer.commit();
             writer.close();
-            first = store.getMetadata(null);
+            first = store.getMetadata();
             assertDeleteContent(store, store.directory());
             store.close();
         }
@@ -581,7 +597,7 @@ public class StoreTests extends OpenSearchTestCase {
             }
             writer.commit();
             writer.close();
-            second = store.getMetadata(null);
+            second = store.getMetadata();
         }
         Store.RecoveryDiff diff = first.recoveryDiff(second);
         assertThat(first.size(), equalTo(second.size()));
@@ -610,7 +626,7 @@ public class StoreTests extends OpenSearchTestCase {
         writer.deleteDocuments(new Term("id", Integer.toString(random().nextInt(numDocs))));
         writer.commit();
         writer.close();
-        Store.MetadataSnapshot metadata = store.getMetadata(null);
+        Store.MetadataSnapshot metadata = store.getMetadata();
         StoreFileMetadata delFile = null;
         for (StoreFileMetadata md : metadata) {
             if (md.name().endsWith(".liv")) {
@@ -645,7 +661,7 @@ public class StoreTests extends OpenSearchTestCase {
         writer.addDocument(docs.get(0));
         writer.close();
 
-        Store.MetadataSnapshot newCommitMetadata = store.getMetadata(null);
+        Store.MetadataSnapshot newCommitMetadata = store.getMetadata();
         Store.RecoveryDiff newCommitDiff = newCommitMetadata.recoveryDiff(metadata);
         if (delFile != null) {
             assertThat(newCommitDiff.identical.size(), equalTo(newCommitMetadata.size() - 5)); // segments_N, del file, cfs, cfe, si for the
@@ -710,7 +726,7 @@ public class StoreTests extends OpenSearchTestCase {
             writer.addDocument(doc);
         }
 
-        Store.MetadataSnapshot firstMeta = store.getMetadata(null);
+        Store.MetadataSnapshot firstMeta = store.getMetadata();
 
         if (random().nextBoolean()) {
             for (int i = 0; i < docs; i++) {
@@ -731,7 +747,7 @@ public class StoreTests extends OpenSearchTestCase {
         writer.commit();
         writer.close();
 
-        Store.MetadataSnapshot secondMeta = store.getMetadata(null);
+        Store.MetadataSnapshot secondMeta = store.getMetadata();
 
         if (randomBoolean()) {
             store.cleanupAndVerify("test", firstMeta);
@@ -1000,7 +1016,7 @@ public class StoreTests extends OpenSearchTestCase {
 
         try {
             if (randomBoolean()) {
-                store.getMetadata(null);
+                store.getMetadata();
             } else {
                 store.readLastCommittedSegmentsInfo();
             }
@@ -1137,5 +1153,209 @@ public class StoreTests extends OpenSearchTestCase {
                 assertEquals(FilterDirectory.unwrap(store.directory()).getPendingDeletions(), store.directory().getPendingDeletions());
             }
         }
+    }
+
+    public void testGetMetadataWithSegmentInfos() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, new NIOFSDirectory(createTempDir()), new DummyShardLock(shardId));
+        store.createEmpty(Version.LATEST);
+        SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
+        Store.MetadataSnapshot metadataSnapshot = store.getMetadata(segmentInfos);
+        // loose check for equality
+        assertEquals(segmentInfos.getSegmentsFileName(), metadataSnapshot.getSegmentsFile().name());
+        store.close();
+    }
+
+    public void testCleanupAndPreserveLatestCommitPoint() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(
+            shardId,
+            SEGMENT_REPLICATION_INDEX_SETTINGS,
+            StoreTests.newDirectory(random()),
+            new DummyShardLock(shardId)
+        );
+        commitRandomDocs(store);
+
+        Store.MetadataSnapshot commitMetadata = store.getMetadata();
+
+        // index more docs but only IW.flush, this will create additional files we'll clean up.
+        final IndexWriter writer = indexRandomDocs(store);
+        writer.flush();
+        writer.close();
+
+        final List<String> additionalSegments = new ArrayList<>();
+        for (String file : store.directory().listAll()) {
+            if (commitMetadata.contains(file) == false) {
+                additionalSegments.add(file);
+            }
+        }
+        assertFalse(additionalSegments.isEmpty());
+
+        // clean up everything not in the latest commit point.
+        store.cleanupAndPreserveLatestCommitPoint("test", store.readLastCommittedSegmentsInfo());
+
+        // we want to ensure commitMetadata files are preserved after calling cleanup
+        for (String existingFile : store.directory().listAll()) {
+            if (!IndexWriter.WRITE_LOCK_NAME.equals(existingFile)) {
+                assertTrue(commitMetadata.contains(existingFile));
+                assertFalse(additionalSegments.contains(existingFile));
+            }
+        }
+        deleteContent(store.directory());
+        IOUtils.close(store);
+    }
+
+    public void testGetSegmentMetadataMap() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(
+            shardId,
+            SEGMENT_REPLICATION_INDEX_SETTINGS,
+            new NIOFSDirectory(createTempDir()),
+            new DummyShardLock(shardId)
+        );
+        store.createEmpty(Version.LATEST);
+        final Map<String, StoreFileMetadata> metadataSnapshot = store.getSegmentMetadataMap(store.readLastCommittedSegmentsInfo());
+        // no docs indexed only _N file exists.
+        assertTrue(metadataSnapshot.isEmpty());
+
+        // commit some docs to create a commit point.
+        commitRandomDocs(store);
+
+        final Map<String, StoreFileMetadata> snapshotAfterCommit = store.getSegmentMetadataMap(store.readLastCommittedSegmentsInfo());
+        assertFalse(snapshotAfterCommit.isEmpty());
+        assertFalse(snapshotAfterCommit.keySet().stream().anyMatch((name) -> name.startsWith(IndexFileNames.SEGMENTS)));
+        store.close();
+    }
+
+    public void testSegmentReplicationDiff() {
+        final String segmentName = "_0.si";
+        final StoreFileMetadata SEGMENT_FILE = new StoreFileMetadata(segmentName, 1L, "0", Version.LATEST);
+        // source has file target is missing.
+        Store.RecoveryDiff diff = Store.segmentReplicationDiff(Map.of(segmentName, SEGMENT_FILE), Collections.emptyMap());
+        assertEquals(List.of(SEGMENT_FILE), diff.missing);
+        assertTrue(diff.different.isEmpty());
+        assertTrue(diff.identical.isEmpty());
+
+        // target has file not on source.
+        diff = Store.segmentReplicationDiff(Collections.emptyMap(), Map.of(segmentName, SEGMENT_FILE));
+        assertTrue(diff.missing.isEmpty());
+        assertTrue(diff.different.isEmpty());
+        assertTrue(diff.identical.isEmpty());
+
+        // source and target have identical file.
+        diff = Store.segmentReplicationDiff(Map.of(segmentName, SEGMENT_FILE), Map.of(segmentName, SEGMENT_FILE));
+        assertTrue(diff.missing.isEmpty());
+        assertTrue(diff.different.isEmpty());
+        assertEquals(List.of(SEGMENT_FILE), diff.identical);
+
+        // source has diff copy of same file as target.
+        StoreFileMetadata SOURCE_DIFF_FILE = new StoreFileMetadata(segmentName, 1L, "abc", Version.LATEST);
+        diff = Store.segmentReplicationDiff(Map.of(segmentName, SOURCE_DIFF_FILE), Map.of(segmentName, SEGMENT_FILE));
+        assertTrue(diff.missing.isEmpty());
+        assertEquals(List.of(SOURCE_DIFF_FILE), diff.different);
+        assertTrue(diff.identical.isEmpty());
+
+        // ignore _N files if included in source map.
+        final String segmentsFile = IndexFileNames.SEGMENTS.concat("_2");
+        StoreFileMetadata SEGMENTS_FILE = new StoreFileMetadata(segmentsFile, 1L, "abc", Version.LATEST);
+        diff = Store.segmentReplicationDiff(Map.of(segmentsFile, SEGMENTS_FILE), Collections.emptyMap());
+        assertTrue(diff.missing.isEmpty());
+        assertTrue(diff.different.isEmpty());
+        assertTrue(diff.identical.isEmpty());
+    }
+
+    @SuppressForbidden(reason = "sets the SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY feature flag")
+    public void testReadSegmentsFromOldIndices() throws Exception {
+        int expectedIndexCreatedVersionMajor = SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION.luceneVersion.major;
+        final String pathToTestIndex = "/indices/bwc/es-6.3.0/testIndex-es-6.3.0.zip";
+        Path tmp = createTempDir();
+        TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = null;
+
+        try (FeatureFlagSetter f = FeatureFlagSetter.set(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)) {
+            IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+                "index",
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                    .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
+                    .build()
+            );
+            store = new Store(shardId, indexSettings, StoreTests.newMockFSDirectory(tmp), new DummyShardLock(shardId));
+            assertEquals(expectedIndexCreatedVersionMajor, store.readLastCommittedSegmentsInfo().getIndexCreatedVersionMajor());
+        } finally {
+            if (store != null) {
+                store.close();
+            }
+        }
+    }
+
+    public void testReadSegmentsFromOldIndicesFailure() throws IOException {
+        final String pathToTestIndex = "/indices/bwc/es-6.3.0/testIndex-es-6.3.0.zip";
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Path tmp = createTempDir();
+        TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
+                .build()
+        );
+        Store store = new Store(shardId, indexSettings, StoreTests.newMockFSDirectory(tmp), new DummyShardLock(shardId));
+        assertThrows(IndexFormatTooOldException.class, store::readLastCommittedSegmentsInfo);
+        store.close();
+    }
+
+    public void testCommitSegmentInfos() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(
+            shardId,
+            SEGMENT_REPLICATION_INDEX_SETTINGS,
+            StoreTests.newDirectory(random()),
+            new DummyShardLock(shardId)
+        );
+        commitRandomDocs(store);
+        final SegmentInfos lastCommittedInfos = store.readLastCommittedSegmentsInfo();
+        final long expectedLocalCheckpoint = 1;
+        final long expectedMaxSeqNo = 2;
+        store.commitSegmentInfos(lastCommittedInfos, expectedMaxSeqNo, expectedLocalCheckpoint);
+
+        final SegmentInfos updatedInfos = store.readLastCommittedSegmentsInfo();
+        assertEquals(lastCommittedInfos.getVersion(), updatedInfos.getVersion());
+        final Map<String, String> userData = updatedInfos.getUserData();
+        assertEquals(expectedLocalCheckpoint, Long.parseLong(userData.get(LOCAL_CHECKPOINT_KEY)));
+        assertEquals(expectedMaxSeqNo, Long.parseLong(userData.get(SequenceNumbers.MAX_SEQ_NO)));
+        deleteContent(store.directory());
+        IOUtils.close(store);
+    }
+
+    private void commitRandomDocs(Store store) throws IOException {
+        IndexWriter writer = indexRandomDocs(store);
+        writer.commit();
+        writer.close();
+    }
+
+    private IndexWriter indexRandomDocs(Store store) throws IOException {
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(
+            TestUtil.getDefaultCodec()
+        );
+        indexWriterConfig.setCommitOnClose(false);
+        indexWriterConfig.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
+        IndexWriter writer = new IndexWriter(store.directory(), indexWriterConfig);
+        int docs = 1 + random().nextInt(100);
+        writer.commit();
+        Document doc = new Document();
+        doc.add(new TextField("id", "" + docs++, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        doc.add(
+            new TextField(
+                "body",
+                TestUtil.randomRealisticUnicodeString(random()),
+                random().nextBoolean() ? Field.Store.YES : Field.Store.NO
+            )
+        );
+        doc.add(new SortedDocValuesField("dv", new BytesRef(TestUtil.randomRealisticUnicodeString(random()))));
+        writer.addDocument(doc);
+        return writer;
     }
 }

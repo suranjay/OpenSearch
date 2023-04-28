@@ -41,6 +41,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
@@ -68,6 +69,7 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.sort.SortedWiderNumericSortField;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.Suggest.Suggestion;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
@@ -84,6 +86,11 @@ import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 
+/**
+ * Controller for the search phase.
+ *
+ * @opensearch.internal
+ */
 public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
@@ -230,14 +237,12 @@ public final class SearchPhaseController {
         if (numShards == 1 && from == 0) { // only one shard and no pagination we can just return the topDocs as we got them.
             return topDocs;
         } else if (topDocs instanceof CollapseTopFieldDocs) {
-            CollapseTopFieldDocs firstTopDocs = (CollapseTopFieldDocs) topDocs;
-            final Sort sort = new Sort(firstTopDocs.fields);
             final CollapseTopFieldDocs[] shardTopDocs = results.toArray(new CollapseTopFieldDocs[numShards]);
+            final Sort sort = createSort(shardTopDocs);
             mergedTopDocs = CollapseTopFieldDocs.merge(sort, from, topN, shardTopDocs, false);
         } else if (topDocs instanceof TopFieldDocs) {
-            TopFieldDocs firstTopDocs = (TopFieldDocs) topDocs;
-            final Sort sort = new Sort(firstTopDocs.fields);
             final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[numShards]);
+            final Sort sort = createSort(shardTopDocs);
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
         } else {
             final TopDocs[] shardTopDocs = results.toArray(new TopDocs[numShards]);
@@ -595,6 +600,48 @@ public final class SearchPhaseController {
         }
     }
 
+    /**
+     * Creates Sort object from topFieldsDocs fields.
+     * It is necessary to widen the SortField.Type to maximum byte size for merging sorted docs.
+     * Different indices might have different types. This will avoid user to do re-index of data
+     * in case of mapping field change for newly indexed data.
+     * This will support Int to Long and Float to Double.
+     * Earlier widening of type was taken care in IndexNumericFieldData, but since we now want to
+     * support sort optimization, we removed type widening there and taking care here during merging.
+     * More details here https://github.com/opensearch-project/OpenSearch/issues/6326
+     */
+    private static Sort createSort(TopFieldDocs[] topFieldDocs) {
+        final SortField[] firstTopDocFields = topFieldDocs[0].fields;
+        final SortField[] newFields = new SortField[firstTopDocFields.length];
+
+        for (int i = 0; i < firstTopDocFields.length; i++) {
+            final SortField delegate = firstTopDocFields[i];
+            final SortField.Type type = delegate instanceof SortedNumericSortField
+                ? ((SortedNumericSortField) delegate).getNumericType()
+                : delegate.getType();
+
+            if (SortedWiderNumericSortField.isTypeSupported(type) && isSortWideningRequired(topFieldDocs, i)) {
+                newFields[i] = new SortedWiderNumericSortField(delegate.getField(), type, delegate.getReverse());
+            } else {
+                newFields[i] = firstTopDocFields[i];
+            }
+        }
+        return new Sort(newFields);
+    }
+
+    /**
+     * It will compare respective SortField between shards to see if any shard results have different
+     * field mapping type, accordingly it will decide to widen the sort fields.
+     */
+    private static boolean isSortWideningRequired(TopFieldDocs[] topFieldDocs, int sortFieldindex) {
+        for (int i = 0; i < topFieldDocs.length - 1; i++) {
+            if (!topFieldDocs[i].fields[sortFieldindex].equals(topFieldDocs[i + 1].fields[sortFieldindex])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /*
      * Returns the size of the requested top documents (from + size)
      */
@@ -608,6 +655,11 @@ public final class SearchPhaseController {
             : source.from());
     }
 
+    /**
+     * The reduced query phase
+     *
+     * @opensearch.internal
+     */
     public static final class ReducedQueryPhase {
         // the sum of all hits across all reduces shards
         final TotalHits totalHits;
@@ -709,6 +761,11 @@ public final class SearchPhaseController {
         );
     }
 
+    /**
+     * The top docs statistics
+     *
+     * @opensearch.internal
+     */
     static final class TopDocsStats {
         final int trackTotalHitsUpTo;
         long totalHits;
@@ -773,6 +830,11 @@ public final class SearchPhaseController {
         }
     }
 
+    /**
+     * Top docs that have been sorted
+     *
+     * @opensearch.internal
+     */
     static final class SortedTopDocs {
         static final SortedTopDocs EMPTY = new SortedTopDocs(EMPTY_DOCS, false, null, null, null);
         // the searches merged top docs

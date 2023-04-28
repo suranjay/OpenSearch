@@ -38,7 +38,7 @@ import org.opensearch.common.Explicit;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.mapper.Mapper.TypeParser.ParserContext;
@@ -70,6 +70,8 @@ import java.util.function.Supplier;
  *
  * Subclasses should implement a {@link Builder} that is returned from the
  * {@link #getMergeBuilder()} method, initialised with the existing builder.
+ *
+ * @opensearch.internal
  */
 public abstract class ParametrizedFieldMapper extends FieldMapper {
 
@@ -171,6 +173,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
     /**
      * A configurable parameter for a field mapper
      * @param <T> the type of the value the parameter holds
+     *
+     * @opensearch.internal
      */
     public static final class Parameter<T> implements Supplier<T> {
 
@@ -542,6 +546,11 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
     }
 
+    /**
+     * Conflicts in the field mapper
+     *
+     * @opensearch.internal
+     */
     private static final class Conflicts {
 
         private final String mapperName;
@@ -567,6 +576,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
     /**
      * A Builder for a ParametrizedFieldMapper
+     *
+     * @opensearch.internal
      */
     public abstract static class Builder extends Mapper.Builder<Builder> {
 
@@ -694,7 +705,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                 if (Objects.equals("boost", propName)) {
                     deprecationLogger.deprecate(
                         "boost_" + name,
-                        "Parameter [boost] on field [{}] is deprecated and will be removed in 8.0",
+                        "Parameter [boost] on field [{}] is deprecated and will be removed in 3.0",
                         name
                     );
                 }
@@ -723,6 +734,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
     /**
      * TypeParser implementation that automatically handles parsing
+     *
+     * @opensearch.internal
      */
     public static final class TypeParser implements Mapper.TypeParser {
 

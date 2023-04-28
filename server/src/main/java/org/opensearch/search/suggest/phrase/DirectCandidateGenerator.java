@@ -49,7 +49,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 
 import java.io.CharArrayReader;
 import java.io.IOException;
@@ -65,6 +65,11 @@ import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.lang.Math.round;
 
+/**
+ * Generates the phrase directly from the IndexReader
+ *
+ * @opensearch.internal
+ */
 public final class DirectCandidateGenerator extends CandidateGenerator {
 
     private final DirectSpellChecker spellchecker;
@@ -273,6 +278,11 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         return 0;
     }
 
+    /**
+     * Token consumer for a direct candidate
+     *
+     * @opensearch.internal
+     */
     public abstract static class TokenConsumer {
         protected CharTermAttribute charTermAttr;
         protected PositionIncrementAttribute posIncAttr;
@@ -294,6 +304,11 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         public void end() {}
     }
 
+    /**
+     * Candidate set of terms
+     *
+     * @opensearch.internal
+     */
     public static class CandidateSet {
         public Candidate[] candidates;
         public final Candidate originalTerm;
@@ -309,7 +324,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
             final Set<Candidate> set = new HashSet<>(candidates);
             Collections.addAll(set, this.candidates);
 
-            this.candidates = set.toArray(new Candidate[set.size()]);
+            this.candidates = set.toArray(new Candidate[0]);
             // Sort strongest to weakest:
             Arrays.sort(this.candidates, Collections.reverseOrder());
         }
@@ -323,6 +338,11 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
 
     }
 
+    /**
+     * Candidate term
+     *
+     * @opensearch.internal
+     */
     public static class Candidate implements Comparable<Candidate> {
         public static final Candidate[] EMPTY = new Candidate[0];
         public final BytesRef term;

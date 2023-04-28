@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.routing.allocation;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
@@ -153,9 +152,9 @@ public class FailedNodeRoutingTests extends OpenSearchAllocationTestCase {
         }
 
         // Log the node versions (for debugging if necessary)
-        for (ObjectCursor<DiscoveryNode> cursor : state.nodes().getDataNodes().values()) {
-            Version nodeVer = cursor.value.getVersion();
-            logger.info("--> node [{}] has version [{}]", cursor.value.getId(), nodeVer);
+        for (final DiscoveryNode cursor : state.nodes().getDataNodes().values()) {
+            Version nodeVer = cursor.getVersion();
+            logger.info("--> node [{}] has version [{}]", cursor.getId(), nodeVer);
         }
 
         // randomly create some indices
@@ -188,8 +187,9 @@ public class FailedNodeRoutingTests extends OpenSearchAllocationTestCase {
             // Pick a random subset of primaries to fail
             List<FailedShard> shardsToFail = new ArrayList<>();
             List<ShardRouting> failedPrimaries = randomSubsetOf(primaries);
-            failedPrimaries.stream()
-                .forEach(sr -> { shardsToFail.add(new FailedShard(randomFrom(sr), "failed primary", new Exception(), randomBoolean())); });
+            failedPrimaries.stream().forEach(sr -> {
+                shardsToFail.add(new FailedShard(randomFrom(sr), "failed primary", new Exception(), randomBoolean()));
+            });
 
             logger.info("--> state before failing shards: {}", state);
             state = cluster.applyFailedShards(state, shardsToFail);
@@ -230,7 +230,7 @@ public class FailedNodeRoutingTests extends OpenSearchAllocationTestCase {
 
     public ClusterState randomInitialClusterState() {
         List<DiscoveryNode> allNodes = new ArrayList<>();
-        DiscoveryNode localNode = createNode(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE); // local node is the master
+        DiscoveryNode localNode = createNode(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE); // local node is the cluster-manager
         allNodes.add(localNode);
         // at least two nodes that have the data role so that we can allocate shards
         allNodes.add(createNode(DiscoveryNodeRole.DATA_ROLE));
@@ -238,7 +238,7 @@ public class FailedNodeRoutingTests extends OpenSearchAllocationTestCase {
         for (int i = 0; i < randomIntBetween(2, 5); i++) {
             allNodes.add(createNode());
         }
-        ClusterState state = ClusterStateCreationUtils.state(localNode, localNode, allNodes.toArray(new DiscoveryNode[allNodes.size()]));
+        ClusterState state = ClusterStateCreationUtils.state(localNode, localNode, allNodes.toArray(new DiscoveryNode[0]));
         return state;
     }
 

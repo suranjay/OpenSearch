@@ -32,12 +32,12 @@
 
 package org.opensearch.search.suggest.completion.context;
 
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParseException;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParseException;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -48,6 +48,8 @@ import static org.opensearch.search.suggest.completion.context.CategoryContextMa
 
 /**
  * Defines the query context for {@link CategoryContextMapping}
+ *
+ * @opensearch.internal
  */
 public final class CategoryQueryContext implements ToXContentObject {
     public static final String NAME = "category";
@@ -149,6 +151,11 @@ public final class CategoryQueryContext implements ToXContentObject {
         return builder;
     }
 
+    /**
+     * Builder for the category query context
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
         private String category;
         private boolean isPrefix = false;

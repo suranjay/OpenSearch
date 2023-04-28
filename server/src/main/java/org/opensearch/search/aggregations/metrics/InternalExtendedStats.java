@@ -33,7 +33,7 @@ package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 
@@ -42,7 +42,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of extended stats agg
+ *
+ * @opensearch.internal
+ */
 public class InternalExtendedStats extends InternalStats implements ExtendedStats {
+    /**
+     * The metrics for the extended stats
+     *
+     * @opensearch.internal
+     */
     enum Metrics {
 
         count,
@@ -299,6 +309,11 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         );
     }
 
+    /**
+     * Fields for internal extended stats
+     *
+     * @opensearch.internal
+     */
     static class Fields {
         public static final String SUM_OF_SQRS = "sum_of_squares";
         public static final String SUM_OF_SQRS_AS_STRING = "sum_of_squares_as_string";

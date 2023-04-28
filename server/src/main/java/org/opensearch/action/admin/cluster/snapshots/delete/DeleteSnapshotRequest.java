@@ -33,10 +33,9 @@
 package org.opensearch.action.admin.cluster.snapshots.delete;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 
@@ -47,8 +46,10 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  * <p>
  * Delete snapshot request removes snapshots from the repository and cleans up all files that are associated with the snapshots.
  * All files that are shared with at least one other existing snapshot are left intact.
+ *
+ * @opensearch.internal
  */
-public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotRequest> {
+public class DeleteSnapshotRequest extends ClusterManagerNodeRequest<DeleteSnapshotRequest> {
 
     private String repository;
 
@@ -82,27 +83,14 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
     public DeleteSnapshotRequest(StreamInput in) throws IOException {
         super(in);
         repository = in.readString();
-        if (in.getVersion().onOrAfter(SnapshotsService.MULTI_DELETE_VERSION)) {
-            snapshots = in.readStringArray();
-        } else {
-            snapshots = new String[] { in.readString() };
-        }
+        snapshots = in.readStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(repository);
-        if (out.getVersion().onOrAfter(SnapshotsService.MULTI_DELETE_VERSION)) {
-            out.writeStringArray(snapshots);
-        } else {
-            if (snapshots.length != 1) {
-                throw new IllegalArgumentException(
-                    "Can't write snapshot delete with more than one snapshot to version [" + out.getVersion() + "]"
-                );
-            }
-            out.writeString(snapshots[0]);
-        }
+        out.writeStringArray(snapshots);
     }
 
     @Override

@@ -35,7 +35,8 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ValidateActions;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.NamedWriteable;
-import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.Rewriteable;
 import org.opensearch.search.aggregations.AggregatorFactories.Builder;
@@ -52,6 +53,8 @@ import java.util.Objects;
 /**
  * A factory that knows how to create an {@link PipelineAggregator} of a
  * specific type.
+ *
+ * @opensearch.internal
  */
 public abstract class PipelineAggregationBuilder
     implements
@@ -95,6 +98,11 @@ public abstract class PipelineAggregationBuilder
      */
     protected abstract void validate(ValidationContext context);
 
+    /**
+     * The context used for validation
+     *
+     * @opensearch.internal
+     */
     public abstract static class ValidationContext {
         /**
          * Build the context for the root of the aggregation tree.
@@ -120,6 +128,11 @@ public abstract class PipelineAggregationBuilder
             this.e = validationFailuresSoFar;
         }
 
+        /**
+         * The root of the tree
+         *
+         * @opensearch.internal
+         */
         private static class ForTreeRoot extends ValidationContext {
             private final Collection<AggregationBuilder> siblingAggregations;
             private final Collection<PipelineAggregationBuilder> siblingPipelineAggregations;
@@ -160,6 +173,11 @@ public abstract class PipelineAggregationBuilder
             }
         }
 
+        /**
+         * The internal tree node
+         *
+         * @opensearch.internal
+         */
         private static class ForInsideTree extends ValidationContext {
             private final AggregationBuilder parent;
 
@@ -270,7 +288,7 @@ public abstract class PipelineAggregationBuilder
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, true);
+        return Strings.toString(XContentType.JSON, this, true, true);
     }
 
     /**

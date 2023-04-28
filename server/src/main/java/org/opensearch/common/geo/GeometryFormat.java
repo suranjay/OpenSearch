@@ -32,15 +32,17 @@
 
 package org.opensearch.common.geo;
 
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.text.ParseException;
 
 /**
  * Geometry serializer/deserializer
+ *
+ * @opensearch.internal
  */
 public interface GeometryFormat<ParsedFormat> {
 

@@ -49,13 +49,12 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.text.Text;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.script.JodaCompatibleZonedDateTime;
 
 import java.io.ByteArrayInputStream;
@@ -105,6 +104,8 @@ import static org.opensearch.OpenSearchException.readStackTrace;
  * everywhere. That being said, this class deals primarily with {@code List}s rather than Arrays. For the most part calls should adapt to
  * lists, either by storing {@code List}s internally or just converting to and from a {@code List} when calling. This comment is repeated
  * on {@link StreamInput}.
+ *
+ * @opensearch.internal
  */
 public abstract class StreamInput extends InputStream {
 
@@ -675,25 +676,6 @@ public abstract class StreamInput extends InputStream {
     @SuppressWarnings("unchecked")
     public Map<String, Object> readMap() throws IOException {
         return (Map<String, Object>) readGenericValue();
-    }
-
-    /**
-     * Read {@link ImmutableOpenMap} using given key and value readers.
-     *
-     * @param keyReader   key reader
-     * @param valueReader value reader
-     */
-    public <K, V> ImmutableOpenMap<K, V> readImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader)
-        throws IOException {
-        final int size = readVInt();
-        if (size == 0) {
-            return ImmutableOpenMap.of();
-        }
-        final ImmutableOpenMap.Builder<K, V> builder = ImmutableOpenMap.builder(size);
-        for (int i = 0; i < size; i++) {
-            builder.put(keyReader.read(this), valueReader.read(this));
-        }
-        return builder.build();
     }
 
     /**

@@ -42,27 +42,31 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
@@ -71,9 +75,11 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.index.VersionType;
+import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.Mapping;
 import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.index.mapper.ParsedDocument;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -81,7 +87,9 @@ import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.index.translog.TranslogStats;
+import org.opensearch.index.translog.TranslogManager;
+import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
@@ -90,6 +98,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -107,12 +116,16 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
-public abstract class Engine implements Closeable {
+/**
+ * Base OpenSearch Engine class
+ *
+ * @opensearch.internal
+ */
+public abstract class Engine implements LifecycleAware, Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id";  // TODO: remove sync_id in 3.0
     public static final String HISTORY_UUID_KEY = "history_uuid";
@@ -162,7 +175,31 @@ public abstract class Engine implements Closeable {
         return engineConfig;
     }
 
+    public abstract TranslogManager translogManager();
+
     protected abstract SegmentInfos getLastCommittedSegmentInfos();
+
+    /**
+     * Return the latest active SegmentInfos from the engine.
+     * @return {@link SegmentInfos}
+     */
+    @Nullable
+    protected abstract SegmentInfos getLatestSegmentInfos();
+
+    /**
+     * In contrast to {@link #getLatestSegmentInfos()}, which returns a {@link SegmentInfos}
+     * object directly, this method returns a {@link GatedCloseable} reference to the same object.
+     * This allows the engine to include a clean-up {@link org.opensearch.common.CheckedRunnable}
+     * which is run when the reference is closed. The default implementation of the clean-up
+     * procedure is a no-op.
+     *
+     * @return {@link GatedCloseable} - A wrapper around a {@link SegmentInfos} instance that
+     * must be closed for segment files to be deleted.
+     */
+    public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
+        // default implementation
+        return new GatedCloseable<>(getLatestSegmentInfos(), () -> {});
+    }
 
     public MergeStats getMergeStats() {
         return new MergeStats();
@@ -170,6 +207,17 @@ public abstract class Engine implements Closeable {
 
     /** returns the history uuid for the engine */
     public abstract String getHistoryUUID();
+
+    /**
+     * Reads the current stored history ID from commit data.
+     */
+    String loadHistoryUUID(Map<String, String> commitData) {
+        final String uuid = commitData.get(HISTORY_UUID_KEY);
+        if (uuid == null) {
+            throw new IllegalStateException("commit doesn't contain history uuid");
+        }
+        return uuid;
+    }
 
     /** Returns how many bytes we are currently moving from heap to disk */
     public abstract long getWritingBytes();
@@ -235,9 +283,47 @@ public abstract class Engine implements Closeable {
     }
 
     /**
+     * Get max sequence number from segments that are referenced by given SegmentInfos
+     */
+    public long getMaxSeqNoFromSegmentInfos(SegmentInfos segmentInfos) throws IOException {
+        try (DirectoryReader innerReader = StandardDirectoryReader.open(store.directory(), segmentInfos, null, null)) {
+            final IndexSearcher searcher = new IndexSearcher(innerReader);
+            return getMaxSeqNoFromSearcher(searcher);
+        }
+    }
+
+    /**
+     * Get max sequence number that is part of given searcher. Sequence number is part of each document that is indexed.
+     * This method fetches the _id of last indexed document that was part of the given searcher and
+     * retrieves the _seq_no of the retrieved document.
+     */
+    protected long getMaxSeqNoFromSearcher(IndexSearcher searcher) throws IOException {
+        searcher.setQueryCache(null);
+        ScoreDoc[] docs = searcher.search(
+            Queries.newMatchAllQuery(),
+            1,
+            new Sort(new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG, true))
+        ).scoreDocs;
+        if (docs.length == 0) {
+            return SequenceNumbers.NO_OPS_PERFORMED;
+        }
+        org.apache.lucene.document.Document document = searcher.storedFields().document(docs[0].doc);
+        Term uidTerm = new Term(IdFieldMapper.NAME, document.getField(IdFieldMapper.NAME).binaryValue());
+        VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(
+            searcher.getIndexReader(),
+            uidTerm,
+            true
+        );
+        assert docIdAndVersion != null;
+        return docIdAndVersion.seqNo;
+    }
+
+    /**
      * A throttling class that can be activated, causing the
      * {@code acquireThrottle} method to block on a lock when throttling
      * is enabled
+     *
+     * @opensearch.internal
      */
     protected static final class IndexThrottle {
         private final CounterMetric throttleTimeMillisMetric = new CounterMetric();
@@ -307,12 +393,10 @@ public abstract class Engine implements Closeable {
     public abstract boolean isThrottled();
 
     /**
-     * Trims translog for terms below <code>belowTerm</code> and seq# above <code>aboveSeqNo</code>
-     * @see Translog#trimOperations(long, long)
+     * A Lock implementation that always allows the lock to be acquired
+     *
+     * @opensearch.internal
      */
-    public abstract void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException;
-
-    /** A Lock implementation that always allows the lock to be acquired */
     protected static final class NoOpLock implements Lock {
 
         @Override
@@ -366,6 +450,8 @@ public abstract class Engine implements Closeable {
      * Base class for index and delete operation results
      * Holds result meta data (e.g. translog location, updated version)
      * for an executed write {@link Operation}
+     *
+     * @opensearch.internal
      **/
     public abstract static class Result {
         private final Operation.TYPE operationType;
@@ -479,6 +565,11 @@ public abstract class Engine implements Closeable {
             freeze.set(true);
         }
 
+        /**
+         * Type of the result
+         *
+         * @opensearch.internal
+         */
         public enum Type {
             SUCCESS,
             FAILURE,
@@ -486,6 +577,11 @@ public abstract class Engine implements Closeable {
         }
     }
 
+    /**
+     * Index result
+     *
+     * @opensearch.internal
+     */
     public static class IndexResult extends Result {
 
         private final boolean created;
@@ -518,6 +614,11 @@ public abstract class Engine implements Closeable {
 
     }
 
+    /**
+     * The delete result
+     *
+     * @opensearch.internal
+     */
     public static class DeleteResult extends Result {
 
         private final boolean found;
@@ -550,6 +651,11 @@ public abstract class Engine implements Closeable {
 
     }
 
+    /**
+     * A noop result
+     *
+     * @opensearch.internal
+     */
     public static class NoOpResult extends Result {
 
         NoOpResult(long term, long seqNo) {
@@ -708,22 +814,15 @@ public abstract class Engine implements Closeable {
         return true;
     }
 
+    /**
+     * Scope of the searcher
+     *
+     * @opensearch.internal
+     */
     public enum SearcherScope {
         EXTERNAL,
         INTERNAL
     }
-
-    /**
-     * Checks if the underlying storage sync is required.
-     */
-    public abstract boolean isTranslogSyncNeeded();
-
-    /**
-     * Ensures that all locations in the given stream have been written to the underlying storage.
-     */
-    public abstract boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException;
-
-    public abstract void syncTranslog() throws IOException;
 
     /**
      * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
@@ -760,13 +859,6 @@ public abstract class Engine implements Closeable {
      */
     public abstract long getMinRetainedSeqNo();
 
-    public abstract TranslogStats getTranslogStats();
-
-    /**
-     * Returns the last location that the translog of this engine has written into.
-     */
-    public abstract Translog.Location getTranslogLastWriteLocation();
-
     protected final void ensureOpen(Exception suppressed) {
         if (isClosed.get()) {
             AlreadyClosedException ace = new AlreadyClosedException(shardId + " engine is closed", failedEngine.get());
@@ -777,7 +869,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    protected final void ensureOpen() {
+    public final void ensureOpen() {
         ensureOpen(null);
     }
 
@@ -790,6 +882,12 @@ public abstract class Engine implements Closeable {
      * @return the persisted local checkpoint for this Engine
      */
     public abstract long getPersistedLocalCheckpoint();
+
+    /**
+     * @return the latest checkpoint that has been processed but not necessarily persisted.
+     * Also see {@link #getPersistedLocalCheckpoint()}
+     */
+    public abstract long getProcessedLocalCheckpoint();
 
     /**
      * @return a {@link SeqNoStats} object, using local state and the supplied global checkpoint
@@ -828,6 +926,22 @@ public abstract class Engine implements Closeable {
         return stats;
     }
 
+    protected TranslogDeletionPolicy getTranslogDeletionPolicy(EngineConfig engineConfig) {
+        TranslogDeletionPolicy customTranslogDeletionPolicy = null;
+        if (engineConfig.getCustomTranslogDeletionPolicyFactory() != null) {
+            customTranslogDeletionPolicy = engineConfig.getCustomTranslogDeletionPolicyFactory()
+                .create(engineConfig.getIndexSettings(), engineConfig.retentionLeasesSupplier());
+        }
+        return Objects.requireNonNullElseGet(
+            customTranslogDeletionPolicy,
+            () -> new DefaultTranslogDeletionPolicy(
+                engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
+                engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis(),
+                engineConfig.getIndexSettings().getTranslogRetentionTotalFiles()
+            )
+        );
+    }
+
     protected void fillSegmentStats(SegmentReader segmentReader, boolean includeSegmentFileSizes, SegmentsStats stats) {
         stats.add(1);
         if (includeSegmentFileSizes) {
@@ -836,7 +950,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    private ImmutableOpenMap<String, Long> getSegmentFileSizes(SegmentReader segmentReader) {
+    private Map<String, Long> getSegmentFileSizes(SegmentReader segmentReader) {
         Directory directory = null;
         SegmentCommitInfo segmentCommitInfo = segmentReader.getSegmentInfo();
         boolean useCompoundFile = segmentCommitInfo.info.getUseCompoundFile();
@@ -855,7 +969,7 @@ public abstract class Engine implements Closeable {
                     e
                 );
 
-                return ImmutableOpenMap.of();
+                return Map.of();
             }
         } else {
             directory = segmentReader.directory();
@@ -870,7 +984,7 @@ public abstract class Engine implements Closeable {
             } catch (IOException e) {
                 final Directory finalDirectory = directory;
                 logger.warn(() -> new ParameterizedMessage("Couldn't list Compound Reader Directory [{}]", finalDirectory), e);
-                return ImmutableOpenMap.of();
+                return Map.of();
             }
         } else {
             try {
@@ -884,11 +998,11 @@ public abstract class Engine implements Closeable {
                     ),
                     e
                 );
-                return ImmutableOpenMap.of();
+                return Map.of();
             }
         }
 
-        ImmutableOpenMap.Builder<String, Long> map = ImmutableOpenMap.builder();
+        Map<String, Long> map = new HashMap<>();
         for (String file : files) {
             String extension = IndexFileNames.getExtension(file);
             long length = 0L;
@@ -919,7 +1033,7 @@ public abstract class Engine implements Closeable {
             }
         }
 
-        return map.build();
+        return Collections.unmodifiableMap(map);
     }
 
     protected void writerSegmentStats(SegmentsStats stats) {
@@ -976,7 +1090,7 @@ public abstract class Engine implements Closeable {
             }
         }
 
-        Segment[] segmentsArr = segments.values().toArray(new Segment[segments.values().size()]);
+        Segment[] segmentsArr = segments.values().toArray(new Segment[0]);
         Arrays.sort(segmentsArr, Comparator.comparingLong(Segment::getGeneration));
         return segmentsArr;
     }
@@ -1076,25 +1190,6 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * checks and removes translog files that no longer need to be retained. See
-     * {@link org.opensearch.index.translog.TranslogDeletionPolicy} for details
-     */
-    public abstract void trimUnreferencedTranslogFiles() throws EngineException;
-
-    /**
-     * Tests whether or not the translog generation should be rolled to a new generation.
-     * This test is based on the size of the current generation compared to the configured generation threshold size.
-     *
-     * @return {@code true} if the current generation should be rolled to a new generation
-     */
-    public abstract boolean shouldRollTranslogGeneration();
-
-    /**
-     * Rolls the translog generation and cleans unneeded.
-     */
-    public abstract void rollTranslogGeneration() throws EngineException;
-
-    /**
      * Triggers a forced merge on this engine
      */
     public abstract void forceMerge(
@@ -1103,7 +1198,7 @@ public abstract class Engine implements Closeable {
         boolean onlyExpungeDeletes,
         boolean upgrade,
         boolean upgradeOnlyAncientSegments,
-        @Nullable String forceMergeUUID
+        String forceMergeUUID
     ) throws EngineException, IOException;
 
     /**
@@ -1223,6 +1318,11 @@ public abstract class Engine implements Closeable {
         return false;
     }
 
+    /**
+     * Event listener for the engine
+     *
+     * @opensearch.internal
+     */
     public interface EventListener {
         /**
          * Called when a fatal exception occurred
@@ -1230,6 +1330,11 @@ public abstract class Engine implements Closeable {
         default void onFailedEngine(String reason, @Nullable Exception e) {}
     }
 
+    /**
+     * Supplier for the searcher
+     *
+     * @opensearch.internal
+     */
     public abstract static class SearcherSupplier implements Releasable {
         private final Function<Searcher, Searcher> wrapper;
         private final AtomicBoolean released = new AtomicBoolean(false);
@@ -1260,6 +1365,11 @@ public abstract class Engine implements Closeable {
         protected abstract Searcher acquireSearcherInternal(String source);
     }
 
+    /**
+     * The engine searcher
+     *
+     * @opensearch.internal
+     */
     public static final class Searcher extends IndexSearcher implements Releasable {
         private final String source;
         private final Closeable onClose;
@@ -1307,9 +1417,18 @@ public abstract class Engine implements Closeable {
         }
     }
 
+    /**
+     * Base operation class
+     *
+     * @opensearch.internal
+     */
     public abstract static class Operation {
 
-        /** type of operation (index, delete), subclasses use static types */
+        /**
+         * type of operation (index, delete), subclasses use static types
+         *
+         * @opensearch.internal
+         */
         public enum TYPE {
             INDEX,
             DELETE,
@@ -1344,6 +1463,11 @@ public abstract class Engine implements Closeable {
             this.startTime = startTime;
         }
 
+        /**
+         * Origin of the operation
+         *
+         * @opensearch.internal
+         */
         public enum Origin {
             PRIMARY,
             REPLICA,
@@ -1398,6 +1522,11 @@ public abstract class Engine implements Closeable {
         public abstract TYPE operationType();
     }
 
+    /**
+     * Index operation
+     *
+     * @opensearch.internal
+     */
     public static class Index extends Operation {
 
         private final ParsedDocument doc;
@@ -1511,6 +1640,11 @@ public abstract class Engine implements Closeable {
         }
     }
 
+    /**
+     * Delete operation
+     *
+     * @opensearch.internal
+     */
     public static class Delete extends Operation {
 
         private final String id;
@@ -1594,6 +1728,11 @@ public abstract class Engine implements Closeable {
         }
     }
 
+    /**
+     * noop operation
+     *
+     * @opensearch.internal
+     */
     public static class NoOp extends Operation {
 
         private final String reason;
@@ -1639,6 +1778,11 @@ public abstract class Engine implements Closeable {
 
     }
 
+    /**
+     * Get operation
+     *
+     * @opensearch.internal
+     */
     public static class Get {
         private final boolean realtime;
         private final Term uid;
@@ -1710,6 +1854,11 @@ public abstract class Engine implements Closeable {
 
     }
 
+    /**
+     * The Get result
+     *
+     * @opensearch.internal
+     */
     public static class GetResult implements Releasable {
         private final boolean exists;
         private final long version;
@@ -1830,6 +1979,8 @@ public abstract class Engine implements Closeable {
      * Called for each new opened engine reader to warm new segments
      *
      * @see EngineConfig#getWarmer()
+     *
+     * @opensearch.internal
      */
     public interface Warmer {
         /**
@@ -1850,34 +2001,12 @@ public abstract class Engine implements Closeable {
     public abstract void deactivateThrottling();
 
     /**
-     * This method replays translog to restore the Lucene index which might be reverted previously.
-     * This ensures that all acknowledged writes are restored correctly when this engine is promoted.
-     *
-     * @return the number of translog operations have been recovered
-     */
-    public abstract int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) throws IOException;
-
-    /**
      * Fills up the local checkpoints history with no-ops until the local checkpoint
      * and the max seen sequence ID are identical.
      * @param primaryTerm the shards primary term this engine was created for
      * @return the number of no-ops added
      */
     public abstract int fillSeqNoGaps(long primaryTerm) throws IOException;
-
-    /**
-     * Performs recovery from the transaction log up to {@code recoverUpToSeqNo} (inclusive).
-     * This operation will close the engine if the recovery fails.
-     *
-     * @param translogRecoveryRunner the translog recovery runner
-     * @param recoverUpToSeqNo       the upper bound, inclusive, of sequence number to be recovered
-     */
-    public abstract Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException;
-
-    /**
-     * Do not replay translog operations, but make the engine be ready.
-     */
-    public abstract void skipTranslogRecovery();
 
     /**
      * Tries to prune buffered deletes from the version map.
@@ -1898,11 +2027,6 @@ public abstract class Engine implements Closeable {
      * The engine will disable optimization for all append-only whose timestamp at most {@code newTimestamp}.
      */
     public abstract void updateMaxUnsafeAutoIdTimestamp(long newTimestamp);
-
-    @FunctionalInterface
-    public interface TranslogRecoveryRunner {
-        int run(Engine engine, Translog.Snapshot snapshot) throws IOException;
-    }
 
     /**
      * Returns the maximum sequence number of either update or delete operations have been processed in this engine
@@ -1945,4 +2069,5 @@ public abstract class Engine implements Closeable {
      * to advance this marker to at least the given sequence number.
      */
     public abstract void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary);
+
 }

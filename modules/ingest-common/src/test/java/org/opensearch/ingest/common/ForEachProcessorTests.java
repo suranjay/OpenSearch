@@ -127,7 +127,6 @@ public class ForEachProcessorTests extends OpenSearchTestCase {
 
         TestProcessor innerProcessor = new TestProcessor(id -> {
             id.setFieldValue("_ingest._value.index", id.getSourceAndMetadata().get("_index"));
-            id.setFieldValue("_ingest._value.type", id.getSourceAndMetadata().get("_type"));
             id.setFieldValue("_ingest._value.id", id.getSourceAndMetadata().get("_id"));
         });
         ForEachProcessor processor = new ForEachProcessor("_tag", null, "values", innerProcessor, false);
@@ -227,12 +226,8 @@ public class ForEachProcessorTests extends OpenSearchTestCase {
             "values",
             new CompoundProcessor(
                 false,
-                org.opensearch.common.collect.List.of(
-                    new UppercaseProcessor("_tag_upper", null, "_ingest._value", false, "_ingest._value")
-                ),
-                org.opensearch.common.collect.List.of(
-                    new AppendProcessor("_tag", null, template, (model) -> (Collections.singletonList("added")), true)
-                )
+                List.of(new UppercaseProcessor("_tag_upper", null, "_ingest._value", false, "_ingest._value")),
+                List.of(new AppendProcessor("_tag", null, template, (model) -> (Collections.singletonList("added")), true))
             ),
             false
         );

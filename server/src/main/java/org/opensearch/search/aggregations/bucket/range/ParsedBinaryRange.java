@@ -32,9 +32,9 @@
 
 package org.opensearch.search.aggregations.bucket.range;
 
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParserUtils;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.Aggregations;
@@ -46,6 +46,11 @@ import java.util.List;
 
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
+/**
+ * A binary range agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedBinaryRange extends ParsedMultiBucketAggregation<ParsedBinaryRange.ParsedBucket> implements Range {
 
     @Override
@@ -77,6 +82,11 @@ public class ParsedBinaryRange extends ParsedMultiBucketAggregation<ParsedBinary
         return aggregation;
     }
 
+    /**
+     * Parsed bucket for a binary range
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Range.Bucket {
 
         private String key;

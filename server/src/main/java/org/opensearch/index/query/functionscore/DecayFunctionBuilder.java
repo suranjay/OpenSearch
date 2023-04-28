@@ -49,11 +49,11 @@ import org.opensearch.common.lucene.search.function.ScoreFunction;
 import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.fielddata.IndexGeoPointFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
@@ -72,6 +72,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
 
+/**
+ * Foundation builder for a decay function
+ *
+ * @opensearch.internal
+ */
 public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>> extends ScoreFunctionBuilder<DFB> {
 
     protected static final String ORIGIN = "origin";
@@ -419,6 +424,11 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         );
     }
 
+    /**
+     * Score function for geo field data
+     *
+     * @opensearch.internal
+     */
     static class GeoFieldDataScoreFunction extends AbstractDistanceScoreFunction {
 
         private final GeoPoint origin;
@@ -515,6 +525,11 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         }
     }
 
+    /**
+     * Score function for numeric data
+     *
+     * @opensearch.internal
+     */
     static class NumericFieldDataScoreFunction extends AbstractDistanceScoreFunction {
 
         private final IndexNumericFieldData fieldData;
@@ -605,7 +620,8 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     /**
      * This is the base class for scoring a single field.
      *
-     * */
+     * @opensearch.internal
+     */
     public abstract static class AbstractDistanceScoreFunction extends ScoreFunction {
 
         private final double scale;

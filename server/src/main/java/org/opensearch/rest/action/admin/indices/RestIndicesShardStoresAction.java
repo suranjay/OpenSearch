@@ -38,7 +38,7 @@ import org.opensearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
@@ -55,6 +55,8 @@ import static org.opensearch.rest.RestStatus.OK;
 
 /**
  * Rest action for {@link IndicesShardStoresAction}
+ *
+ * @opensearch.api
  */
 public class RestIndicesShardStoresAction extends BaseRestHandler {
 

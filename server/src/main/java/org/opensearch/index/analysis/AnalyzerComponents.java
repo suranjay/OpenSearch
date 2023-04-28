@@ -41,6 +41,8 @@ import java.util.Map;
 /**
  * A class that groups analysis components necessary to produce a custom analyzer.
  * See {@link ReloadableCustomAnalyzer} for an example usage.
+ *
+ * @opensearch.internal
  */
 public final class AnalyzerComponents {
 
@@ -107,8 +109,8 @@ public final class AnalyzerComponents {
 
         return new AnalyzerComponents(
             tokenizer,
-            charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
-            tokenFilterList.toArray(new TokenFilterFactory[tokenFilterList.size()])
+            charFiltersList.toArray(new CharFilterFactory[0]),
+            tokenFilterList.toArray(new TokenFilterFactory[0])
         );
     }
 

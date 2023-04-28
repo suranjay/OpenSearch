@@ -34,10 +34,8 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.opensearch.bootstrap.JavaVersion;
-import org.opensearch.common.collect.List;
 import org.opensearch.common.time.DateFormatter;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.termvectors.TermVectorsService;
 import org.opensearch.search.DocValueFormat;
 
@@ -45,6 +43,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
@@ -84,7 +83,7 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void assertParseMaximalWarnings() {
-        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 3.0");
     }
 
     public void testDefaults() throws Exception {
@@ -186,8 +185,6 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     public void testChangeLocale() throws IOException {
-        assumeTrue("need java 9 for testing ", JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0);
-
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(b -> b.field("type", "date").field("format", "E, d MMM yyyy HH:mm:ss Z").field("locale", "de"))
         );

@@ -40,8 +40,8 @@ import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.MasterNodeRequest;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -50,6 +50,8 @@ import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataDeleteIndexService;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
@@ -73,6 +75,11 @@ import java.util.Set;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * Transport action for deleting a datastream
+ *
+ * @opensearch.internal
+ */
 public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(DeleteDataStreamAction.class);
@@ -84,7 +91,12 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         super(NAME, AcknowledgedResponse::new);
     }
 
-    public static class Request extends MasterNodeRequest<Request> implements IndicesRequest.Replaceable {
+    /**
+     * Request for deleting data streams
+     *
+     * @opensearch.internal
+     */
+    public static class Request extends ClusterManagerNodeRequest<Request> implements IndicesRequest.Replaceable {
 
         private String[] names;
 
@@ -149,9 +161,15 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         }
     }
 
-    public static class TransportAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
+    /**
+     * Transport action for deleting data streams
+     *
+     * @opensearch.internal
+     */
+    public static class TransportAction extends TransportClusterManagerNodeAction<Request, AcknowledgedResponse> {
 
         private final MetadataDeleteIndexService deleteIndexService;
+        private final ClusterManagerTaskThrottler.ThrottlingKey removeDataStreamTaskKey;
 
         @Inject
         public TransportAction(
@@ -164,6 +182,8 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         ) {
             super(NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
             this.deleteIndexService = deleteIndexService;
+            // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+            removeDataStreamTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.REMOVE_DATA_STREAM_KEY, true);
         }
 
         @Override
@@ -177,7 +197,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         }
 
         @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
+        protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
             throws Exception {
             clusterService.submitStateUpdateTask(
                 "remove-data-stream [" + Strings.arrayToCommaDelimitedString(request.names) + "]",
@@ -185,12 +205,17 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
 
                     @Override
                     public TimeValue timeout() {
-                        return request.masterNodeTimeout();
+                        return request.clusterManagerNodeTimeout();
                     }
 
                     @Override
                     public void onFailure(String source, Exception e) {
                         listener.onFailure(e);
+                    }
+
+                    @Override
+                    public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                        return removeDataStreamTaskKey;
                     }
 
                     @Override

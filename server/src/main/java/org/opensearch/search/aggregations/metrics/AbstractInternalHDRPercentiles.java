@@ -35,7 +35,7 @@ package org.opensearch.search.aggregations.metrics;
 import org.HdrHistogram.DoubleHistogram;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 
@@ -47,6 +47,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.zip.DataFormatException;
 
+/**
+ * Base implementation of HDR percentiles
+ *
+ * @opensearch.internal
+ */
 abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
     protected final double[] keys;

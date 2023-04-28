@@ -41,6 +41,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+/**
+ * FileSystem blob store
+ *
+ * @opensearch.internal
+ */
 public class FsBlobStore implements BlobStore {
 
     private final Path path;
@@ -85,7 +90,7 @@ public class FsBlobStore implements BlobStore {
         // nothing to do here...
     }
 
-    private synchronized Path buildAndCreate(BlobPath path) throws IOException {
+    protected synchronized Path buildAndCreate(BlobPath path) throws IOException {
         Path f = buildPath(path);
         if (readOnly == false) {
             Files.createDirectories(f);

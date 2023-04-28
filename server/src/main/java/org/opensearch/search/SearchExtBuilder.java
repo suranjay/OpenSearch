@@ -37,7 +37,7 @@ import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.plugins.SearchPlugin.SearchExtSpec;
 
@@ -55,6 +55,8 @@ import org.opensearch.plugins.SearchPlugin.SearchExtSpec;
  * of the {@link SearchExtSpec}.
  *
  * @see SearchExtSpec
+ *
+ * @opensearch.internal
  */
 public abstract class SearchExtBuilder implements NamedWriteable, ToXContentFragment {
 

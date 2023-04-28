@@ -35,8 +35,8 @@ package org.opensearch.action.admin.cluster.stats;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.action.admin.indices.stats.CommonStats;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.cache.query.QueryCacheStats;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.fielddata.FieldDataStats;
@@ -47,6 +47,11 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Cluster Stats per index
+ *
+ * @opensearch.internal
+ */
 public class ClusterStatsIndices implements ToXContentFragment {
 
     private int indexCount;
@@ -144,6 +149,11 @@ public class ClusterStatsIndices implements ToXContentFragment {
         return analysis;
     }
 
+    /**
+     * Inner Fields used for creating XContent and parsing
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String COUNT = "count";
     }
@@ -167,6 +177,11 @@ public class ClusterStatsIndices implements ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Inner Shard Stats
+     *
+     * @opensearch.internal
+     */
     public static class ShardStats implements ToXContentFragment {
 
         int indices;
@@ -311,6 +326,11 @@ public class ClusterStatsIndices implements ToXContentFragment {
             }
         }
 
+        /**
+         * Inner Fields used for creating XContent and parsing
+         *
+         * @opensearch.internal
+         */
         static final class Fields {
             static final String SHARDS = "shards";
             static final String TOTAL = "total";

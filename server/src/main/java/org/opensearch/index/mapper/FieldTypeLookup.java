@@ -45,6 +45,8 @@ import java.util.Set;
 
 /**
  * An immutable container for looking up {@link MappedFieldType}s by their name.
+ *
+ * @opensearch.internal
  */
 class FieldTypeLookup implements Iterable<MappedFieldType> {
 
@@ -151,9 +153,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             }
         }
 
-        return fieldToCopiedFields.containsKey(resolvedField)
-            ? fieldToCopiedFields.get(resolvedField)
-            : org.opensearch.common.collect.Set.of(resolvedField);
+        return fieldToCopiedFields.containsKey(resolvedField) ? fieldToCopiedFields.get(resolvedField) : Set.of(resolvedField);
     }
 
     @Override

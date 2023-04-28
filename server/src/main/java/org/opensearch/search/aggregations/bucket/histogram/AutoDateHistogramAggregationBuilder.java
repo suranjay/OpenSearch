@@ -32,15 +32,14 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorFactories.Builder;
@@ -60,6 +59,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Aggregation Builder for auto_gate_histogram agg
+ *
+ * @opensearch.internal
+ */
 public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<AutoDateHistogramAggregationBuilder> {
 
     public static final String NAME = "auto_date_histogram";
@@ -145,17 +149,13 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
     public AutoDateHistogramAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         numBuckets = in.readVInt();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
-            minimumIntervalExpression = in.readOptionalString();
-        }
+        minimumIntervalExpression = in.readOptionalString();
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(numBuckets);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
-            out.writeOptionalString(minimumIntervalExpression);
-        }
+        out.writeOptionalString(minimumIntervalExpression);
     }
 
     protected AutoDateHistogramAggregationBuilder(
@@ -281,6 +281,11 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
         return Objects.equals(numBuckets, other.numBuckets) && Objects.equals(minimumIntervalExpression, other.minimumIntervalExpression);
     }
 
+    /**
+     * Round off information
+     *
+     * @opensearch.internal
+     */
     public static class RoundingInfo implements Writeable {
         final Rounding rounding;
         final int[] innerIntervals;
@@ -311,17 +316,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
             roughEstimateDurationMillis = in.readVLong();
             innerIntervals = in.readIntArray();
             unitAbbreviation = in.readString();
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
-                dateTimeUnit = in.readString();
-            } else {
-                /*
-                 * This *should* be safe because we only deserialize RoundingInfo
-                 * when reading result and results don't actually use this at all.
-                 * We just set it to something non-null to line up with the normal
-                 * ctor. "seconds" is the smallest unit anyway.
-                 */
-                dateTimeUnit = "second";
-            }
+            dateTimeUnit = in.readString();
         }
 
         @Override
@@ -330,9 +325,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
             out.writeVLong(roughEstimateDurationMillis);
             out.writeIntArray(innerIntervals);
             out.writeString(unitAbbreviation);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
-                out.writeString(dateTimeUnit);
-            }
+            out.writeString(dateTimeUnit);
         }
 
         public int getMaximumInnerInterval() {

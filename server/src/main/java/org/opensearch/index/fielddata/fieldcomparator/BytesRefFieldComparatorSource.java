@@ -40,6 +40,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.comparators.TermOrdValComparator;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.util.BigArrays;
@@ -56,6 +57,8 @@ import java.io.IOException;
 
 /**
  * Comparator source for string/binary values.
+ *
+ * @opensearch.internal
  */
 public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
@@ -97,7 +100,13 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         final boolean sortMissingLast = sortMissingLast(missingValue) ^ reversed;
         final BytesRef missingBytes = (BytesRef) missingObject(missingValue, reversed);
         if (indexFieldData instanceof IndexOrdinalsFieldData) {
-            return new FieldComparator.TermOrdValComparator(numHits, null, sortMissingLast) {
+            FieldComparator<?> cmp = new TermOrdValComparator(
+                numHits,
+                indexFieldData.getFieldName(),
+                sortMissingLast,
+                reversed,
+                enableSkipping
+            ) {
 
                 @Override
                 protected SortedDocValues getSortedDocValues(LeafReaderContext context, String field) throws IOException {
@@ -119,13 +128,9 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                         return new ReplaceMissing(selectedValues, missingBytes);
                     }
                 }
-
-                @Override
-                public void setScorer(Scorable scorer) {
-                    BytesRefFieldComparatorSource.this.setScorer(scorer);
-                }
-
             };
+            cmp.disableSkipping();
+            return cmp;
         }
 
         return new FieldComparator.TermValComparator(numHits, null, sortMissingLast) {
@@ -167,6 +172,8 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
     /**
      * A view of a SortedDocValues where missing values
      * are replaced with the specified term
+     *
+     * @opensearch.internal
      */
     // TODO: move this out if we need it for other reasons
     static class ReplaceMissing extends AbstractSortedDocValues {

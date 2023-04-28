@@ -49,7 +49,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.CountDown;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -74,6 +74,8 @@ import static org.opensearch.common.settings.Setting.timeSetting;
 
 /**
  * Basic service for accessing remote clusters via gateway nodes
+ *
+ * @opensearch.internal
  */
 public final class RemoteClusterService extends RemoteClusterAware implements Closeable {
 
@@ -434,6 +436,11 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return remoteClusters.values();
     }
 
+    /**
+     * Internal class to hold cluster alias and key and track a remote connection
+     *
+     * @opensearch.internal
+     */
     private static class RemoteConnectionEnabled<T> implements Setting.Validator<T> {
 
         private final String clusterAlias;

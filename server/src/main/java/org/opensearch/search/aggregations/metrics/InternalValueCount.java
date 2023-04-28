@@ -33,7 +33,7 @@ package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
@@ -43,6 +43,8 @@ import java.util.Objects;
 
 /**
  * An internal implementation of {@link ValueCount}.
+ *
+ * @opensearch.internal
  */
 public class InternalValueCount extends InternalNumericMetricsAggregation.SingleValue implements ValueCount {
     private final long value;

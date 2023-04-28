@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
@@ -40,7 +39,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.index.mapper.DocumentMapper;
@@ -56,6 +55,8 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBoole
 
 /**
  * Mapping configuration for a type.
+ *
+ * @opensearch.internal
  */
 public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
     public static final MappingMetadata EMPTY_MAPPINGS = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Collections.emptyMap());
@@ -159,9 +160,6 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         source().writeTo(out);
         // routing
         out.writeBoolean(routingRequired);
-        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            out.writeBoolean(false); // hasParentField
-        }
     }
 
     @Override
@@ -188,9 +186,6 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         source = CompressedXContent.readCompressedString(in);
         // routing
         routingRequired = in.readBoolean();
-        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            in.readBoolean(); // hasParentField
-        }
     }
 
     public static Diff<MappingMetadata> readDiffFrom(StreamInput in) throws IOException {

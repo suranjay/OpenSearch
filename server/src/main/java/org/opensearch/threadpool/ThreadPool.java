@@ -35,6 +35,7 @@ package org.opensearch.threadpool;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -44,12 +45,12 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.SizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.concurrent.XRejectedExecutionHandler;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
 import org.opensearch.node.ReportingService;
 
@@ -68,14 +69,25 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * The OpenSearch threadpool class
+ *
+ * @opensearch.internal
+ */
 public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     private static final Logger logger = LogManager.getLogger(ThreadPool.class);
 
+    /**
+     * The threadpool names.
+     *
+     * @opensearch.internal
+     */
     public static class Names {
         public static final String SAME = "same";
         public static final String GENERIC = "generic";
@@ -96,12 +108,20 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String FETCH_SHARD_STORE = "fetch_shard_store";
         public static final String SYSTEM_READ = "system_read";
         public static final String SYSTEM_WRITE = "system_write";
+        public static final String TRANSLOG_TRANSFER = "translog_transfer";
+        public static final String TRANSLOG_SYNC = "translog_sync";
+        public static final String REMOTE_PURGE = "remote_purge";
     }
 
+    /**
+     * The threadpool type.
+     *
+     * @opensearch.internal
+     */
     public enum ThreadPoolType {
         DIRECT("direct"),
         FIXED("fixed"),
-        FIXED_AUTO_QUEUE_SIZE("fixed_auto_queue_size"),
+        RESIZABLE("resizable"),
         SCALING("scaling");
 
         private final String type;
@@ -143,7 +163,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.GET, ThreadPoolType.FIXED);
         map.put(Names.ANALYZE, ThreadPoolType.FIXED);
         map.put(Names.WRITE, ThreadPoolType.FIXED);
-        map.put(Names.SEARCH, ThreadPoolType.FIXED_AUTO_QUEUE_SIZE);
+        map.put(Names.SEARCH, ThreadPoolType.RESIZABLE);
         map.put(Names.MANAGEMENT, ThreadPoolType.SCALING);
         map.put(Names.FLUSH, ThreadPoolType.SCALING);
         map.put(Names.REFRESH, ThreadPoolType.SCALING);
@@ -152,9 +172,12 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.FORCE_MERGE, ThreadPoolType.FIXED);
         map.put(Names.FETCH_SHARD_STARTED, ThreadPoolType.SCALING);
         map.put(Names.FETCH_SHARD_STORE, ThreadPoolType.SCALING);
-        map.put(Names.SEARCH_THROTTLED, ThreadPoolType.FIXED_AUTO_QUEUE_SIZE);
+        map.put(Names.SEARCH_THROTTLED, ThreadPoolType.RESIZABLE);
         map.put(Names.SYSTEM_READ, ThreadPoolType.FIXED);
         map.put(Names.SYSTEM_WRITE, ThreadPoolType.FIXED);
+        map.put(Names.TRANSLOG_TRANSFER, ThreadPoolType.SCALING);
+        map.put(Names.TRANSLOG_SYNC, ThreadPoolType.FIXED);
+        map.put(Names.REMOTE_PURGE, ThreadPoolType.SCALING);
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
 
@@ -184,6 +207,14 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     );
 
     public ThreadPool(final Settings settings, final ExecutorBuilder<?>... customBuilders) {
+        this(settings, null, customBuilders);
+    }
+
+    public ThreadPool(
+        final Settings settings,
+        final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener,
+        final ExecutorBuilder<?>... customBuilders
+    ) {
         assert Node.NODE_NAME_SETTING.exists(settings);
 
         final Map<String, ExecutorBuilder> builders = new HashMap<>();
@@ -197,12 +228,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16));
         builders.put(
             Names.SEARCH,
-            new AutoQueueAdjustingExecutorBuilder(settings, Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000, 1000, 1000, 2000)
+            new ResizableExecutorBuilder(settings, Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000, runnableTaskListener)
         );
-        builders.put(
-            Names.SEARCH_THROTTLED,
-            new AutoQueueAdjustingExecutorBuilder(settings, Names.SEARCH_THROTTLED, 1, 100, 100, 100, 200)
-        );
+        builders.put(Names.SEARCH_THROTTLED, new ResizableExecutorBuilder(settings, Names.SEARCH_THROTTLED, 1, 100, runnableTaskListener));
         builders.put(Names.MANAGEMENT, new ScalingExecutorBuilder(Names.MANAGEMENT, 1, 5, TimeValue.timeValueMinutes(5)));
         // no queue as this means clients will need to handle rejections on listener queue even if the operation succeeded
         // the assumption here is that the listeners should be very lightweight on the listeners side
@@ -222,6 +250,12 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(Names.SYSTEM_READ, new FixedExecutorBuilder(settings, Names.SYSTEM_READ, halfProcMaxAt5, 2000, false));
         builders.put(Names.SYSTEM_WRITE, new FixedExecutorBuilder(settings, Names.SYSTEM_WRITE, halfProcMaxAt5, 1000, false));
+        builders.put(
+            Names.TRANSLOG_TRANSFER,
+            new ScalingExecutorBuilder(Names.TRANSLOG_TRANSFER, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5))
+        );
+        builders.put(Names.TRANSLOG_SYNC, new FixedExecutorBuilder(settings, Names.TRANSLOG_SYNC, allocatedProcessors * 4, 10000));
+        builders.put(Names.REMOTE_PURGE, new ScalingExecutorBuilder(Names.REMOTE_PURGE, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
 
         for (final ExecutorBuilder<?> builder : customBuilders) {
             if (builders.containsKey(builder.name())) {
@@ -376,7 +410,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      * @return a ScheduledFuture who's get will return when the task is has been added to its target thread pool and throw an exception if
      *         the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
      *         the ScheduledFuture will cannot interact with it.
-     * @throws org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException if the task cannot be scheduled for execution
+     * @throws OpenSearchRejectedExecutionException if the task cannot be scheduled for execution
      */
     @Override
     public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
@@ -652,6 +686,11 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         }
     }
 
+    /**
+     * The thread pool information.
+     *
+     * @opensearch.internal
+     */
     public static class Info implements Writeable, ToXContentFragment {
 
         private final String name;
@@ -680,7 +719,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
         public Info(StreamInput in) throws IOException {
             name = in.readString();
-            type = ThreadPoolType.fromType(in.readString());
+            final String typeStr = in.readString();
+            // Opensearch on or after 3.0.0 version doesn't know about "fixed_auto_queue_size" thread pool. Convert it to RESIZABLE.
+            if (typeStr.equalsIgnoreCase("fixed_auto_queue_size")) {
+                type = ThreadPoolType.RESIZABLE;
+            } else {
+                type = ThreadPoolType.fromType(typeStr);
+            }
             min = in.readInt();
             max = in.readInt();
             keepAlive = in.readOptionalTimeValue();
@@ -690,7 +735,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
-            out.writeString(type.getType());
+            if (type == ThreadPoolType.RESIZABLE && out.getVersion().before(Version.V_3_0_0)) {
+                // Opensearch on older version doesn't know about "resizable" thread pool. Convert RESIZABLE to FIXED
+                // to avoid serialization/de-serization issue between nodes with different OpenSearch version
+                out.writeString(ThreadPoolType.FIXED.getType());
+            } else {
+                out.writeString(type.getType());
+            }
             out.writeInt(min);
             out.writeInt(max);
             out.writeOptionalTimeValue(keepAlive);

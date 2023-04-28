@@ -32,7 +32,6 @@
 
 package org.opensearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
@@ -63,6 +62,8 @@ import static java.util.Collections.unmodifiableMap;
  * The dangling indices state is responsible for finding new dangling indices (indices that have
  * their state written on disk, but don't exists in the metadata of the cluster), and importing
  * them into the cluster.
+ *
+ * @opensearch.internal
  */
 public class DanglingIndicesState implements ClusterStateListener {
 
@@ -189,8 +190,8 @@ public class DanglingIndicesState implements ClusterStateListener {
      */
     public Map<Index, IndexMetadata> findNewDanglingIndices(Map<Index, IndexMetadata> existingDanglingIndices, final Metadata metadata) {
         final Set<String> excludeIndexPathIds = new HashSet<>(metadata.indices().size() + danglingIndices.size());
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            excludeIndexPathIds.add(cursor.value.getIndex().getUUID());
+        for (final IndexMetadata indexMetadata : metadata.indices().values()) {
+            excludeIndexPathIds.add(indexMetadata.getIndex().getUUID());
         }
         for (Index index : existingDanglingIndices.keySet()) {
             excludeIndexPathIds.add(index.getUUID());
@@ -254,14 +255,14 @@ public class DanglingIndicesState implements ClusterStateListener {
             logger.info(
                 "[{}] stripping aliases: {} from index before importing",
                 indexMetadata.getIndex(),
-                indexMetadata.getAliases().keys()
+                indexMetadata.getAliases().keySet()
             );
             return IndexMetadata.builder(indexMetadata).removeAllAliases().build();
         }
     }
 
     /**
-     * Allocates the detected list of dangling indices by sending them to the master node
+     * Allocates the detected list of dangling indices by sending them to the cluster-manager node
      * for allocation, provided auto-import is enabled via the
      * {@link #AUTO_IMPORT_DANGLING_INDICES_SETTING} setting.
      * @param metadata the current cluster metadata, used to filter out dangling indices that cannot be allocated

@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.indices.dangling.delete;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
@@ -45,7 +44,7 @@ import org.opensearch.action.admin.indices.dangling.list.ListDanglingIndicesResp
 import org.opensearch.action.admin.indices.dangling.list.NodeListDanglingIndicesResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
@@ -54,6 +53,8 @@ import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
@@ -70,12 +71,17 @@ import java.util.stream.Collectors;
  * Implements the deletion of a dangling index. When handling a {@link DeleteDanglingIndexAction},
  * this class first checks that such a dangling index exists. It then submits a cluster state update
  * to add the index to the index graveyard.
+ *
+ * @opensearch.internal
  */
-public class TransportDeleteDanglingIndexAction extends TransportMasterNodeAction<DeleteDanglingIndexRequest, AcknowledgedResponse> {
+public class TransportDeleteDanglingIndexAction extends TransportClusterManagerNodeAction<
+    DeleteDanglingIndexRequest,
+    AcknowledgedResponse> {
     private static final Logger logger = LogManager.getLogger(TransportDeleteDanglingIndexAction.class);
 
     private final Settings settings;
     private final NodeClient nodeClient;
+    private final ClusterManagerTaskThrottler.ThrottlingKey deleteDanglingIndexTaskKey;
 
     @Inject
     public TransportDeleteDanglingIndexAction(
@@ -98,6 +104,8 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
         );
         this.settings = settings;
         this.nodeClient = nodeClient;
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        deleteDanglingIndexTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_DANGLING_INDEX_KEY, true);
     }
 
     @Override
@@ -111,7 +119,7 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         DeleteDanglingIndexRequest deleteRequest,
         ClusterState state,
         ActionListener<AcknowledgedResponse> deleteListener
@@ -154,6 +162,11 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
                         }
 
                         @Override
+                        public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                            return deleteDanglingIndexTaskKey;
+                        }
+
+                        @Override
                         public ClusterState execute(final ClusterState currentState) {
                             return deleteDanglingIndex(currentState, indexToDelete);
                         }
@@ -172,8 +185,8 @@ public class TransportDeleteDanglingIndexAction extends TransportMasterNodeActio
     private ClusterState deleteDanglingIndex(ClusterState currentState, Index indexToDelete) {
         final Metadata metaData = currentState.getMetadata();
 
-        for (ObjectObjectCursor<String, IndexMetadata> each : metaData.indices()) {
-            if (indexToDelete.getUUID().equals(each.value.getIndexUUID())) {
+        for (final IndexMetadata each : metaData.indices().values()) {
+            if (indexToDelete.getUUID().equals(each.getIndexUUID())) {
                 throw new IllegalArgumentException(
                     "Refusing to delete dangling index "
                         + indexToDelete

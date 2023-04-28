@@ -32,19 +32,23 @@
 
 package org.opensearch.index.query.functionscore;
 
-import org.opensearch.Version;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.search.function.ScoreFunction;
 import org.opensearch.common.lucene.search.function.WeightFactorFunction;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Foundation builder for a score function
+ *
+ * @opensearch.internal
+ */
 public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> implements ToXContentFragment, NamedWriteable {
 
     private Float weight;
@@ -60,17 +64,13 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
      */
     public ScoreFunctionBuilder(StreamInput in) throws IOException {
         weight = checkWeight(in.readOptionalFloat());
-        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
-            functionName = in.readOptionalString();
-        }
+        functionName = in.readOptionalString();
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalFloat(weight);
-        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
-            out.writeOptionalString(functionName);
-        }
+        out.writeOptionalString(functionName);
         doWriteTo(out);
     }
 

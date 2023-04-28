@@ -31,13 +31,13 @@
 
 package org.opensearch.search.aggregations;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
@@ -58,10 +58,14 @@ import static java.util.Objects.requireNonNull;
 
 /**
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
+ *
+ * @opensearch.internal
  */
 public abstract class InternalAggregation implements Aggregation, NamedWriteable {
     /**
      * Builds {@link ReduceContext}.
+     *
+     * @opensearch.internal
      */
     public interface ReduceContextBuilder {
         /**
@@ -75,6 +79,11 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         ReduceContext forFinalReduction();
     }
 
+    /**
+     * The reduce context
+     *
+     * @opensearch.internal
+     */
     public static class ReduceContext {
         private final BigArrays bigArrays;
         private final ScriptService scriptService;
@@ -178,8 +187,6 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
 
     protected final Map<String, Object> metadata;
 
-    private List<PipelineAggregator> pipelineAggregatorsForBwcSerialization;
-
     /**
      * Constructs an aggregation result with a given name.
      *
@@ -191,45 +198,17 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     }
 
     /**
-     * Merge a {@linkplain PipelineAggregator.PipelineTree} into this
-     * aggregation result tree before serializing to a node older than
-     * 7.8.0.
-     */
-    public final void mergePipelineTreeForBWCSerialization(PipelineAggregator.PipelineTree pipelineTree) {
-        if (pipelineAggregatorsForBwcSerialization != null) {
-            /*
-             * This method is called once per level on the results but only
-             * has useful pipeline aggregations on the top level. Every level
-             * below the top will always be empty. So if we've already been
-             * called we should bail. This is pretty messy but it is the kind
-             * of weird thing we have to do to deal with bwc serialization....
-             */
-            return;
-        }
-        pipelineAggregatorsForBwcSerialization = pipelineTree.aggregators();
-        forEachBucket(bucketAggs -> bucketAggs.mergePipelineTreeForBWCSerialization(pipelineTree));
-    }
-
-    /**
      * Read from a stream.
      */
     protected InternalAggregation(StreamInput in) throws IOException {
         name = in.readString();
         metadata = in.readMap();
-        if (in.getVersion().before(LegacyESVersion.V_7_8_0)) {
-            in.readNamedWriteableList(PipelineAggregator.class);
-        }
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeGenericValue(metadata);
-        if (out.getVersion().before(LegacyESVersion.V_7_8_0)) {
-            assert pipelineAggregatorsForBwcSerialization != null
-                : "serializing to pre-7.8.0 versions should have called mergePipelineTreeForBWCSerialization";
-            out.writeNamedWriteableList(pipelineAggregatorsForBwcSerialization);
-        }
         doWriteTo(out);
     }
 
@@ -346,15 +325,6 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         return metadata;
     }
 
-    /**
-     * The {@linkplain PipelineAggregator}s sent to older versions of OpenSearch.
-     * @deprecated only use these for serializing to older OpenSearch versions
-     */
-    @Deprecated
-    public List<PipelineAggregator> pipelineAggregatorsForBwcSerialization() {
-        return pipelineAggregatorsForBwcSerialization;
-    }
-
     @Override
     public String getType() {
         return getWriteableName();
@@ -399,7 +369,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
     /**

@@ -35,8 +35,8 @@ package org.opensearch.search.aggregations.pipeline;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.script.Script;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
@@ -51,6 +51,11 @@ import java.util.TreeMap;
 import static org.opensearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
 import static org.opensearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
 
+/**
+ * Aggregation Builder for bucket_selector agg
+ *
+ * @opensearch.internal
+ */
 public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<BucketSelectorPipelineAggregationBuilder> {
     public static final String NAME = "bucket_selector";
 

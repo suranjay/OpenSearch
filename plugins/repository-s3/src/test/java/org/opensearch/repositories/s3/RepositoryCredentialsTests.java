@@ -45,7 +45,7 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginsService;
@@ -57,6 +57,7 @@ import org.opensearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
 
+import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collection;
@@ -284,8 +285,8 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
      */
     public static final class ProxyS3RepositoryPlugin extends S3RepositoryPlugin {
 
-        public ProxyS3RepositoryPlugin(Settings settings) {
-            super(settings, new ProxyS3Service());
+        public ProxyS3RepositoryPlugin(Settings settings, Path configPath) {
+            super(settings, configPath, new ProxyS3Service(configPath));
         }
 
         @Override
@@ -316,10 +317,15 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
 
             private static final Logger logger = LogManager.getLogger(ProxyS3Service.class);
 
+            ProxyS3Service(final Path configPath) {
+                super(configPath);
+            }
+
             @Override
-            AmazonS3 buildClient(final S3ClientSettings clientSettings) {
-                final AmazonS3 client = super.buildClient(clientSettings);
-                return new ClientAndCredentials(client, buildCredentials(logger, clientSettings));
+            AmazonS3WithCredentials buildClient(final S3ClientSettings clientSettings) {
+                final AmazonS3WithCredentials client = super.buildClient(clientSettings);
+                final AWSCredentialsProvider credentials = buildCredentials(logger, clientSettings);
+                return AmazonS3WithCredentials.create(new ClientAndCredentials(client.client(), credentials), credentials);
             }
 
         }

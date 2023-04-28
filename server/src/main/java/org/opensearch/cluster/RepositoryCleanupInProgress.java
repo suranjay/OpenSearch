@@ -37,7 +37,8 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.repositories.RepositoryOperation;
 
 import java.io.IOException;
@@ -45,6 +46,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Information passed during repository cleanup
+ *
+ * @opensearch.internal
+ */
 public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
 
     public static final RepositoryCleanupInProgress EMPTY = new RepositoryCleanupInProgress(Collections.emptyList());
@@ -104,14 +110,19 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return LegacyESVersion.V_7_4_0;
+        return LegacyESVersion.fromId(7040099);
     }
 
+    /**
+     * Entry in the collection.
+     *
+     * @opensearch.internal
+     */
     public static final class Entry implements Writeable, RepositoryOperation {
 
         private final String repository;

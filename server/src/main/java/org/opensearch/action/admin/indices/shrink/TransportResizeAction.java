@@ -38,7 +38,7 @@ import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateR
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -57,6 +57,8 @@ import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.index.store.StoreStats;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -66,8 +68,10 @@ import java.util.function.IntFunction;
 
 /**
  * Main class to initiate resizing (shrink / split) an index into a new index
+ *
+ * @opensearch.internal
  */
-public class TransportResizeAction extends TransportMasterNodeAction<ResizeRequest, ResizeResponse> {
+public class TransportResizeAction extends TransportClusterManagerNodeAction<ResizeRequest, ResizeResponse> {
     private final MetadataCreateIndexService createIndexService;
     private final Client client;
 
@@ -125,7 +129,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final ResizeRequest resizeRequest,
         final ClusterState state,
         final ActionListener<ResizeResponse> listener
@@ -139,11 +143,12 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
             .prepareStats(sourceIndex)
             .clear()
             .setDocs(true)
+            .setStore(true)
             .execute(ActionListener.delegateFailure(listener, (delegatedListener, indicesStatsResponse) -> {
                 CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(resizeRequest, state, i -> {
                     IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
                     return shard == null ? null : shard.getPrimary().getDocs();
-                }, sourceIndex, targetIndex);
+                }, indicesStatsResponse.getPrimaries().store, sourceIndex, targetIndex);
                 createIndexService.createIndex(
                     updateRequest,
                     ActionListener.map(
@@ -160,6 +165,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         final ResizeRequest resizeRequest,
         final ClusterState state,
         final IntFunction<DocsStats> perShardDocStats,
+        final StoreStats primaryShardsStoreStats,
         String sourceIndexName,
         String targetIndexName
     ) {
@@ -174,12 +180,13 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         targetIndexSettingsBuilder.remove(IndexMetadata.SETTING_HISTORY_UUID);
         final Settings targetIndexSettings = targetIndexSettingsBuilder.build();
         final int numShards;
+
         if (IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
             numShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings);
         } else {
             assert resizeRequest.getResizeType() != ResizeType.SPLIT : "split must specify the number of shards explicitly";
             if (resizeRequest.getResizeType() == ResizeType.SHRINK) {
-                numShards = 1;
+                numShards = calculateTargetIndexShardsNum(resizeRequest.getMaxShardSize(), primaryShardsStoreStats, metadata);
             } else {
                 assert resizeRequest.getResizeType() == ResizeType.CLONE;
                 numShards = metadata.getNumberOfShards();
@@ -213,9 +220,6 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
             }
         }
 
-        if (IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.exists(targetIndexSettings)) {
-            throw new IllegalArgumentException("cannot provide a routing partition size value when resizing an index");
-        }
         if (IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.exists(targetIndexSettings)) {
             // if we have a source index with 1 shards it's legal to set this
             final boolean splitFromSingleShards = resizeRequest.getResizeType() == ResizeType.SPLIT && metadata.getNumberOfShards() == 1;
@@ -239,7 +243,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
             // applied once we took the snapshot and if somebody messes things up and switches the index read/write and adds docs we
             // miss the mappings for everything is corrupted and hard to debug
             .ackTimeout(targetIndex.timeout())
-            .masterNodeTimeout(targetIndex.masterNodeTimeout())
+            .masterNodeTimeout(targetIndex.clusterManagerNodeTimeout())
             .settings(targetIndex.settings())
             .aliases(targetIndex.aliases())
             .waitForActiveShards(targetIndex.waitForActiveShards())
@@ -248,8 +252,48 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
             .copySettings(resizeRequest.getCopySettings() == null ? false : resizeRequest.getCopySettings());
     }
 
+    /**
+     * Calculate target index's shards count according to max_shard_ize and the source index's storage(only primary shards included)
+     * for shrink. Target index's shards count is the lowest factor of the source index's primary shards count which satisfies the
+     * maximum shard size requirement. If max_shard_size is less than the source index's single shard size, then target index's shards count
+     * will be equal to the source index's shards count.
+     * @param maxShardSize the maximum size of a primary shard in the target index
+     * @param sourceIndexShardStoreStats primary shards' store stats of the source index
+     * @param sourceIndexMetaData source index's metadata
+     * @return target index's shards number
+     */
+    protected static int calculateTargetIndexShardsNum(
+        ByteSizeValue maxShardSize,
+        StoreStats sourceIndexShardStoreStats,
+        IndexMetadata sourceIndexMetaData
+    ) {
+        if (maxShardSize == null
+            || sourceIndexShardStoreStats == null
+            || maxShardSize.getBytes() == 0
+            || sourceIndexShardStoreStats.getSizeInBytes() == 0) {
+            return 1;
+        }
+
+        int sourceIndexShardsNum = sourceIndexMetaData.getNumberOfShards();
+        // calculate the minimum shards count according to source index's storage, ceiling ensures that the minimum shards count is never
+        // less than 1
+        int minValue = (int) Math.ceil((double) sourceIndexShardStoreStats.getSizeInBytes() / maxShardSize.getBytes());
+        // if minimum shards count is greater than the source index's shards count, then the source index's shards count will be returned
+        if (minValue >= sourceIndexShardsNum) {
+            return sourceIndexShardsNum;
+        }
+
+        // find the lowest factor of the source index's shards count here, because minimum shards count may not be a factor
+        for (int i = minValue; i < sourceIndexShardsNum; i++) {
+            if (sourceIndexShardsNum % i == 0) {
+                return i;
+            }
+        }
+        return sourceIndexShardsNum;
+    }
+
     @Override
-    protected String getMasterActionName(DiscoveryNode node) {
-        return super.getMasterActionName(node);
+    protected String getClusterManagerActionName(DiscoveryNode node) {
+        return super.getClusterManagerActionName(node);
     }
 }

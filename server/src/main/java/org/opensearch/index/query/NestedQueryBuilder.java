@@ -49,15 +49,15 @@ import org.apache.lucene.search.join.ParentChildrenBlockJoinQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.search.MaxScoreCollector;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.search.OpenSearchToParentBlockJoinQuery;
 import org.opensearch.index.search.NestedHelper;
@@ -74,6 +74,11 @@ import java.util.Objects;
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.opensearch.search.fetch.subphase.InnerHitsContext.intersect;
 
+/**
+ * Query builder for nested queries
+ *
+ * @opensearch.internal
+ */
 public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> {
     public static final String NAME = "nested";
     /**
@@ -123,6 +128,13 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         out.writeNamedWriteable(query);
         out.writeOptionalWriteable(innerHitBuilder);
         out.writeBoolean(ignoreUnmapped);
+    }
+
+    /**
+     * Returns path of the nested query.
+     */
+    public String path() {
+        return path;
     }
 
     /**
@@ -353,6 +365,11 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         }
     }
 
+    /**
+     * Context builder for nested inner hits
+     *
+     * @opensearch.internal
+     */
     static class NestedInnerHitContextBuilder extends InnerHitContextBuilder {
         private final String path;
 
@@ -391,6 +408,11 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         }
     }
 
+    /**
+     * Inner hits sub context
+     *
+     * @opensearch.internal
+     */
     static final class NestedInnerHitSubContext extends InnerHitsContext.InnerHitSubContext {
 
         private final ObjectMapper parentObjectMapper;

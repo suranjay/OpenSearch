@@ -36,11 +36,16 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Encapsulates statistics for flush
+ *
+ * @opensearch.internal
+ */
 public class FlushStats implements Writeable, ToXContentFragment {
 
     private long total;
@@ -120,6 +125,11 @@ public class FlushStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Fields for flush statistics
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String FLUSH = "flush";
         static final String TOTAL = "total";

@@ -46,6 +46,8 @@ import java.util.List;
 
 /**
  * Utility methods, similar to Lucene's {@link DocValues}.
+ *
+ * @opensearch.internal
  */
 public enum FieldData {
     ;
@@ -97,10 +99,17 @@ public enum FieldData {
     }
 
     /**
-     * Return a {@link SortedNumericDoubleValues} that doesn't contain any value.
+     * Return a {@link MultiGeoPointValues} that doesn't contain any value.
      */
     public static MultiGeoPointValues emptyMultiGeoPoints() {
         return singleton(emptyGeoPoint());
+    }
+
+    /**
+     * Return a {@link GeoShapeValue} that doesn't contain any value.
+     */
+    public static GeoShapeValue emptyGeoShape() {
+        return new GeoShapeValue.EmptyGeoShapeValue();
     }
 
     /**
@@ -137,6 +146,19 @@ public enum FieldData {
             @Override
             public boolean advanceExact(int doc) throws IOException {
                 return pointValues.advanceExact(doc);
+            }
+        };
+    }
+
+    /**
+     * Returns a {@link DocValueBits} representing all documents from <code>shapeValues</code> that have
+     * a value.
+     */
+    public static DocValueBits docsWithValue(final GeoShapeValue shapeValues) {
+        return new DocValueBits() {
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return shapeValues.advanceExact(doc);
             }
         };
     }
@@ -406,6 +428,31 @@ public enum FieldData {
         });
     }
 
+    /**
+     * Return a {@link String} representation of the provided values. That is
+     * typically used for scripts or for the `map` execution mode of terms aggs.
+     * NOTE: this is very slow!
+     */
+    public static SortedBinaryDocValues toString(final GeoShapeValue geoShapeValue) {
+        return toString(new ToStringValues() {
+
+            /**
+             * Advance this instance to the given document id
+             * @return true if there is a value for this document
+             */
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return geoShapeValue.advanceExact(doc);
+            }
+
+            /** Fill the list of charsequences with the list of values for the current document. */
+            @Override
+            public void get(List<CharSequence> list) throws IOException {
+                list.add(geoShapeValue.nextValue().toString());
+            }
+        });
+    }
+
     private static SortedBinaryDocValues toString(final ToStringValues toStringValues) {
         return new SortingBinaryDocValues() {
 
@@ -444,6 +491,11 @@ public enum FieldData {
 
     }
 
+    /**
+     * Values casted as a double type
+     *
+     * @opensearch.internal
+     */
     private static class DoubleCastedValues extends NumericDoubleValues {
 
         private final NumericDocValues values;
@@ -464,6 +516,11 @@ public enum FieldData {
 
     }
 
+    /**
+     * Sorted values casted as a double type
+     *
+     * @opensearch.internal
+     */
     private static class SortedDoubleCastedValues extends SortedNumericDoubleValues {
 
         private final SortedNumericDocValues values;
@@ -489,6 +546,11 @@ public enum FieldData {
 
     }
 
+    /**
+     * Values casted as a long type
+     *
+     * @opensearch.internal
+     */
     private static class LongCastedValues extends AbstractNumericDocValues {
 
         private final NumericDoubleValues values;
@@ -515,6 +577,11 @@ public enum FieldData {
         }
     }
 
+    /**
+     * Sorted values casted as a long type
+     *
+     * @opensearch.internal
+     */
     private static class SortedLongCastedValues extends AbstractSortedNumericDocValues {
 
         private final SortedNumericDoubleValues values;

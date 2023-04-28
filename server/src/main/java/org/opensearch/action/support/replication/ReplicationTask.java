@@ -35,7 +35,8 @@ package org.opensearch.action.support.replication;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 
@@ -46,6 +47,8 @@ import static java.util.Objects.requireNonNull;
 
 /**
  * Task that tracks replication actions.
+ *
+ * @opensearch.internal
  */
 public class ReplicationTask extends Task {
     private volatile String phase = "starting";
@@ -73,6 +76,11 @@ public class ReplicationTask extends Task {
         return new Status(phase);
     }
 
+    /**
+     * Status of the replication task
+     *
+     * @opensearch.internal
+     */
     public static class Status implements Task.Status {
         public static final String NAME = "replication";
 
@@ -106,7 +114,7 @@ public class ReplicationTask extends Task {
 
         @Override
         public String toString() {
-            return Strings.toString(this);
+            return Strings.toString(XContentType.JSON, this);
         }
 
         // Implements equals and hashcode for testing

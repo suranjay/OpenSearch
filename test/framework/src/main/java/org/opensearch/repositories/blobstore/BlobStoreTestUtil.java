@@ -54,15 +54,17 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.IndexModule;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
+import org.opensearch.snapshots.SnapshotMissingException;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -86,6 +88,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.opensearch.test.OpenSearchTestCase.buildNewFakeTransportAddress;
 import static org.opensearch.test.OpenSearchTestCase.randomIntBetween;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -105,7 +108,7 @@ import static org.mockito.Mockito.when;
 public final class BlobStoreTestUtil {
 
     public static void assertRepoConsistency(InternalTestCluster testCluster, String repoName) {
-        final BlobStoreRepository repo = (BlobStoreRepository) testCluster.getCurrentMasterNodeInstance(RepositoriesService.class)
+        final BlobStoreRepository repo = (BlobStoreRepository) testCluster.getCurrentClusterManagerNodeInstance(RepositoriesService.class)
             .repository(repoName);
         BlobStoreTestUtil.assertConsistency(repo, repo.threadPool().executor(ThreadPool.Names.GENERIC));
     }
@@ -136,11 +139,11 @@ public final class BlobStoreTestUtil {
                     XContentParser parser = XContentType.JSON.xContent()
                         .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, blob)
                 ) {
-                    repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen, false);
+                    repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen);
                 }
                 assertIndexUUIDs(repository, repositoryData);
                 assertSnapshotUUIDs(repository, repositoryData);
-                assertShardIndexGenerations(blobContainer, repositoryData.shardGenerations());
+                assertShardIndexGenerations(repository, blobContainer, repositoryData);
                 return null;
             } catch (AssertionError e) {
                 return e;
@@ -164,23 +167,31 @@ public final class BlobStoreTestUtil {
         assertTrue(indexGenerations.length <= 2);
     }
 
-    private static void assertShardIndexGenerations(BlobContainer repoRoot, ShardGenerations shardGenerations) throws IOException {
+    private static void assertShardIndexGenerations(BlobStoreRepository repository, BlobContainer repoRoot, RepositoryData repositoryData)
+        throws IOException {
+        final ShardGenerations shardGenerations = repositoryData.shardGenerations();
         final BlobContainer indicesContainer = repoRoot.children().get("indices");
         for (IndexId index : shardGenerations.indices()) {
             final List<String> gens = shardGenerations.getGens(index);
             if (gens.isEmpty() == false) {
                 final BlobContainer indexContainer = indicesContainer.children().get(index.getId());
                 final Map<String, BlobContainer> shardContainers = indexContainer.children();
-                for (int i = 0; i < gens.size(); i++) {
-                    final String generation = gens.get(i);
-                    assertThat(generation, not(ShardGenerations.DELETED_SHARD_GEN));
-                    if (generation != null && generation.equals(ShardGenerations.NEW_SHARD_GEN) == false) {
-                        final String shardId = Integer.toString(i);
-                        assertThat(shardContainers, hasKey(shardId));
-                        assertThat(
-                            shardContainers.get(shardId).listBlobsByPrefix(BlobStoreRepository.INDEX_FILE_PREFIX),
-                            hasKey(BlobStoreRepository.INDEX_FILE_PREFIX + generation)
-                        );
+                if (isRemoteSnapshot(repository, repositoryData, index)) {
+                    // If the source of the data is another snapshot (i.e. searchable snapshot)
+                    // then assert that there is no shard data (because it exists in the source snapshot)
+                    assertThat(shardContainers, anEmptyMap());
+                } else {
+                    for (int i = 0; i < gens.size(); i++) {
+                        final String generation = gens.get(i);
+                        assertThat(generation, not(ShardGenerations.DELETED_SHARD_GEN));
+                        if (generation != null && generation.equals(ShardGenerations.NEW_SHARD_GEN) == false) {
+                            final String shardId = Integer.toString(i);
+                            assertThat(shardContainers, hasKey(shardId));
+                            assertThat(
+                                shardContainers.get(shardId).listBlobsByPrefix(BlobStoreRepository.INDEX_FILE_PREFIX),
+                                hasKey(BlobStoreRepository.INDEX_FILE_PREFIX + generation)
+                            );
+                        }
                     }
                 }
             }
@@ -410,11 +421,13 @@ public final class BlobStoreTestUtil {
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterApplierService clusterApplierService = mock(ClusterApplierService.class);
         when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
-        // Setting local node as master so it may update the repository metadata in the cluster state
+        // Setting local node as cluster-manager so it may update the repository metadata in the cluster state
         final DiscoveryNode localNode = new DiscoveryNode("", buildNewFakeTransportAddress(), Version.CURRENT);
         final AtomicReference<ClusterState> currentState = new AtomicReference<>(
             ClusterState.builder(initialState)
-                .nodes(DiscoveryNodes.builder().add(localNode).masterNodeId(localNode.getId()).localNodeId(localNode.getId()).build())
+                .nodes(
+                    DiscoveryNodes.builder().add(localNode).clusterManagerNodeId(localNode.getId()).localNodeId(localNode.getId()).build()
+                )
                 .build()
         );
         when(clusterService.state()).then(invocationOnMock -> currentState.get());
@@ -436,5 +449,25 @@ public final class BlobStoreTestUtil {
         }).when(clusterService).addStateApplier(any(ClusterStateApplier.class));
         when(clusterApplierService.threadPool()).thenReturn(threadPool);
         return clusterService;
+    }
+
+    private static boolean isRemoteSnapshot(BlobStoreRepository repository, RepositoryData repositoryData, IndexId indexId)
+        throws IOException {
+        final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
+        for (SnapshotId snapshotId : snapshotIds) {
+            try {
+                if (isRemoteSnapshot(repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId))) {
+                    return true;
+                }
+            } catch (SnapshotMissingException e) {
+                // Index does not exist in this snapshot so continue looping
+            }
+        }
+        return false;
+    }
+
+    private static boolean isRemoteSnapshot(IndexMetadata metadata) {
+        final String storeType = metadata.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey());
+        return storeType != null && storeType.equals(IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey());
     }
 }

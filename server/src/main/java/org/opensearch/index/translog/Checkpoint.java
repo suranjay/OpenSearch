@@ -54,7 +54,12 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 
-final class Checkpoint {
+/**
+ * A checkpoint for OpenSearch operations
+ *
+ * @opensearch.internal
+ */
+final public class Checkpoint {
 
     final long offset;
     final int numOps;
@@ -255,6 +260,14 @@ final class Checkpoint {
                 + indexOutput.getFilePointer();
         }
         return byteOutputStream.toByteArray();
+    }
+
+    public long getMinTranslogGeneration() {
+        return minTranslogGeneration;
+    }
+
+    public long getGeneration() {
+        return generation;
     }
 
     @Override

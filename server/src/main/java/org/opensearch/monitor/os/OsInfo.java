@@ -35,11 +35,16 @@ package org.opensearch.monitor.os;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.ReportingService;
 
 import java.io.IOException;
 
+/**
+ * Holds Operating System Information
+ *
+ * @opensearch.internal
+ */
 public class OsInfo implements ReportingService.Info {
 
     private final long refreshInterval;

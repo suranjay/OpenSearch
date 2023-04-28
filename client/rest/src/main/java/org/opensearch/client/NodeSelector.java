@@ -36,7 +36,7 @@ import java.util.Iterator;
 
 /**
  * Selects nodes that can receive requests. Used to keep requests away
- * from master nodes or to send them to nodes with a particular attribute.
+ * from cluster-manager nodes or to send them to nodes with a particular attribute.
  * Use with {@link RestClientBuilder#setNodeSelector(NodeSelector)}.
  */
 public interface NodeSelector {
@@ -80,16 +80,18 @@ public interface NodeSelector {
 
     /**
      * Selector that matches any node that has metadata and doesn't
-     * have the {@code master} role OR it has the data {@code data}
+     * have the {@code cluster_manager} role OR it has the data {@code data}
      * role.
      */
-    NodeSelector SKIP_DEDICATED_MASTERS = new NodeSelector() {
+    NodeSelector SKIP_DEDICATED_CLUSTER_MANAGERS = new NodeSelector() {
         @Override
         public void select(Iterable<Node> nodes) {
             for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
                 Node node = itr.next();
                 if (node.getRoles() == null) continue;
-                if (node.getRoles().isMasterEligible() && false == node.getRoles().isData() && false == node.getRoles().isIngest()) {
+                if (node.getRoles().isClusterManagerEligible()
+                    && false == node.getRoles().isData()
+                    && false == node.getRoles().isIngest()) {
                     itr.remove();
                 }
             }
@@ -97,7 +99,7 @@ public interface NodeSelector {
 
         @Override
         public String toString() {
-            return "SKIP_DEDICATED_MASTERS";
+            return "SKIP_DEDICATED_CLUSTER_MANAGERS";
         }
     };
 }

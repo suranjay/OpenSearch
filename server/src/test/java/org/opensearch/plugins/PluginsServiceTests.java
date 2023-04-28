@@ -723,7 +723,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "desc",
             "1.0",
             Version.CURRENT,
-            "1000000.0",
+            "1000000",
             "FakePlugin",
             Collections.emptyList(),
             false
@@ -922,10 +922,9 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         class TestExtension implements TestExtensionPoint {
             private TestExtension() {}
         }
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> { PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin); }
-        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin);
+        });
 
         assertThat(
             e,
@@ -950,10 +949,9 @@ public class PluginsServiceTests extends OpenSearchTestCase {
 
             }
         }
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> { PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin); }
-        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin);
+        });
 
         assertThat(
             e,
@@ -971,10 +969,9 @@ public class PluginsServiceTests extends OpenSearchTestCase {
 
     public void testBadSingleParameterConstructor() {
         TestPlugin plugin = new TestPlugin();
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> { PluginsService.createExtension(BadSingleParameterConstructorExtension.class, TestExtensionPoint.class, plugin); }
-        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(BadSingleParameterConstructorExtension.class, TestExtensionPoint.class, plugin);
+        });
 
         assertThat(
             e,
@@ -996,10 +993,9 @@ public class PluginsServiceTests extends OpenSearchTestCase {
 
     public void testTooManyParametersExtensionConstructors() {
         TestPlugin plugin = new TestPlugin();
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> { PluginsService.createExtension(TooManyParametersConstructorExtension.class, TestExtensionPoint.class, plugin); }
-        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(TooManyParametersConstructorExtension.class, TestExtensionPoint.class, plugin);
+        });
 
         assertThat(
             e,
@@ -1019,10 +1015,9 @@ public class PluginsServiceTests extends OpenSearchTestCase {
 
     public void testThrowingConstructor() {
         TestPlugin plugin = new TestPlugin();
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> { PluginsService.createExtension(ThrowingConstructorExtension.class, TestExtensionPoint.class, plugin); }
-        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(ThrowingConstructorExtension.class, TestExtensionPoint.class, plugin);
+        });
 
         assertThat(
             e,

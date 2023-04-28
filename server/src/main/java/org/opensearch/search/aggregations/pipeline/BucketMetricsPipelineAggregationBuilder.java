@@ -34,7 +34,7 @@ package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
@@ -44,6 +44,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * Base Aggregation Builder for bucket metrics pipeline aggs
+ *
+ * @opensearch.internal
+ */
 public abstract class BucketMetricsPipelineAggregationBuilder<AF extends BucketMetricsPipelineAggregationBuilder<AF>> extends
     AbstractPipelineAggregationBuilder<AF> {
 

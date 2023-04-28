@@ -51,6 +51,11 @@ import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * A shard snapshot stored locally
+ *
+ * @opensearch.internal
+ */
 final class LocalShardSnapshot implements Closeable {
     private final IndexShard shard;
     private final Store store;
@@ -91,7 +96,7 @@ final class LocalShardSnapshot implements Closeable {
             @Override
             public String[] listAll() throws IOException {
                 Collection<String> fileNames = wrappedIndexCommit.get().getFileNames();
-                final String[] fileNameArray = fileNames.toArray(new String[fileNames.size()]);
+                final String[] fileNameArray = fileNames.toArray(new String[0]);
                 return fileNameArray;
             }
 

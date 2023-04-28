@@ -33,7 +33,7 @@ package org.opensearch.search.aggregations.bucket.terms;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -48,6 +48,8 @@ import static java.util.Collections.emptyList;
 
 /**
  * Result of the {@link TermsAggregator} when the field is unmapped.
+ *
+ * @opensearch.internal
  */
 public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bucket> {
     public static final String NAME = "umterms";
@@ -55,6 +57,8 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     /**
      * Concrete type that can't be built because Java needs a concrete type so {@link InternalTerms.Bucket} can have a self type but
      * {@linkplain UnmappedTerms} doesn't ever need to build it because it never returns any buckets.
+     *
+     * @opensearch.internal
      */
     protected abstract static class Bucket extends InternalTerms.Bucket<Bucket> {
         private Bucket(

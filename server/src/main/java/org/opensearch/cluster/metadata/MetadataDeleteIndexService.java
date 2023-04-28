@@ -43,9 +43,10 @@ import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
@@ -55,6 +56,7 @@ import org.opensearch.snapshots.SnapshotInProgressException;
 import org.opensearch.snapshots.SnapshotsService;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -62,6 +64,8 @@ import java.util.Set;
 
 /**
  * Deletes indices.
+ *
+ * @opensearch.internal
  */
 public class MetadataDeleteIndexService {
 
@@ -71,12 +75,17 @@ public class MetadataDeleteIndexService {
     private final ClusterService clusterService;
 
     private final AllocationService allocationService;
+    private final ClusterManagerTaskThrottler.ThrottlingKey deleteIndexTaskKey;
 
     @Inject
     public MetadataDeleteIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
         this.settings = settings;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
+
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        deleteIndexTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_INDEX_KEY, true);
+
     }
 
     public void deleteIndices(
@@ -94,6 +103,11 @@ public class MetadataDeleteIndexService {
                 @Override
                 protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                     return new ClusterStateUpdateResponse(acknowledged);
+                }
+
+                @Override
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                    return deleteIndexTaskKey;
                 }
 
                 @Override
@@ -171,13 +185,13 @@ public class MetadataDeleteIndexService {
         ClusterBlocks blocks = clusterBlocksBuilder.build();
 
         // update snapshot restore entries
-        ImmutableOpenMap<String, ClusterState.Custom> customs = currentState.getCustoms();
+        Map<String, ClusterState.Custom> customs = currentState.getCustoms();
         final RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
         RestoreInProgress updatedRestoreInProgress = RestoreService.updateRestoreStateWithDeletedIndices(restoreInProgress, indices);
         if (updatedRestoreInProgress != restoreInProgress) {
-            ImmutableOpenMap.Builder<String, ClusterState.Custom> builder = ImmutableOpenMap.builder(customs);
+            final Map<String, ClusterState.Custom> builder = new HashMap<>(customs);
             builder.put(RestoreInProgress.TYPE, updatedRestoreInProgress);
-            customs = builder.build();
+            customs = Collections.unmodifiableMap(builder);
         }
 
         return allocationService.reroute(

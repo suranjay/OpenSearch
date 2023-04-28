@@ -60,6 +60,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.InternalEngineTests;
+import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.replication.RecoveryDuringReplicationTests;
@@ -68,11 +69,16 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.SnapshotMatchers;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.replication.common.ReplicationFailedException;
+import org.opensearch.indices.replication.common.ReplicationListener;
+import org.opensearch.indices.replication.common.ReplicationState;
+import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
@@ -97,6 +103,17 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             boolean softDeletesEnabled = replica.indexSettings().isSoftDeleteEnabled();
             assertThat(getTranslog(replica).totalOperations(), equalTo(softDeletesEnabled ? 0 : docs + moreDocs));
             shards.assertAllEqual(docs + moreDocs);
+        }
+    }
+
+    public void testWithSegmentReplication_ReplicaUsesPrimaryTranslogUUID() throws Exception {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
+        try (ReplicationGroup shards = createGroup(2, settings, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            final String expectedUUID = getTranslog(shards.getPrimary()).getTranslogUUID();
+            assertTrue(
+                shards.getReplicas().stream().allMatch(indexShard -> getTranslog(indexShard).getTranslogUUID().equals(expectedUUID))
+            );
         }
     }
 
@@ -165,6 +182,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             orgReplica.flush(new FlushRequest().force(true)); // isolate delete#1 in its own translog generation and lucene segment
             // index #0
             orgReplica.applyIndexOperationOnReplica(
+                UUID.randomUUID().toString(),
                 0,
                 primaryTerm,
                 1,
@@ -174,6 +192,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             );
             // index #3
             orgReplica.applyIndexOperationOnReplica(
+                UUID.randomUUID().toString(),
                 3,
                 primaryTerm,
                 1,
@@ -185,6 +204,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             orgReplica.flush(new FlushRequest().force(true).waitIfOngoing(true));
             // index #2
             orgReplica.applyIndexOperationOnReplica(
+                UUID.randomUUID().toString(),
                 2,
                 primaryTerm,
                 1,
@@ -196,6 +216,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             orgReplica.updateGlobalCheckpointOnReplica(3L, "test");
             // index #5 -> force NoOp #4.
             orgReplica.applyIndexOperationOnReplica(
+                UUID.randomUUID().toString(),
                 5,
                 primaryTerm,
                 1,
@@ -448,20 +469,17 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             IndexShard replica = group.addReplica();
             expectThrows(
                 Exception.class,
-                () -> group.recoverReplica(
-                    replica,
-                    (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, new PeerRecoveryTargetService.RecoveryListener() {
-                        @Override
-                        public void onRecoveryDone(RecoveryState state) {
-                            throw new AssertionError("recovery must fail");
-                        }
+                () -> group.recoverReplica(replica, (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, new ReplicationListener() {
+                    @Override
+                    public void onDone(ReplicationState state) {
+                        throw new AssertionError("recovery must fail");
+                    }
 
-                        @Override
-                        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
-                            assertThat(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), equalTo("simulated"));
-                        }
-                    })
-                )
+                    @Override
+                    public void onFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
+                        assertThat(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), equalTo("simulated"));
+                    }
+                }))
             );
             expectThrows(AlreadyClosedException.class, () -> replica.refresh("test"));
             group.removeReplica(replica);

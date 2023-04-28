@@ -37,9 +37,9 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.Scroll;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
@@ -50,6 +50,11 @@ import java.util.Objects;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * Transport request for a search scroll
+ *
+ * @opensearch.internal
+ */
 public class SearchScrollRequest extends ActionRequest implements ToXContentObject {
 
     private String scrollId;

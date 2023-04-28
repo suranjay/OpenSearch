@@ -46,6 +46,7 @@ import org.opensearch.common.cache.Cache;
 import org.opensearch.common.cache.CacheBuilder;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Setting;
@@ -64,6 +65,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.ToLongBiFunction;
 
+/**
+ * The field data cache for multiple indices
+ *
+ * @opensearch.internal
+ */
 public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCache.Key, Accountable>, Releasable {
 
     private static final Logger logger = LogManager.getLogger(IndicesFieldDataCache.class);
@@ -110,7 +116,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
                 listener.onRemoval(
                     key.shardId,
                     indexCache.fieldName,
-                    notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED,
+                    notification.getRemovalReason() == RemovalReason.EVICTED,
                     value.ramBytesUsed()
                 );
             } catch (Exception e) {
@@ -120,6 +126,11 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         }
     }
 
+    /**
+     * Computes a weight based on ramBytesUsed
+     *
+     * @opensearch.internal
+     */
     public static class FieldDataWeigher implements ToLongBiFunction<Key, Accountable> {
         @Override
         public long applyAsLong(Key key, Accountable ramUsage) {
@@ -130,6 +141,8 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
 
     /**
      * A specific cache instance for the relevant parameters of it (index, fieldNames, fieldType).
+     *
+     * @opensearch.internal
      */
     static class IndexFieldCache implements IndexFieldDataCache, IndexReader.ClosedListener {
         private final Logger logger;
@@ -237,6 +250,11 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         }
     }
 
+    /**
+     * Key for the indices field data cache
+     *
+     * @opensearch.internal
+     */
     public static class Key {
         public final IndexFieldCache indexCache;
         public final IndexReader.CacheKey readerKey;

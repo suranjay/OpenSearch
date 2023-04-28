@@ -34,7 +34,7 @@ package org.opensearch.search.aggregations.support;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.ReportingService;
 
 import java.io.IOException;
@@ -46,6 +46,11 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.LongAdder;
 
+/**
+ * Data describing an agg
+ *
+ * @opensearch.internal
+ */
 public class AggregationInfo implements ReportingService.Info {
 
     private final Map<String, Set<String>> aggs;

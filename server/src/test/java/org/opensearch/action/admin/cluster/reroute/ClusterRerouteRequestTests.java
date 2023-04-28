@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.cluster.reroute;
 
 import org.opensearch.action.support.master.AcknowledgedRequest;
-import org.opensearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
@@ -46,9 +46,9 @@ import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.network.NetworkModule;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest;
@@ -132,7 +132,7 @@ public class ClusterRerouteRequestTests extends OpenSearchTestCase {
                 request.getCommands().commands().toArray(new AllocationCommand[0])
             );
             copy.dryRun(request.dryRun()).explain(request.explain()).timeout(request.timeout()).setRetryFailed(request.isRetryFailed());
-            copy.masterNodeTimeout(request.masterNodeTimeout());
+            copy.clusterManagerNodeTimeout(request.clusterManagerNodeTimeout());
             assertEquals(request, copy);
             assertEquals(copy, request); // Commutative
             assertEquals(request.hashCode(), copy.hashCode());
@@ -161,11 +161,11 @@ public class ClusterRerouteRequestTests extends OpenSearchTestCase {
             assertEquals(request, copy);
             assertEquals(request.hashCode(), copy.hashCode());
 
-            // Changing masterNodeTime makes requests not equal
-            copy.masterNodeTimeout(timeValueMillis(request.masterNodeTimeout().millis() + 1));
+            // Changing clusterManagerNodeTimeout makes requests not equal
+            copy.clusterManagerNodeTimeout(timeValueMillis(request.clusterManagerNodeTimeout().millis() + 1));
             assertNotEquals(request, copy);
             assertNotEquals(request.hashCode(), copy.hashCode());
-            copy.masterNodeTimeout(request.masterNodeTimeout());
+            copy.clusterManagerNodeTimeout(request.clusterManagerNodeTimeout());
             assertEquals(request, copy);
             assertEquals(request.hashCode(), copy.hashCode());
 
@@ -231,8 +231,9 @@ public class ClusterRerouteRequestTests extends OpenSearchTestCase {
         if (original.isRetryFailed() || randomBoolean()) {
             params.put("retry_failed", Boolean.toString(original.isRetryFailed()));
         }
-        if (false == original.masterNodeTimeout().equals(MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT) || randomBoolean()) {
-            params.put("cluster_manager_timeout", original.masterNodeTimeout().toString());
+        if (false == original.clusterManagerNodeTimeout().equals(ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT)
+            || randomBoolean()) {
+            params.put("cluster_manager_timeout", original.clusterManagerNodeTimeout().toString());
         }
         if (original.getCommands() != null) {
             hasBody = true;
@@ -243,7 +244,7 @@ public class ClusterRerouteRequestTests extends OpenSearchTestCase {
         FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry());
         requestBuilder.withParams(params);
         if (hasBody) {
-            requestBuilder.withContent(BytesReference.bytes(builder), builder.contentType());
+            requestBuilder.withContent(BytesReference.bytes(builder), XContentType.fromMediaType(builder.contentType()));
         }
         return requestBuilder.build();
     }

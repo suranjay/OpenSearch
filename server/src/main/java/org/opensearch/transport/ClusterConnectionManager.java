@@ -41,7 +41,7 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ListenableFuture;
 import org.opensearch.common.util.concurrent.RunOnce;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -55,6 +55,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * This class manages node connections within a cluster. The connection is opened by the underlying transport.
  * Once the connection is opened, this class manages the connection. This includes closing the connection when
  * the connection manager is closed.
+ *
+ * @opensearch.internal
  */
 public class ClusterConnectionManager implements ConnectionManager {
 

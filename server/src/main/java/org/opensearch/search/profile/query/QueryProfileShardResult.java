@@ -35,9 +35,9 @@ package org.opensearch.search.profile.query;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.profile.ProfileResult;
 
 import java.io.IOException;
@@ -50,6 +50,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
 /**
  * A container class to hold the profile results for a single shard in the request.
  * Contains a list of query profiles, a collector tree and a total rewrite tree.
+ *
+ * @opensearch.internal
  */
 public final class QueryProfileShardResult implements Writeable, ToXContentObject {
 

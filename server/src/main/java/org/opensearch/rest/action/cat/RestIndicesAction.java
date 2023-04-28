@@ -72,21 +72,27 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.Spliterators;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
-import static org.opensearch.action.support.master.MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+import static org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * _cat API action to list indices
+ *
+ * @opensearch.api
+ */
 public class RestIndicesAction extends AbstractCatAction {
 
     private static final DateFormatter STRICT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time");
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestIndicesAction.class);
     private static final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-        "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
+        "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead.";
     private static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
         "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
 
@@ -116,14 +122,14 @@ public class RestIndicesAction extends AbstractCatAction {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.strictExpand());
         final boolean local = request.paramAsBoolean("local", false);
-        TimeValue clusterManagerTimeout = request.paramAsTime("cluster_manager_timeout", DEFAULT_MASTER_NODE_TIMEOUT);
+        TimeValue clusterManagerTimeout = request.paramAsTime("cluster_manager_timeout", DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT);
         // Remove the if condition and statements inside after removing MASTER_ROLE.
         if (request.hasParam("master_timeout")) {
             deprecationLogger.deprecate("cat_indices_master_timeout_parameter", MASTER_TIMEOUT_DEPRECATED_MESSAGE);
             if (request.hasParam("cluster_manager_timeout")) {
                 throw new OpenSearchParseException(DUPLICATE_PARAMETER_ERROR_MESSAGE);
             }
-            clusterManagerTimeout = request.paramAsTime("master_timeout", DEFAULT_MASTER_NODE_TIMEOUT);
+            clusterManagerTimeout = request.paramAsTime("master_timeout", DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT);
         }
         final TimeValue clusterManagerNodeTimeout = clusterManagerTimeout;
         final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);
@@ -211,7 +217,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final String[] indices,
         final IndicesOptions indicesOptions,
         final boolean local,
-        final TimeValue masterNodeTimeout,
+        final TimeValue clusterManagerNodeTimeout,
         final NodeClient client,
         final ActionListener<GetSettingsResponse> listener
     ) {
@@ -219,7 +225,7 @@ public class RestIndicesAction extends AbstractCatAction {
         request.indices(indices);
         request.indicesOptions(indicesOptions);
         request.local(local);
-        request.masterNodeTimeout(masterNodeTimeout);
+        request.clusterManagerNodeTimeout(clusterManagerNodeTimeout);
         request.names(IndexSettings.INDEX_SEARCH_THROTTLED.getKey());
 
         client.admin().indices().getSettings(request, listener);
@@ -229,7 +235,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final String[] indices,
         final IndicesOptions indicesOptions,
         final boolean local,
-        final TimeValue masterNodeTimeout,
+        final TimeValue clusterManagerNodeTimeout,
         final NodeClient client,
         final ActionListener<ClusterStateResponse> listener
     ) {
@@ -238,7 +244,7 @@ public class RestIndicesAction extends AbstractCatAction {
         request.indices(indices);
         request.indicesOptions(indicesOptions);
         request.local(local);
-        request.masterNodeTimeout(masterNodeTimeout);
+        request.clusterManagerNodeTimeout(clusterManagerNodeTimeout);
 
         client.admin().cluster().state(request, listener);
     }
@@ -247,7 +253,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final String[] indices,
         final IndicesOptions indicesOptions,
         final boolean local,
-        final TimeValue masterNodeTimeout,
+        final TimeValue clusterManagerNodeTimeout,
         final NodeClient client,
         final ActionListener<ClusterHealthResponse> listener
     ) {
@@ -256,7 +262,7 @@ public class RestIndicesAction extends AbstractCatAction {
         request.indices(indices);
         request.indicesOptions(indicesOptions);
         request.local(local);
-        request.masterNodeTimeout(masterNodeTimeout);
+        request.clusterManagerNodeTimeout(clusterManagerNodeTimeout);
 
         client.admin().cluster().health(request, listener);
     }
@@ -288,8 +294,10 @@ public class RestIndicesAction extends AbstractCatAction {
             public void onResponse(final Collection<ActionResponse> responses) {
                 try {
                     GetSettingsResponse settingsResponse = extractResponse(responses, GetSettingsResponse.class);
-                    Map<String, Settings> indicesSettings = StreamSupport.stream(settingsResponse.getIndexToSettings().spliterator(), false)
-                        .collect(Collectors.toMap(cursor -> cursor.key, cursor -> cursor.value));
+                    Map<String, Settings> indicesSettings = StreamSupport.stream(
+                        Spliterators.spliterator(settingsResponse.getIndexToSettings().entrySet(), 0),
+                        false
+                    ).collect(Collectors.toMap(cursor -> cursor.getKey(), cursor -> cursor.getValue()));
 
                     ClusterStateResponse stateResponse = extractResponse(responses, ClusterStateResponse.class);
                     Map<String, IndexMetadata> indicesStates = StreamSupport.stream(
@@ -592,6 +600,24 @@ public class RestIndicesAction extends AbstractCatAction {
         );
         table.addCell("pri.search.scroll_total", "default:false;text-align:right;desc:completed scroll contexts");
 
+        table.addCell(
+            "search.point_in_time_current",
+            "sibling:pri;alias:scc,searchPointInTimeCurrent;default:false;text-align:right;desc:open point in time contexts"
+        );
+        table.addCell("pri.search.point_in_time_current", "default:false;text-align:right;desc:open point in time contexts");
+
+        table.addCell(
+            "search.point_in_time_time",
+            "sibling:pri;alias:scti,searchPointInTimeTime;default:false;text-align:right;desc:time point in time contexts held open"
+        );
+        table.addCell("pri.search.point_in_time_time", "default:false;text-align:right;desc:time point in time contexts held open");
+
+        table.addCell(
+            "search.point_in_time_total",
+            "sibling:pri;alias:scto,searchPointInTimeTotal;default:false;text-align:right;desc:completed point in time contexts"
+        );
+        table.addCell("pri.search.point_in_time_total", "default:false;text-align:right;desc:completed point in time contexts");
+
         table.addCell("segments.count", "sibling:pri;alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
         table.addCell("pri.segments.count", "default:false;text-align:right;desc:number of segments");
 
@@ -872,6 +898,15 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getScrollCount());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getScrollCount());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getPitCurrent());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getPitCurrent());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getPitTime());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getPitTime());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getPitCount());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getPitCount());
 
             table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getCount());
             table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getCount());

@@ -39,7 +39,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.RequestValidators;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -63,8 +63,10 @@ import java.util.Optional;
 
 /**
  * Put mapping action.
+ *
+ * @opensearch.internal
  */
-public class TransportPutMappingAction extends TransportMasterNodeAction<PutMappingRequest, AcknowledgedResponse> {
+public class TransportPutMappingAction extends TransportClusterManagerNodeAction<PutMappingRequest, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutMappingAction.class);
 
@@ -117,7 +119,7 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final PutMappingRequest request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
@@ -169,7 +171,7 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
     ) {
         PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest(request.source()).indices(
             concreteIndices
-        ).ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
+        ).ackTimeout(request.timeout()).masterNodeTimeout(request.clusterManagerNodeTimeout());
 
         metadataMappingService.putMapping(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
 

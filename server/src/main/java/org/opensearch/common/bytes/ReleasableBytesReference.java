@@ -37,7 +37,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.opensearch.common.concurrent.RefCountedReleasable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -45,6 +45,8 @@ import java.io.OutputStream;
 /**
  * An extension to {@link BytesReference} that requires releasing its content. This
  * class exists to make it explicit when a bytes reference needs to be released, and when not.
+ *
+ * @opensearch.internal
  */
 public final class ReleasableBytesReference implements Releasable, BytesReference {
 

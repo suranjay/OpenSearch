@@ -37,17 +37,15 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateObserver.Listener;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
-import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
@@ -60,7 +58,14 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.function.Predicate;
 
-public class TransportClearVotingConfigExclusionsAction extends TransportMasterNodeAction<
+import static org.opensearch.action.admin.cluster.configuration.VotingConfigExclusionsHelper.clearExclusionsAndGetState;
+
+/**
+ * Transport endpoint action for clearing exclusions to voting config
+ *
+ * @opensearch.internal
+ */
+public class TransportClearVotingConfigExclusionsAction extends TransportClusterManagerNodeAction<
     ClearVotingConfigExclusionsRequest,
     ClearVotingConfigExclusionsResponse> {
 
@@ -96,7 +101,7 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         ClearVotingConfigExclusionsRequest request,
         ClusterState initialState,
         ActionListener<ClearVotingConfigExclusionsResponse> listener
@@ -161,13 +166,7 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
         clusterService.submitStateUpdateTask("clear-voting-config-exclusions", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final CoordinationMetadata newCoordinationMetadata = CoordinationMetadata.builder(currentState.coordinationMetadata())
-                    .clearVotingConfigExclusions()
-                    .build();
-                final Metadata newMetadata = Metadata.builder(currentState.metadata())
-                    .coordinationMetadata(newCoordinationMetadata)
-                    .build();
-                return ClusterState.builder(currentState).metadata(newMetadata).build();
+                return clearExclusionsAndGetState(currentState);
             }
 
             @Override

@@ -46,6 +46,11 @@ import java.util.function.BiConsumer;
 
 import static org.opensearch.ingest.TrackingResultProcessor.decorate;
 
+/**
+ * Service to simulate pipeline execution
+ *
+ * @opensearch.internal
+ */
 class SimulateExecutionService {
 
     private static final String THREAD_POOL_NAME = ThreadPool.Names.MANAGEMENT;
@@ -71,10 +76,9 @@ class SimulateExecutionService {
                 pipeline.getVersion(),
                 verbosePipelineProcessor
             );
-            ingestDocument.executePipeline(
-                verbosePipeline,
-                (result, e) -> { handler.accept(new SimulateDocumentVerboseResult(processorResultList), e); }
-            );
+            ingestDocument.executePipeline(verbosePipeline, (result, e) -> {
+                handler.accept(new SimulateDocumentVerboseResult(processorResultList), e);
+            });
         } else {
             ingestDocument.executePipeline(pipeline, (result, e) -> {
                 if (e == null) {

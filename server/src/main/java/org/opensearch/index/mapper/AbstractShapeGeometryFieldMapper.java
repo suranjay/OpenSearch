@@ -33,11 +33,11 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.opensearch.common.Explicit;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.mapper.LegacyGeoShapeFieldMapper.DeprecatedParameters;
 
@@ -48,19 +48,36 @@ import java.util.Map;
 
 /**
  * Base class for {@link GeoShapeFieldMapper} and {@link LegacyGeoShapeFieldMapper}
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extends AbstractGeometryFieldMapper<Parsed, Processed> {
 
+    /**
+     * Common parameters for the base shape geometry field mapper
+     *
+     * @opensearch.internal
+     */
     public static class Names extends AbstractGeometryFieldMapper.Names {
         public static final ParseField ORIENTATION = new ParseField("orientation");
         public static final ParseField COERCE = new ParseField("coerce");
     }
 
+    /**
+     * Parameter defaults for the base shape geometry field mapper
+     *
+     * @opensearch.internal
+     */
     public static class Defaults extends AbstractGeometryFieldMapper.Defaults {
         public static final Explicit<Orientation> ORIENTATION = new Explicit<>(Orientation.RIGHT, false);
         public static final Explicit<Boolean> COERCE = new Explicit<>(false, false);
     }
 
+    /**
+     * Base builder for the base shape geometry field mapper
+     *
+     * @opensearch.internal
+     */
     public abstract static class Builder<T extends Builder<T, FT>, FT extends AbstractShapeGeometryFieldType> extends
         AbstractGeometryFieldMapper.Builder<T, FT> {
         protected Boolean coerce;
@@ -122,6 +139,11 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
 
     protected static final String DEPRECATED_PARAMETERS_KEY = "deprecated_parameters";
 
+    /**
+     * Base type parser for the base shape geometry field mapper
+     *
+     * @opensearch.internal
+     */
     public abstract static class TypeParser extends AbstractGeometryFieldMapper.TypeParser<Builder> {
         protected abstract Builder newBuilder(String name, Map<String, Object> params);
 
@@ -178,6 +200,11 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
         }
     }
 
+    /**
+     * Base field type for the base shape geometry field mapper
+     *
+     * @opensearch.internal
+     */
     public abstract static class AbstractShapeGeometryFieldType<Parsed, Processed> extends AbstractGeometryFieldType<Parsed, Processed> {
         protected Orientation orientation = Defaults.ORIENTATION.value();
 

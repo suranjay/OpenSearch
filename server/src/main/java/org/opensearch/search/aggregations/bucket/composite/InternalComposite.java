@@ -33,11 +33,9 @@
 package org.opensearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -58,6 +56,11 @@ import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Set;
 
+/**
+ * Internal coordination class for composite aggs
+ *
+ * @opensearch.internal
+ */
 public class InternalComposite extends InternalMultiBucketAggregation<InternalComposite, InternalComposite.InternalBucket>
     implements
         CompositeAggregation {
@@ -104,15 +107,10 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             formats.add(in.readNamedWriteable(DocValueFormat.class));
         }
         this.reverseMuls = in.readIntArray();
-        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
-            this.missingOrders = in.readArray(MissingOrder::readFromStream, MissingOrder[]::new);
-        } else {
-            this.missingOrders = new MissingOrder[reverseMuls.length];
-            Arrays.fill(this.missingOrders, MissingOrder.DEFAULT);
-        }
+        this.missingOrders = in.readArray(MissingOrder::readFromStream, MissingOrder[]::new);
         this.buckets = in.readList((input) -> new InternalBucket(input, sourceNames, formats, reverseMuls, missingOrders));
         this.afterKey = in.readBoolean() ? new CompositeKey(in) : null;
-        this.earlyTerminated = in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0) ? in.readBoolean() : false;
+        this.earlyTerminated = in.readBoolean();
     }
 
     @Override
@@ -123,18 +121,13 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             out.writeNamedWriteable(format);
         }
         out.writeIntArray(reverseMuls);
-        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
-            out.writeArray((output, order) -> order.writeTo(output), missingOrders);
-        }
+        out.writeArray((output, order) -> order.writeTo(output), missingOrders);
         out.writeList(buckets);
         out.writeBoolean(afterKey != null);
         if (afterKey != null) {
             afterKey.writeTo(out);
         }
-
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-            out.writeBoolean(earlyTerminated);
-        }
+        out.writeBoolean(earlyTerminated);
     }
 
     @Override
@@ -312,6 +305,11 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         return Objects.hash(super.hashCode(), size, buckets, afterKey, Arrays.hashCode(reverseMuls), Arrays.hashCode(missingOrders));
     }
 
+    /**
+     * The bucket iterator
+     *
+     * @opensearch.internal
+     */
     private static class BucketIterator implements Comparable<BucketIterator> {
         final Iterator<InternalBucket> it;
         InternalBucket current;
@@ -330,6 +328,11 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         }
     }
 
+    /**
+     * Internal bucket for the internal composite agg
+     *
+     * @opensearch.internal
+     */
     public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket
         implements
             CompositeAggregation.Bucket,
@@ -511,6 +514,11 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         return obj;
     }
 
+    /**
+     * An array map used for the internal composite agg
+     *
+     * @opensearch.internal
+     */
     static class ArrayMap extends AbstractMap<String, Object> implements Comparable<ArrayMap> {
         final List<String> keys;
         final Comparable[] values;

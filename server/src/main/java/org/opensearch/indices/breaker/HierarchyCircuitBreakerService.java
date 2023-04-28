@@ -71,6 +71,8 @@ import static org.opensearch.indices.breaker.BreakerSettings.CIRCUIT_BREAKER_OVE
 /**
  * CircuitBreakerService that attempts to redistribute space between breakers
  * if tripped
+ *
+ * @opensearch.internal
  */
 public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     private static final Logger logger = LogManager.getLogger(HierarchyCircuitBreakerService.class);
@@ -339,6 +341,11 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         );
     }
 
+    /**
+     * Tracks memory usage
+     *
+     * @opensearch.internal
+     */
     static class MemoryUsage {
         final long baseUsage;
         final long totalUsage;
@@ -503,6 +510,11 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         MemoryUsage overLimit(MemoryUsage memoryUsed);
     }
 
+    /**
+     * Kicks in G1GC if heap gets too high
+     *
+     * @opensearch.internal
+     */
     static class G1OverLimitStrategy implements OverLimitStrategy {
         private final long g1RegionSize;
         private final LongSupplier currentMemoryUsageSupplier;
@@ -547,8 +559,19 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             // https://hg.openjdk.java.net/jdk/jdk/file/e7d0ec2d06e8/src/hotspot/share/gc/g1/heapRegion.cpp#l67
             // based on this JDK "bug":
             // https://bugs.openjdk.java.net/browse/JDK-8241670
-            long averageHeapSize = (jvmInfo.getMem().getHeapMax().getBytes() + JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()) / 2;
-            long regionSize = Long.highestOneBit(averageHeapSize / 2048);
+            // JDK-17 updates:
+            // https://github.com/openjdk/jdk17u/blob/master/src/hotspot/share/gc/g1/heapRegionBounds.hpp
+            // https://github.com/openjdk/jdk17u/blob/master/src/hotspot/share/gc/g1/heapRegion.cpp#L67
+            long regionSizeUnrounded = Math.min(
+                Math.max(JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 2048, ByteSizeUnit.MB.toBytes(1)),
+                ByteSizeUnit.MB.toBytes(32)
+            );
+
+            long regionSize = Long.highestOneBit(regionSizeUnrounded);
+            if (regionSize != regionSizeUnrounded) {
+                regionSize <<= 1; /* next power of 2 */
+            }
+
             if (regionSize < ByteSizeUnit.MB.toBytes(1)) {
                 regionSize = ByteSizeUnit.MB.toBytes(1);
             } else if (regionSize > ByteSizeUnit.MB.toBytes(32)) {

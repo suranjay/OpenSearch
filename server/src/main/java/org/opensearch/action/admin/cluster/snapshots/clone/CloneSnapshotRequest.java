@@ -35,18 +35,27 @@ package org.opensearch.action.admin.cluster.snapshots.clone;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
-public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest> implements IndicesRequest.Replaceable, ToXContentObject {
+/**
+ * Transport request for cloning a snapshot
+ *
+ * @opensearch.internal
+ */
+public class CloneSnapshotRequest extends ClusterManagerNodeRequest<CloneSnapshotRequest>
+    implements
+        IndicesRequest.Replaceable,
+        ToXContentObject {
 
     private final String repository;
 
@@ -178,6 +187,6 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 }

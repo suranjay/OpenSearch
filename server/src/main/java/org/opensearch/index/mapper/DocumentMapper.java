@@ -40,14 +40,13 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchGenerationException;
-import org.opensearch.Version;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.text.Text;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.IndexAnalyzers;
@@ -63,8 +62,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
+/**
+ * The OpenSearch DocumentMapper
+ *
+ * @opensearch.internal
+ */
 public class DocumentMapper implements ToXContentFragment {
 
+    /**
+     * Builder for the Document Field Mapper
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
 
         private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
@@ -80,12 +89,8 @@ public class DocumentMapper implements ToXContentFragment {
             this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1));
             this.rootObjectMapper = builder.build(builderContext);
 
-            final String type = rootObjectMapper.name();
             final DocumentMapper existingMapper = mapperService.documentMapper();
-            final Version indexCreatedVersion = mapperService.getIndexSettings().getIndexVersionCreated();
-            final Map<String, TypeParser> metadataMapperParsers = mapperService.mapperRegistry.getMetadataMapperParsers(
-                indexCreatedVersion
-            );
+            final Map<String, TypeParser> metadataMapperParsers = mapperService.mapperRegistry.getMetadataMapperParsers();
             for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : metadataMapperParsers.entrySet()) {
                 final String name = entry.getKey();
                 final MetadataFieldMapper existingMetadataMapper = existingMapper == null
@@ -161,7 +166,6 @@ public class DocumentMapper implements ToXContentFragment {
         final Collection<String> deleteTombstoneMetadataFields = Arrays.asList(
             VersionFieldMapper.NAME,
             IdFieldMapper.NAME,
-            TypeFieldMapper.NAME,
             SeqNoFieldMapper.NAME,
             SeqNoFieldMapper.PRIMARY_TERM_NAME,
             SeqNoFieldMapper.TOMBSTONE_NAME

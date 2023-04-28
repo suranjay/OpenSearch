@@ -36,7 +36,7 @@ import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActi
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -50,6 +50,11 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.RestRequest.Method.PUT;
 
+/**
+ * Transport action to put alias(es)
+ *
+ * @opensearch.api
+ */
 public class RestIndexPutAliasAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestIndexPutAliasAction.class);
@@ -127,7 +132,9 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
 
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         indicesAliasesRequest.timeout(request.paramAsTime("timeout", indicesAliasesRequest.timeout()));
-        indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", indicesAliasesRequest.masterNodeTimeout()));
+        indicesAliasesRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", indicesAliasesRequest.clusterManagerNodeTimeout())
+        );
         parseDeprecatedMasterTimeoutParameter(indicesAliasesRequest, request, deprecationLogger, getName());
 
         IndicesAliasesRequest.AliasActions aliasAction = AliasActions.add().indices(indices).alias(alias);

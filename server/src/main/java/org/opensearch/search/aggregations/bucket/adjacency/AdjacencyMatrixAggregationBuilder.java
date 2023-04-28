@@ -32,12 +32,12 @@
 
 package org.opensearch.search.aggregations.bucket.adjacency;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
@@ -59,6 +59,11 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 
+/**
+ * Aggregation Builder for adjacency_matrix agg
+ *
+ * @opensearch.internal
+ */
 public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilder<AdjacencyMatrixAggregationBuilder> {
     public static final String NAME = "adjacency_matrix";
 

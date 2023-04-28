@@ -32,13 +32,13 @@
 package org.opensearch.common.unit;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -48,6 +48,8 @@ import java.util.Objects;
  * A unit class that encapsulates all in-exact search
  * parsing and conversion from similarities to edit distances
  * etc.
+ *
+ * @opensearch.internal
  */
 public final class Fuzziness implements ToXContentFragment, Writeable {
 
@@ -137,6 +139,16 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
         return new Fuzziness(string);
     }
 
+    /***
+     * Creates a {@link Fuzziness} instance from lowDistance and highDistance.
+     * where the edit distance is 0 for strings shorter than lowDistance,
+     * 1 for strings where its length between lowDistance and highDistance (inclusive),
+     * and 2 for strings longer than highDistance.
+     */
+    public static Fuzziness customAuto(int lowDistance, int highDistance) {
+        return new Fuzziness("AUTO", lowDistance, highDistance);
+    }
+
     private static Fuzziness parseCustomAuto(final String string) {
         assert string.toUpperCase(Locale.ROOT).startsWith(AUTO.asString() + ":");
         String[] fuzzinessLimit = string.substring(AUTO.asString().length() + 1).split(",");
@@ -166,6 +178,9 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
                 }
                 try {
                     final int minimumSimilarity = Integer.parseInt(fuzziness);
+                    if (minimumSimilarity < 0) {
+                        throw new IllegalArgumentException("Invalid fuzziness value: " + fuzziness);
+                    }
                     switch (minimumSimilarity) {
                         case 0:
                             return ZERO;
@@ -177,7 +192,16 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
                             return build(fuzziness);
                     }
                 } catch (NumberFormatException ex) {
-                    return build(fuzziness);
+                    // Validate if the fuzziness value is formatted correctly as a numeric value.
+                    try {
+                        final float minimumSimilarity = Float.parseFloat(fuzziness);
+                        if (minimumSimilarity < 0.0f || Float.isInfinite(minimumSimilarity) || Float.isNaN(minimumSimilarity)) {
+                            throw new IllegalArgumentException("Invalid fuzziness value: " + fuzziness);
+                        }
+                        return build(fuzziness);
+                    } catch (NumberFormatException e) {
+                        throw new IllegalArgumentException("Invalid fuzziness value: " + fuzziness);
+                    }
                 }
 
             default:
@@ -213,7 +237,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
         if (this.equals(AUTO) || isAutoWithCustomValues()) {
             return 1f;
         }
-        return Float.parseFloat(fuzziness.toString());
+        return Float.parseFloat(fuzziness);
     }
 
     private int termLen(String text) {
@@ -222,9 +246,9 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
 
     public String asString() {
         if (isAutoWithCustomValues()) {
-            return fuzziness.toString() + ":" + lowDistance + "," + highDistance;
+            return fuzziness + ":" + lowDistance + "," + highDistance;
         }
-        return fuzziness.toString();
+        return fuzziness;
     }
 
     private boolean isAutoWithCustomValues() {

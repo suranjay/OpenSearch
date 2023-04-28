@@ -48,7 +48,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.NoOpEngine;
 import org.opensearch.index.mapper.SourceToParse;
@@ -65,6 +65,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CyclicBarrier;
@@ -85,7 +86,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             indexDoc(sourceShard, "_doc", Integer.toString(i));
         }
         sourceShard.flush(new FlushRequest());
-        Store.MetadataSnapshot sourceSnapshot = sourceShard.store().getMetadata(null);
+        Store.MetadataSnapshot sourceSnapshot = sourceShard.store().getMetadata();
         List<StoreFileMetadata> mdFiles = new ArrayList<>();
         for (StoreFileMetadata md : sourceSnapshot) {
             mdFiles.add(md);
@@ -105,7 +106,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             receiveFileInfoFuture
         );
         receiveFileInfoFuture.actionGet();
-        List<RecoveryFileChunkRequest> requests = new ArrayList<>();
+        List<FileChunkRequest> requests = new ArrayList<>();
         long seqNo = 0;
         for (StoreFileMetadata md : mdFiles) {
             try (IndexInput in = sourceShard.store().directory().openInput(md.name(), IOContext.READONCE)) {
@@ -115,7 +116,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                     byte[] buffer = new byte[length];
                     in.readBytes(buffer, 0, length);
                     requests.add(
-                        new RecoveryFileChunkRequest(
+                        new FileChunkRequest(
                             0,
                             seqNo++,
                             sourceShard.shardId(),
@@ -132,7 +133,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             }
         }
         Randomness.shuffle(requests);
-        BlockingQueue<RecoveryFileChunkRequest> queue = new ArrayBlockingQueue<>(requests.size());
+        BlockingQueue<FileChunkRequest> queue = new ArrayBlockingQueue<>(requests.size());
         queue.addAll(requests);
         Thread[] senders = new Thread[between(1, 4)];
         CyclicBarrier barrier = new CyclicBarrier(senders.length);
@@ -140,7 +141,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             senders[i] = new Thread(() -> {
                 try {
                     barrier.await();
-                    RecoveryFileChunkRequest r;
+                    FileChunkRequest r;
                     while ((r = queue.poll()) != null) {
                         recoveryTarget.writeFileChunk(
                             r.metadata(),
@@ -148,7 +149,9 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                             r.content(),
                             r.lastChunk(),
                             r.totalTranslogOps(),
-                            ActionListener.wrap(ignored -> {}, e -> { throw new AssertionError(e); })
+                            ActionListener.wrap(ignored -> {}, e -> {
+                                throw new AssertionError(e);
+                            })
                         );
                     }
                 } catch (Exception e) {
@@ -180,6 +183,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         Randomness.shuffle(seqNos);
         for (long seqNo : seqNos) {
             shard.applyIndexOperationOnReplica(
+                UUID.randomUUID().toString(),
                 seqNo,
                 1,
                 shard.getOperationPrimaryTerm(),
@@ -211,7 +215,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         IndexShard shard = newShard(false);
         shard.markAsRecovering("for testing", new RecoveryState(shard.routingEntry(), localNode, localNode));
         shard.prepareForIndexRecovery();
-        assertThat(shard.recoverLocallyUpToGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
+        assertThat(shard.recoverLocallyAndFetchStartSeqNo(true), equalTo(UNASSIGNED_SEQ_NO));
         assertThat(shard.recoveryState().getTranslog().totalLocal(), equalTo(RecoveryState.Translog.UNKNOWN));
         assertThat(shard.recoveryState().getTranslog().recoveredOperations(), equalTo(0));
         assertThat(shard.getLastKnownGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
@@ -239,7 +243,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         );
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();
-        assertThat(replica.recoverLocallyUpToGlobalCheckpoint(), equalTo(globalCheckpoint + 1));
+        assertThat(replica.recoverLocallyAndFetchStartSeqNo(true), equalTo(globalCheckpoint + 1));
         assertThat(replica.recoveryState().getTranslog().totalLocal(), equalTo(expectedTotalLocal));
         assertThat(replica.recoveryState().getTranslog().recoveredOperations(), equalTo(expectedTotalLocal));
         assertThat(replica.getLastKnownGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
@@ -254,7 +258,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         replica = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();
-        assertThat(replica.recoverLocallyUpToGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
+        assertThat(replica.recoverLocallyAndFetchStartSeqNo(true), equalTo(UNASSIGNED_SEQ_NO));
         assertThat(replica.recoveryState().getTranslog().totalLocal(), equalTo(RecoveryState.Translog.UNKNOWN));
         assertThat(replica.recoveryState().getTranslog().recoveredOperations(), equalTo(0));
         assertThat(replica.getLastKnownGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
@@ -276,10 +280,10 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();
         if (safeCommit.isPresent()) {
-            assertThat(replica.recoverLocallyUpToGlobalCheckpoint(), equalTo(safeCommit.get().localCheckpoint + 1));
+            assertThat(replica.recoverLocallyAndFetchStartSeqNo(true), equalTo(safeCommit.get().localCheckpoint + 1));
             assertThat(replica.recoveryState().getTranslog().totalLocal(), equalTo(0));
         } else {
-            assertThat(replica.recoverLocallyUpToGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
+            assertThat(replica.recoverLocallyAndFetchStartSeqNo(true), equalTo(UNASSIGNED_SEQ_NO));
             assertThat(replica.recoveryState().getTranslog().totalLocal(), equalTo(RecoveryState.Translog.UNKNOWN));
         }
         assertThat(replica.recoveryState().getStage(), equalTo(RecoveryState.Stage.TRANSLOG));
@@ -317,11 +321,12 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE),
             indexMetadata,
             NoOpEngine::new,
-            new EngineConfigFactory(shard.indexSettings())
+            new EngineConfigFactory(shard.indexSettings()),
+            null
         );
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();
-        assertThat(replica.recoverLocallyUpToGlobalCheckpoint(), equalTo(safeCommit.get().localCheckpoint + 1));
+        assertThat(replica.recoverLocallyAndFetchStartSeqNo(true), equalTo(safeCommit.get().localCheckpoint + 1));
         assertThat(replica.recoveryState().getTranslog().totalLocal(), equalTo(0));
         assertThat(replica.recoveryState().getTranslog().recoveredOperations(), equalTo(0));
         assertThat(replica.getLastKnownGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
@@ -348,7 +353,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         shard = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
         shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
         shard.prepareForIndexRecovery();
-        long startingSeqNo = shard.recoverLocallyUpToGlobalCheckpoint();
+        long startingSeqNo = shard.recoverLocallyAndFetchStartSeqNo(true);
         shard.store().markStoreCorrupted(new IOException("simulated"));
         RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, null);
         StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(logger, rNode, recoveryTarget, startingSeqNo);

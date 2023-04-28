@@ -54,7 +54,6 @@ import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.PriorityComparator;
 import org.opensearch.snapshots.SnapshotsInfoService;
@@ -62,6 +61,7 @@ import org.opensearch.snapshots.SnapshotsInfoService;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -79,6 +79,8 @@ import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_L
  * {@link AllocationService} keeps {@link AllocationDeciders} to choose nodes
  * for shard allocation. This class also manages new nodes joining the cluster
  * and rerouting of shards.
+ *
+ * @opensearch.internal
  */
 public class AllocationService {
 
@@ -181,9 +183,9 @@ public class AllocationService {
         if (restoreInProgress != null) {
             RestoreInProgress updatedRestoreInProgress = allocation.updateRestoreInfoWithRoutingChanges(restoreInProgress);
             if (updatedRestoreInProgress != restoreInProgress) {
-                ImmutableOpenMap.Builder<String, ClusterState.Custom> customsBuilder = ImmutableOpenMap.builder(allocation.getCustoms());
+                final Map<String, ClusterState.Custom> customsBuilder = new HashMap<>(allocation.getCustoms());
                 customsBuilder.put(RestoreInProgress.TYPE, updatedRestoreInProgress);
-                newStateBuilder.customs(customsBuilder.build());
+                newStateBuilder.customs(customsBuilder);
             }
         }
         return newStateBuilder.build();
@@ -343,7 +345,7 @@ public class AllocationService {
             final Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
             for (Map.Entry<Integer, List<String>> entry : autoExpandReplicaChanges.entrySet()) {
                 final int numberOfReplicas = entry.getKey();
-                final String[] indices = entry.getValue().toArray(new String[entry.getValue().size()]);
+                final String[] indices = entry.getValue().toArray(new String[0]);
                 // we do *not* update the in sync allocation ids as they will be removed upon the first index
                 // operation which make these copies stale
                 routingTableBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
@@ -740,6 +742,8 @@ public class AllocationService {
     /**
      * this class is used to describe results of applying a set of
      * {@link org.opensearch.cluster.routing.allocation.command.AllocationCommand}
+     *
+     * @opensearch.internal
      */
     public static class CommandsResult {
 

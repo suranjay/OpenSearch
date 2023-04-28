@@ -32,8 +32,6 @@
 
 package org.opensearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.Version;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexGraveyard;
@@ -57,6 +55,7 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -107,19 +106,19 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test whether the ClusterChangedEvent returns the correct value for whether the local node is master,
+     * Test whether the ClusterChangedEvent returns the correct value for whether the local node is cluster-manager,
      * based on what was set on the cluster state.
      */
-    public void testLocalNodeIsMaster() {
+    public void testLocalNodeIsClusterManager() {
         final int numNodesInCluster = 3;
         ClusterState previousState = createSimpleClusterState();
         ClusterState newState = createState(numNodesInCluster, true, initialIndices);
         ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, previousState);
-        assertTrue("local node should be master", event.localNodeMaster());
+        assertTrue("local node should be cluster-manager", event.localNodeClusterManager());
 
         newState = createState(numNodesInCluster, false, initialIndices);
         event = new ClusterChangedEvent("_na_", newState, previousState);
-        assertFalse("local node should not be master", event.localNodeMaster());
+        assertFalse("local node should not be cluster-manager", event.localNodeClusterManager());
     }
 
     /**
@@ -314,6 +313,35 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
         assertTrue(changedCustomMetadataTypeSet.contains(customMetadata1.getWriteableName()));
     }
 
+    // Validate the above test case testLocalNodeIsClusterManager() passes when the deprecated 'master' role is assigned to the local node.
+    public void testLocalNodeIsClusterManagerWithDeprecatedMasterRole() {
+        final DiscoveryNodes.Builder builderLocalIsMaster = DiscoveryNodes.builder();
+        final DiscoveryNode node0 = newNode("node_0", Set.of(DiscoveryNodeRole.MASTER_ROLE));
+        final DiscoveryNode node1 = newNode("node_1", Set.of(DiscoveryNodeRole.DATA_ROLE));
+        builderLocalIsMaster.add(node0).add(node1).clusterManagerNodeId(node0.getId()).localNodeId(node0.getId());
+
+        final DiscoveryNodes.Builder builderLocalNotMaster = DiscoveryNodes.builder();
+        builderLocalNotMaster.add(node0).add(node1).clusterManagerNodeId(node0.getId()).localNodeId(node1.getId());
+
+        ClusterState previousState = createSimpleClusterState();
+        final Metadata metadata = createMetadata(initialIndices);
+        ClusterState newState = ClusterState.builder(TEST_CLUSTER_NAME)
+            .nodes(builderLocalIsMaster.build())
+            .metadata(metadata)
+            .routingTable(createRoutingTable(1, metadata))
+            .build();
+        ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, previousState);
+        assertTrue("local node should be master", event.localNodeClusterManager());
+
+        newState = ClusterState.builder(TEST_CLUSTER_NAME)
+            .nodes(builderLocalNotMaster.build())
+            .metadata(metadata)
+            .routingTable(createRoutingTable(1, metadata))
+            .build();
+        event = new ClusterChangedEvent("_na_", newState, previousState);
+        assertFalse("local node should not be master", event.localNodeClusterManager());
+    }
+
     private static class CustomMetadata2 extends TestCustomMetadata {
         protected CustomMetadata2(String data) {
             super(data);
@@ -361,18 +389,18 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
     }
 
     // Create a basic cluster state with a given set of indices
-    private static ClusterState createState(final int numNodes, final boolean isLocalMaster, final List<Index> indices) {
+    private static ClusterState createState(final int numNodes, final boolean isLocalClusterManager, final List<Index> indices) {
         final Metadata metadata = createMetadata(indices);
         return ClusterState.builder(TEST_CLUSTER_NAME)
-            .nodes(createDiscoveryNodes(numNodes, isLocalMaster))
+            .nodes(createDiscoveryNodes(numNodes, isLocalClusterManager))
             .metadata(metadata)
             .routingTable(createRoutingTable(1, metadata))
             .build();
     }
 
     // Create a non-initialized cluster state
-    private static ClusterState createNonInitializedState(final int numNodes, final boolean isLocalMaster) {
-        final ClusterState withoutBlock = createState(numNodes, isLocalMaster, Collections.emptyList());
+    private static ClusterState createNonInitializedState(final int numNodes, final boolean isLocalClusterManager) {
+        final ClusterState withoutBlock = createState(numNodes, isLocalClusterManager, Collections.emptyList());
         return ClusterState.builder(withoutBlock)
             .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK).build())
             .build();
@@ -382,9 +410,9 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
         final ClusterState.Builder builder = ClusterState.builder(previousState);
         builder.stateUUID(UUIDs.randomBase64UUID());
         Metadata.Builder metadataBuilder = new Metadata.Builder(previousState.metadata());
-        for (ObjectObjectCursor<String, Metadata.Custom> customMetadata : previousState.metadata().customs()) {
-            if (customMetadata.value instanceof TestCustomMetadata) {
-                metadataBuilder.removeCustom(customMetadata.key);
+        for (Map.Entry<String, Metadata.Custom> customMetadata : previousState.metadata().customs().entrySet()) {
+            if (customMetadata.getValue() instanceof TestCustomMetadata) {
+                metadataBuilder.removeCustom(customMetadata.getKey());
             }
         }
         for (TestCustomMetadata testCustomMetadata : customMetadataList) {
@@ -434,28 +462,29 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
     }
 
     // Create the discovery nodes for a cluster state. For our testing purposes, we want
-    // the first to be master, the second to be master eligible, the third to be a data node,
-    // and the remainder can be any kinds of nodes (master eligible, data, or both).
-    private static DiscoveryNodes createDiscoveryNodes(final int numNodes, final boolean isLocalMaster) {
+    // the first to be cluster-manager, the second to be cluster-manager eligible, the third to be a data node,
+    // and the remainder can be any kinds of nodes (cluster-manager eligible, data, or both).
+    private static DiscoveryNodes createDiscoveryNodes(final int numNodes, final boolean isLocalClusterManager) {
         assert (numNodes >= 3) : "the initial cluster state for event change tests should have a minimum of 3 nodes "
-            + "so there are a minimum of 2 master nodes for testing master change events.";
+            + "so there are a minimum of 2 cluster-manager nodes for testing cluster-manager change events.";
         final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        final int localNodeIndex = isLocalMaster ? 0 : randomIntBetween(1, numNodes - 1); // randomly assign the local node if not master
+        final int localNodeIndex = isLocalClusterManager ? 0 : randomIntBetween(1, numNodes - 1); // randomly assign the local node if not
+                                                                                                  // cluster-manager
         for (int i = 0; i < numNodes; i++) {
             final String nodeId = NODE_ID_PREFIX + i;
             Set<DiscoveryNodeRole> roles = new HashSet<>();
             if (i == 0) {
-                // the master node
-                builder.masterNodeId(nodeId);
+                // the cluster-manager node
+                builder.clusterManagerNodeId(nodeId);
                 roles.add(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
             } else if (i == 1) {
-                // the alternate master node
+                // the alternate cluster-manager node
                 roles.add(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
             } else if (i == 2) {
                 // we need at least one data node
                 roles.add(DiscoveryNodeRole.DATA_ROLE);
             } else {
-                // remaining nodes can be anything (except for master)
+                // remaining nodes can be anything (except for cluster-manager)
                 if (randomBoolean()) {
                     roles.add(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
                 }
@@ -520,8 +549,8 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
     // Create the routing table for a cluster state.
     private static RoutingTable createRoutingTable(final long version, final Metadata metadata) {
         final RoutingTable.Builder builder = RoutingTable.builder().version(version);
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            builder.addAsNew(cursor.value);
+        for (final IndexMetadata cursor : metadata.indices().values()) {
+            builder.addAsNew(cursor);
         }
         return builder.build();
     }
@@ -552,7 +581,7 @@ public class ClusterChangedEventTests extends OpenSearchTestCase {
     ) {
         final int numAdd = randomIntBetween(0, 5); // add random # of indices to the next cluster state
         final List<Index> stateIndices = new ArrayList<>();
-        for (Iterator<IndexMetadata> iter = previousState.metadata().indices().valuesIt(); iter.hasNext();) {
+        for (Iterator<IndexMetadata> iter = previousState.metadata().indices().values().iterator(); iter.hasNext();) {
             stateIndices.add(iter.next().getIndex());
         }
         final int numDel;

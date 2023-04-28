@@ -50,9 +50,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.Index;
@@ -97,7 +97,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
         assert NODE == null;
         NODE = RandomizedContext.current().runWithPrivateRandomness(seed, this::newNode);
         // we must wait for the node to actually be up and running. otherwise the node might have started,
-        // elected itself master but might not yet have removed the
+        // elected itself cluster-manager but might not yet have removed the
         // SERVICE_UNAVAILABLE/1/state not recovered / initialized block
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().get();
         assertFalse(clusterHealthResponse.isTimedOut());

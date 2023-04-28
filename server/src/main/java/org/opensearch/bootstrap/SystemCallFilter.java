@@ -43,7 +43,7 @@ import com.sun.jna.ptr.PointerByReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -102,6 +102,8 @@ import java.util.Map;
  *      https://reverse.put.as/wp-content/uploads/2011/06/The-Apple-Sandbox-BHDC2011-Paper.pdf</a>
  * @see <a href="https://docs.oracle.com/cd/E23824_01/html/821-1456/prbac-2.html">
  *      https://docs.oracle.com/cd/E23824_01/html/821-1456/prbac-2.html</a>
+ *
+ * @opensearch.internal
  */
 // not an example of how to write code!!!
 final class SystemCallFilter {
@@ -257,6 +259,8 @@ final class SystemCallFilter {
         Map<String, Arch> m = new HashMap<>();
         m.put("amd64", new Arch(0xC000003E, 0x3FFFFFFF, 57, 58, 59, 322, 317));
         m.put("aarch64", new Arch(0xC00000B7, 0xFFFFFFFF, 1079, 1071, 221, 281, 277));
+        m.put("s390x", new Arch(0x80000016, 0xFFFFFFFF, 2, 190, 11, 354, 348));
+        m.put("ppc64le", new Arch(0xC0000015, 0xFFFFFFFF, 2, 189, 11, 362, 358));
         ARCHITECTURES = Collections.unmodifiableMap(m);
     }
 

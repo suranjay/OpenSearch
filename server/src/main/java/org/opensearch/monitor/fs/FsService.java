@@ -40,10 +40,16 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.SingleObjectCache;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.store.remote.filecache.FileCache;
 
 import java.io.IOException;
 import java.util.function.Supplier;
 
+/**
+ * FileSystem service
+ *
+ * @opensearch.internal
+ */
 public class FsService {
 
     private static final Logger logger = LogManager.getLogger(FsService.class);
@@ -64,8 +70,8 @@ public class FsService {
         Property.NodeScope
     );
 
-    public FsService(final Settings settings, final NodeEnvironment nodeEnvironment) {
-        final FsProbe probe = new FsProbe(nodeEnvironment);
+    public FsService(final Settings settings, final NodeEnvironment nodeEnvironment, FileCache fileCache) {
+        final FsProbe probe = new FsProbe(nodeEnvironment, fileCache);
         final FsInfo initialValue = stats(probe, null);
         if (ALWAYS_REFRESH_SETTING.get(settings)) {
             assert REFRESH_INTERVAL_SETTING.exists(settings) == false;

@@ -43,7 +43,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.threadpool.ThreadPool;
@@ -52,6 +52,8 @@ import org.opensearch.transport.TransportInterceptor;
 
 /**
  * Plugin for extending network and transport related classes
+ *
+ * @opensearch.api
  */
 public interface NetworkPlugin {
 

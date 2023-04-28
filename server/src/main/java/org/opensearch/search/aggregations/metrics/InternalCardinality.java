@@ -35,7 +35,7 @@ package org.opensearch.search.aggregations.metrics;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 
@@ -44,6 +44,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of cardinality agg
+ *
+ * @opensearch.internal
+ */
 public final class InternalCardinality extends InternalNumericMetricsAggregation.SingleValue implements Cardinality {
     private final AbstractHyperLogLogPlusPlus counts;
 

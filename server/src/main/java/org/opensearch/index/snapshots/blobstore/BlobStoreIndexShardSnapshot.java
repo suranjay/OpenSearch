@@ -35,14 +35,14 @@ package org.opensearch.index.snapshots.blobstore;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParserUtils;
 import org.opensearch.index.store.StoreFileMetadata;
 
@@ -54,11 +54,15 @@ import java.util.stream.IntStream;
 
 /**
  * Shard snapshot metadata
+ *
+ * @opensearch.internal
  */
 public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
 
     /**
      * Information about snapshotted file
+     *
+     * @opensearch.internal
      */
     public static class FileInfo {
 

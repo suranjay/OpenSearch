@@ -41,9 +41,9 @@ import org.opensearch.OpenSearchStatusException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -52,6 +52,11 @@ import static org.opensearch.OpenSearchException.REST_EXCEPTION_SKIP_STACK_TRACE
 import static org.opensearch.OpenSearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
+/**
+ * REST response in bytes
+ *
+ * @opensearch.api
+ */
 public class BytesRestResponse extends RestResponse {
 
     public static final String TEXT_CONTENT_TYPE = "text/plain; charset=UTF-8";

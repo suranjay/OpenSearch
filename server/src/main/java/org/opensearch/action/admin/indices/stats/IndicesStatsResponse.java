@@ -39,7 +39,8 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.Index;
 
 import java.io.IOException;
@@ -50,6 +51,11 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * Transport response for retrieving indices stats
+ *
+ * @opensearch.internal
+ */
 public class IndicesStatsResponse extends BroadcastResponse {
 
     private ShardStats[] shards;
@@ -208,6 +214,11 @@ public class IndicesStatsResponse extends BroadcastResponse {
         }
     }
 
+    /**
+     * Fields for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String INDICES = "indices";
         static final String SHARDS = "shards";
@@ -215,6 +226,6 @@ public class IndicesStatsResponse extends BroadcastResponse {
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, false);
+        return Strings.toString(XContentType.JSON, this, true, false);
     }
 }

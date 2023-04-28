@@ -59,6 +59,8 @@ import java.util.function.Consumer;
  * <p>
  * Mainly for use within the framework,
  * but also useful for application code.
+ *
+ * @opensearch.internal
  */
 public abstract class Streams {
 
@@ -196,7 +198,7 @@ public abstract class Streams {
      * Fully consumes the input stream, throwing the bytes away. Returns the number of bytes consumed.
      */
     public static long consumeFully(InputStream inputStream) throws IOException {
-        return org.opensearch.core.internal.io.Streams.copy(inputStream, NULL_OUTPUT_STREAM);
+        return org.opensearch.common.util.io.Streams.copy(inputStream, NULL_OUTPUT_STREAM);
     }
 
     public static List<String> readAllLines(InputStream input) throws IOException {
@@ -242,7 +244,7 @@ public abstract class Streams {
      */
     public static BytesReference readFully(InputStream in) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        org.opensearch.core.internal.io.Streams.copy(in, out);
+        org.opensearch.common.util.io.Streams.copy(in, out);
         return out.bytes();
     }
 
@@ -257,6 +259,8 @@ public abstract class Streams {
      * A wrapper around a {@link BytesStream} that makes the close operation a flush. This is
      * needed as sometimes a stream will be closed but the bytes that the stream holds still need
      * to be used and the stream cannot be closed until the bytes have been consumed.
+     *
+     * @opensearch.internal
      */
     private static class FlushOnCloseOutputStream extends BytesStream {
 
@@ -299,6 +303,8 @@ public abstract class Streams {
 
     /**
      * A wrapper around an {@link InputStream} that limits the number of bytes that can be read from the stream.
+     *
+     * @opensearch.internal
      */
     static class LimitedInputStream extends FilterInputStream {
 

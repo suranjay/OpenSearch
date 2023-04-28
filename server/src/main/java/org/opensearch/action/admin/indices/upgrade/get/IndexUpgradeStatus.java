@@ -38,6 +38,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Status for an Index Upgrade
+ *
+ * @opensearch.internal
+ */
 public class IndexUpgradeStatus implements Iterable<IndexShardUpgradeStatus> {
 
     private final String index;
@@ -62,7 +67,7 @@ public class IndexUpgradeStatus implements Iterable<IndexShardUpgradeStatus> {
                 entry.getKey(),
                 new IndexShardUpgradeStatus(
                     entry.getValue().get(0).getShardRouting().shardId(),
-                    entry.getValue().toArray(new ShardUpgradeStatus[entry.getValue().size()])
+                    entry.getValue().toArray(new ShardUpgradeStatus[0])
                 )
             );
         }

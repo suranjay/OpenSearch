@@ -35,8 +35,7 @@ package org.opensearch.action.bulk;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SparseFixedBitSet;
-import org.opensearch.Assertions;
-import org.opensearch.LegacyESVersion;
+import org.opensearch.core.Assertions;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.ResourceAlreadyExistsException;
@@ -112,6 +111,8 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 /**
  * Groups bulk request items by shard, optionally creating non-existent indices and
  * delegates to {@link TransportShardBulkAction} for shard-level bulk execution
+ *
+ * @opensearch.internal
  */
 public class TransportBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
 
@@ -452,12 +453,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         CreateIndexRequest createIndexRequest = new CreateIndexRequest();
         createIndexRequest.index(index);
         createIndexRequest.cause("auto(bulk api)");
-        createIndexRequest.masterNodeTimeout(timeout);
-        if (minNodeVersion.onOrAfter(LegacyESVersion.V_7_8_0)) {
-            client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
-        } else {
-            client.admin().indices().create(createIndexRequest, listener);
-        }
+        createIndexRequest.clusterManagerNodeTimeout(timeout);
+        client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
     }
 
     private boolean setResponseFailureIfIndexMatches(
@@ -481,7 +478,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     /**
      * retries on retryable cluster blocks, resolves item requests,
      * constructs shard bulk requests and delegates execution to shard bulk action
-     * */
+     *
+     * @opensearch.internal
+     */
     private final class BulkOperation extends ActionRunnable<BulkResponse> {
         private final Task task;
         private BulkRequest bulkRequest; // set to null once all requests are sent out
@@ -610,7 +609,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 BulkShardRequest bulkShardRequest = new BulkShardRequest(
                     shardId,
                     bulkRequest.getRefreshPolicy(),
-                    requests.toArray(new BulkItemRequest[requests.size()])
+                    requests.toArray(new BulkItemRequest[0])
                 );
                 bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
                 bulkShardRequest.timeout(bulkRequest.timeout());
@@ -770,6 +769,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         new BulkOperation(task, bulkRequest, listener, responses, startTimeNanos, indicesThatCannotBeCreated).run();
     }
 
+    /**
+     * Concrete indices
+     *
+     * @opensearch.internal
+     */
     private static class ConcreteIndices {
         private final ClusterState state;
         private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -872,6 +876,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         );
     }
 
+    /**
+     * A modifier for a bulk request
+     *
+     * @opensearch.internal
+     */
     static final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
 
         final BulkRequest bulkRequest;

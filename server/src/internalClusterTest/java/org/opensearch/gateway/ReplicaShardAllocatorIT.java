@@ -32,7 +32,6 @@
 
 package org.opensearch.gateway;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -327,7 +326,7 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
 
     public void testPreferCopyWithHighestMatchingOperations() throws Exception {
         String indexName = "test";
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNodes(3);
         assertAcked(
             client().admin()
@@ -402,7 +401,7 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
      * Make sure that we do not repeatedly cancel an ongoing recovery for a noop copy on a broken node.
      */
     public void testDoNotCancelRecoveryForBrokenNode() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         String nodeWithPrimary = internalCluster().startDataOnlyNode();
         String indexName = "test";
         assertAcked(
@@ -512,13 +511,13 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * If the recovery source is on an old node (before <pre>{@link LegacyESVersion#V_7_2_0}</pre>) then the recovery target
+     * If the recovery source is on an old node (before <pre>{@code LegacyESVersion#V_7_2_0}</pre>) then the recovery target
      * won't have the safe commit after phase1 because the recovery source does not send the global checkpoint in the clean_files
      * step. And if the recovery fails and retries, then the recovery stage might not transition properly. This test simulates
      * this behavior by changing the global checkpoint in phase1 to unassigned.
      */
     public void testSimulateRecoverySourceOnOldNode() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         String source = internalCluster().startDataOnlyNode();
         String indexName = "test";
         assertAcked(

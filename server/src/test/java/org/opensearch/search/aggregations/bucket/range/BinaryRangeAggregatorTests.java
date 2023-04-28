@@ -83,6 +83,10 @@ public class BinaryRangeAggregatorTests extends OpenSearchTestCase {
             return terms.length;
         }
 
+        @Override
+        public int docValueCount() {
+            return ords.length;
+        }
     }
 
     private void doTestSortedSetRangeLeafCollector(int maxNumValuesPerDoc) throws Exception {

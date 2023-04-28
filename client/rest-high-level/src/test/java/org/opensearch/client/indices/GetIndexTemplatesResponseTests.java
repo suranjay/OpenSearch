@@ -38,13 +38,13 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.DeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.OpenSearchTestCase;
@@ -137,10 +137,10 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
                     assertThat(result.mappings().sourceAsMap(), equalTo(expectedMapping.get("_doc")));
 
                     assertThat(result.aliases().size(), equalTo(esIMD.aliases().size()));
-                    List<AliasMetadata> expectedAliases = Arrays.stream(esIMD.aliases().values().toArray(AliasMetadata.class))
+                    List<AliasMetadata> expectedAliases = Arrays.stream(esIMD.aliases().values().toArray(new AliasMetadata[0]))
                         .sorted(Comparator.comparing(AliasMetadata::alias))
                         .collect(Collectors.toList());
-                    List<AliasMetadata> actualAliases = Arrays.stream(result.aliases().values().toArray(AliasMetadata.class))
+                    List<AliasMetadata> actualAliases = Arrays.stream(result.aliases().values().toArray(new AliasMetadata[0]))
                         .sorted(Comparator.comparing(AliasMetadata::alias))
                         .collect(Collectors.toList());
                     for (int j = 0; j < result.aliases().size(); j++) {
@@ -216,7 +216,7 @@ public class GetIndexTemplatesResponseTests extends OpenSearchTestCase {
 
             serverTemplateBuilder.patterns(clientITMD.patterns());
 
-            Iterator<AliasMetadata> aliases = clientITMD.aliases().valuesIt();
+            Iterator<AliasMetadata> aliases = clientITMD.aliases().values().iterator();
             aliases.forEachRemaining((a) -> serverTemplateBuilder.putAlias(a));
 
             serverTemplateBuilder.settings(clientITMD.settings());

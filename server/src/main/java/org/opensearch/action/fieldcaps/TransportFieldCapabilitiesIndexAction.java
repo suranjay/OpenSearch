@@ -48,6 +48,7 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.FailAwareWeightedRouting;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -85,6 +86,11 @@ import java.util.function.Predicate;
 
 import static org.opensearch.action.support.TransportActions.isShardNotAvailableException;
 
+/**
+ * Transport action for field capabilities request in an index
+ *
+ * @opensearch.internal
+ */
 public class TransportFieldCapabilitiesIndexAction extends HandledTransportAction<
     FieldCapabilitiesIndexRequest,
     FieldCapabilitiesIndexResponse> {
@@ -148,8 +154,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
         for (String field : fieldNames) {
             MappedFieldType ft = mapperService.fieldType(field);
             if (ft != null) {
-                if (indicesService.isMetadataField(mapperService.getIndexSettings().getIndexVersionCreated(), field)
-                    || fieldPredicate.test(ft.name())) {
+                if (indicesService.isMetadataField(field) || fieldPredicate.test(ft.name())) {
                     IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                         field,
                         ft.familyTypeName(),
@@ -212,6 +217,8 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
      * An action that executes on each shard sequentially until it finds one that can match the provided
      * {@link FieldCapabilitiesIndexRequest#indexFilter()}. In which case the shard is used
      * to create the final {@link FieldCapabilitiesIndexResponse}.
+     *
+     * @opensearch.internal
      */
     class AsyncShardsAction {
         private final FieldCapabilitiesIndexRequest request;
@@ -255,16 +262,18 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
             tryNext(e, false);
         }
 
-        private ShardRouting nextRoutingOrNull() {
+        private ShardRouting nextRoutingOrNull(Exception failure) {
             if (shardsIt.size() == 0 || shardIndex >= shardsIt.size()) {
                 return null;
             }
-            ShardRouting next = shardsIt.get(shardIndex).nextOrNull();
+            ShardRouting next = FailAwareWeightedRouting.getInstance()
+                .findNext(shardsIt.get(shardIndex), clusterService.state(), failure, this::moveToNextShard);
+
             if (next != null) {
                 return next;
             }
             moveToNextShard();
-            return nextRoutingOrNull();
+            return nextRoutingOrNull(failure);
         }
 
         private void moveToNextShard() {
@@ -272,7 +281,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
         }
 
         private void tryNext(@Nullable final Exception lastFailure, boolean canMatchShard) {
-            ShardRouting shardRouting = nextRoutingOrNull();
+            ShardRouting shardRouting = nextRoutingOrNull(lastFailure);
             if (shardRouting == null) {
                 if (canMatchShard == false) {
                     listener.onResponse(new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false));
@@ -336,6 +345,11 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
         }
     }
 
+    /**
+     * Shard transport handler for field capabilities index action
+     *
+     * @opensearch.internal
+     */
     private class ShardTransportHandler implements TransportRequestHandler<FieldCapabilitiesIndexRequest> {
         @Override
         public void messageReceived(final FieldCapabilitiesIndexRequest request, final TransportChannel channel, Task task)

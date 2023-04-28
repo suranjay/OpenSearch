@@ -32,14 +32,13 @@
 
 package org.opensearch.action.admin.indices.alias;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.RequestValidators;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -51,7 +50,6 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.index.Index;
@@ -64,6 +62,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -72,8 +71,10 @@ import static java.util.Collections.unmodifiableList;
 
 /**
  * Add/remove aliases action
+ *
+ * @opensearch.internal
  */
-public class TransportIndicesAliasesAction extends TransportMasterNodeAction<IndicesAliasesRequest, AcknowledgedResponse> {
+public class TransportIndicesAliasesAction extends TransportClusterManagerNodeAction<IndicesAliasesRequest, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportIndicesAliasesAction.class);
 
@@ -120,11 +121,11 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         for (IndicesAliasesRequest.AliasActions aliasAction : request.aliasActions()) {
             Collections.addAll(indices, aliasAction.indices());
         }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indices.toArray(new String[indices.size()]));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indices.toArray(new String[0]));
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final IndicesAliasesRequest request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
@@ -193,12 +194,12 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
             }
         }
         if (finalActions.isEmpty() && false == actions.isEmpty()) {
-            throw new AliasesNotFoundException(aliases.toArray(new String[aliases.size()]));
+            throw new AliasesNotFoundException(aliases.toArray(new String[0]));
         }
         request.aliasActions().clear();
         IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(unmodifiableList(finalActions))
             .ackTimeout(request.timeout())
-            .masterNodeTimeout(request.masterNodeTimeout());
+            .masterNodeTimeout(request.clusterManagerNodeTimeout());
 
         indexAliasesService.indicesAliases(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
             @Override
@@ -218,14 +219,14 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         if (action.expandAliasesWildcards()) {
             // for DELETE we expand the aliases
             String[] indexAsArray = { concreteIndex };
-            ImmutableOpenMap<String, List<AliasMetadata>> aliasMetadata = metadata.findAliases(action, indexAsArray);
+            final Map<String, List<AliasMetadata>> aliasMetadata = metadata.findAliases(action, indexAsArray);
             List<String> finalAliases = new ArrayList<>();
-            for (ObjectCursor<List<AliasMetadata>> curAliases : aliasMetadata.values()) {
-                for (AliasMetadata aliasMeta : curAliases.value) {
+            for (final List<AliasMetadata> curAliases : aliasMetadata.values()) {
+                for (AliasMetadata aliasMeta : curAliases) {
                     finalAliases.add(aliasMeta.alias());
                 }
             }
-            return finalAliases.toArray(new String[finalAliases.size()]);
+            return finalAliases.toArray(new String[0]);
         } else {
             // for ADD and REMOVE_INDEX we just return the current aliases
             return action.aliases();

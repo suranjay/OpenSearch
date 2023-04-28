@@ -34,7 +34,7 @@ package org.opensearch.painless;
 
 import org.opensearch.painless.lookup.PainlessLookup;
 import org.opensearch.painless.lookup.PainlessLookupBuilder;
-import org.opensearch.painless.spi.Whitelist;
+import org.opensearch.painless.spi.Allowlist;
 import org.opensearch.painless.symbol.FunctionTable;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -47,7 +47,7 @@ import java.util.Collections;
 import java.util.HashMap;
 
 public class DefBootstrapTests extends OpenSearchTestCase {
-    private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
+    private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromAllowlists(Allowlist.BASE_ALLOWLISTS);
 
     /** calls toString() on integers, twice */
     public void testOneType() throws Throwable {
@@ -157,21 +157,13 @@ public class DefBootstrapTests extends OpenSearchTestCase {
         map.put("a", "b");
         assertEquals(2, (int) handle.invokeExact((Object) map));
 
-        final IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> { Integer.toString((int) handle.invokeExact(new Object())); }
-        );
+        final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
+            Integer.toString((int) handle.invokeExact(new Object()));
+        });
         assertEquals("dynamic method [java.lang.Object, size/0] not found", iae.getMessage());
-        assertTrue(
-            "Does not fail inside ClassValue.computeValue()",
-            Arrays.stream(iae.getStackTrace())
-                .anyMatch(
-                    e -> {
-                        return e.getMethodName().equals("computeValue")
-                            && e.getClassName().startsWith("org.opensearch.painless.DefBootstrap$PIC$");
-                    }
-                )
-        );
+        assertTrue("Does not fail inside ClassValue.computeValue()", Arrays.stream(iae.getStackTrace()).anyMatch(e -> {
+            return e.getMethodName().equals("computeValue") && e.getClassName().startsWith("org.opensearch.painless.DefBootstrap$PIC$");
+        }));
     }
 
     // test operators with null guards

@@ -34,12 +34,17 @@ package org.opensearch.search.aggregations.pipeline;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Aggregation Builder for extended_stats agg
+ *
+ * @opensearch.internal
+ */
 public class ExtendedStatsBucketPipelineAggregationBuilder extends BucketMetricsPipelineAggregationBuilder<
     ExtendedStatsBucketPipelineAggregationBuilder> {
     public static final String NAME = "extended_stats_bucket";

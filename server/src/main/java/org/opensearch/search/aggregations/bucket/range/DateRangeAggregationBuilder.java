@@ -33,7 +33,7 @@
 package org.opensearch.search.aggregations.bucket.range;
 
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregationBuilder;
@@ -49,6 +49,11 @@ import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.Map;
 
+/**
+ * Aggregation Builder for date_range agg
+ *
+ * @opensearch.internal
+ */
 public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeAggregationBuilder, RangeAggregator.Range> {
     public static final String NAME = "date_range";
     public static final ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(

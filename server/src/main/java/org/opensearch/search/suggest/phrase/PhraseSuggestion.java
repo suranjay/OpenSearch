@@ -32,24 +32,26 @@
 
 package org.opensearch.search.suggest.phrase;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.text.Text;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.Suggest.Suggestion;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Suggestion entry returned from the {@link PhraseSuggester}.
+ *
+ * @opensearch.internal
  */
 public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry> {
 
@@ -85,6 +87,11 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
         return suggestion;
     }
 
+    /**
+     * Entry in the phrase suggester
+     *
+     * @opensearch.internal
+     */
     public static class Entry extends Suggestion.Entry<PhraseSuggestion.Entry.Option> {
 
         protected double cutoffScore = Double.MIN_VALUE;
@@ -168,6 +175,11 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
             return Objects.hash(super.hashCode(), cutoffScore);
         }
 
+        /**
+         * Options for phrase suggestion
+         *
+         * @opensearch.internal
+         */
         public static class Option extends Suggestion.Entry.Option {
 
             public Option(Text text, Text highlighted, float score, Boolean collateMatch) {

@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.ClusterChangedEvent;
@@ -40,14 +39,16 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.indices.SystemIndices;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A service responsible for updating the metadata used by system indices.
+ *
+ * @opensearch.internal
  */
 public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
 
@@ -56,9 +57,9 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
     private final SystemIndices systemIndices;
     private final ClusterService clusterService;
 
-    private boolean master = false;
+    private boolean clusterManager = false;
 
-    private volatile ImmutableOpenMap<String, IndexMetadata> lastIndexMetadataMap = ImmutableOpenMap.of();
+    private volatile Map<String, IndexMetadata> lastIndexMetadataMap = Map.of();
     private volatile boolean updateTaskPending = false;
 
     public SystemIndexMetadataUpgradeService(SystemIndices systemIndices, ClusterService clusterService) {
@@ -68,17 +69,17 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.localNodeMaster() != master) {
-            this.master = event.localNodeMaster();
+        if (event.localNodeClusterManager() != clusterManager) {
+            this.clusterManager = event.localNodeClusterManager();
         }
 
-        if (master && updateTaskPending == false) {
-            final ImmutableOpenMap<String, IndexMetadata> indexMetadataMap = event.state().metadata().indices();
+        if (clusterManager && updateTaskPending == false) {
+            final Map<String, IndexMetadata> indexMetadataMap = event.state().metadata().indices();
 
             if (lastIndexMetadataMap != indexMetadataMap) {
-                for (ObjectObjectCursor<String, IndexMetadata> cursor : indexMetadataMap) {
-                    if (cursor.value != lastIndexMetadataMap.get(cursor.key)) {
-                        if (systemIndices.isSystemIndex(cursor.value.getIndex()) != cursor.value.isSystem()) {
+                for (final Map.Entry<String, IndexMetadata> cursor : indexMetadataMap.entrySet()) {
+                    if (cursor.getValue() != lastIndexMetadataMap.get(cursor.getKey())) {
+                        if (systemIndices.isSystemIndex(cursor.getValue().getIndex()) != cursor.getValue().isSystem()) {
                             updateTaskPending = true;
                             clusterService.submitStateUpdateTask(
                                 "system_index_metadata_upgrade_service {system metadata change}",
@@ -92,16 +93,21 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         }
     }
 
+    /**
+     * Task to update system index metadata.
+     *
+     * @opensearch.internal
+     */
     public class SystemIndexMetadataUpdateTask extends ClusterStateUpdateTask {
 
         @Override
         public ClusterState execute(ClusterState currentState) throws Exception {
-            final ImmutableOpenMap<String, IndexMetadata> indexMetadataMap = currentState.metadata().indices();
+            final Map<String, IndexMetadata> indexMetadataMap = currentState.metadata().indices();
             final List<IndexMetadata> updatedMetadata = new ArrayList<>();
-            for (ObjectObjectCursor<String, IndexMetadata> cursor : indexMetadataMap) {
-                if (cursor.value != lastIndexMetadataMap.get(cursor.key)) {
-                    if (systemIndices.isSystemIndex(cursor.value.getIndex()) != cursor.value.isSystem()) {
-                        updatedMetadata.add(IndexMetadata.builder(cursor.value).system(!cursor.value.isSystem()).build());
+            for (Map.Entry<String, IndexMetadata> cursor : indexMetadataMap.entrySet()) {
+                if (cursor.getValue() != lastIndexMetadataMap.get(cursor.getKey())) {
+                    if (systemIndices.isSystemIndex(cursor.getValue().getIndex()) != cursor.getValue().isSystem()) {
+                        updatedMetadata.add(IndexMetadata.builder(cursor.getValue()).system(!cursor.getValue().isSystem()).build());
                     }
                 }
             }

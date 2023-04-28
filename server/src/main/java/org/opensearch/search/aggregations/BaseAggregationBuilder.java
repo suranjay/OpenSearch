@@ -32,7 +32,7 @@
 
 package org.opensearch.search.aggregations;
 
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.aggregations.AggregatorFactories.Builder;
 
 import java.util.Map;
@@ -40,6 +40,8 @@ import java.util.Map;
 /**
  * Interface shared by {@link AggregationBuilder} and {@link PipelineAggregationBuilder} so they can conveniently share the same namespace
  * for {@link XContentParser#namedObject(Class, String, Object)}.
+ *
+ * @opensearch.internal
  */
 public interface BaseAggregationBuilder {
     /**

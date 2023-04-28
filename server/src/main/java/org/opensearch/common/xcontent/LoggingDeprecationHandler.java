@@ -32,8 +32,11 @@
 
 package org.opensearch.common.xcontent;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.XContentLocation;
+
 import java.util.function.Supplier;
 
 /**
@@ -44,6 +47,8 @@ import java.util.function.Supplier;
  * requests. It is much less appropriate when parsing responses from external
  * sources because it will report deprecated fields back to the user as
  * though the user sent them.
+ *
+ * @opensearch.internal
  */
 public class LoggingDeprecationHandler implements DeprecationHandler {
     public static final LoggingDeprecationHandler INSTANCE = new LoggingDeprecationHandler();

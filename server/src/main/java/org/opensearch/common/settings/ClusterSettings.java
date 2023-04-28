@@ -32,14 +32,24 @@
 package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
-import org.opensearch.action.main.TransportMainAction;
+import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
+import org.opensearch.action.search.CreatePitController;
 import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressure;
+import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
 import org.opensearch.index.ShardIndexingPressureStore;
+import org.opensearch.search.backpressure.settings.NodeDuressSettings;
+import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
+import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
+import org.opensearch.search.backpressure.settings.SearchTaskSettings;
+import org.opensearch.tasks.TaskManager;
+import org.opensearch.tasks.TaskResourceTrackingService;
+import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
@@ -63,7 +73,7 @@ import org.opensearch.cluster.coordination.FollowersChecker;
 import org.opensearch.cluster.coordination.JoinHelper;
 import org.opensearch.cluster.coordination.LagDetector;
 import org.opensearch.cluster.coordination.LeaderChecker;
-import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.coordination.Reconfigurator;
 import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.Metadata;
@@ -82,7 +92,8 @@ import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDe
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.cluster.service.MasterService;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
+import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.network.NetworkService;
@@ -144,11 +155,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
 /**
  * Encapsulates all valid cluster level settings.
+ *
+ * @opensearch.internal
  */
 public final class ClusterSettings extends AbstractScopedSettings {
 
@@ -217,8 +231,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
             Arrays.asList(
                 AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
                 AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,
+                AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING,
                 BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING,
                 BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING,
+                BalancedShardsAllocator.PREFER_PRIMARY_SHARD_BALANCE,
                 BalancedShardsAllocator.SHARD_MOVE_PRIMARY_FIRST_SETTING,
                 BalancedShardsAllocator.THRESHOLD_SETTING,
                 BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING,
@@ -245,7 +261,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING,
                 Metadata.SETTING_READ_ONLY_SETTING,
                 Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
+                Metadata.DEFAULT_REPLICA_COUNT_SETTING,
+                Metadata.SETTING_CREATE_INDEX_BLOCK_SETTING,
                 ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
+                ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_CLUSTER,
+                ShardLimitValidator.SETTING_CLUSTER_IGNORE_DOT_INDEXES,
                 RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
                 RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
                 RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING,
@@ -264,6 +284,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
+                DiskThresholdSettings.CLUSTER_CREATE_INDEX_BLOCK_AUTO_RELEASE,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING,
                 SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING,
@@ -272,8 +293,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING,
                 InternalSnapshotsInfoService.INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING,
                 DestructiveOperations.REQUIRES_NAME_SETTING,
-                NoMasterBlockService.NO_MASTER_BLOCK_SETTING,  // deprecated
-                NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING,
+                NoClusterManagerBlockService.NO_MASTER_BLOCK_SETTING,  // deprecated
+                NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING,
                 GatewayService.EXPECTED_DATA_NODES_SETTING,
                 GatewayService.EXPECTED_MASTER_NODES_SETTING,
                 GatewayService.EXPECTED_NODES_SETTING,
@@ -333,8 +354,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndexModule.NODE_STORE_ALLOW_MMAP,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                 ClusterService.USER_DEFINED_METADATA,
-                MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,  // deprecated
-                MasterService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                ClusterManagerService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,  // deprecated
+                ClusterManagerService.CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                 SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
                 SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
                 TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
@@ -466,6 +487,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 MultiBucketConsumerService.MAX_BUCKET_SETTING,
                 SearchService.LOW_LEVEL_CANCELLATION_SETTING,
                 SearchService.MAX_OPEN_SCROLL_CONTEXT,
+                SearchService.MAX_OPEN_PIT_CONTEXT,
+                SearchService.MAX_PIT_KEEPALIVE_SETTING,
+                CreatePitController.PIT_INIT_KEEP_ALIVE,
                 Node.WRITE_PORTS_FILE_SETTING,
                 Node.NODE_NAME_SETTING,
                 Node.NODE_ATTRIBUTES,
@@ -520,10 +544,15 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 Node.BREAKER_TYPE_KEY,
                 OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                 OperationRouting.IGNORE_AWARENESS_ATTRIBUTES_SETTING,
+                OperationRouting.WEIGHTED_ROUTING_DEFAULT_WEIGHT,
+                OperationRouting.WEIGHTED_ROUTING_FAILOPEN_ENABLED,
+                OperationRouting.STRICT_WEIGHTED_SHARD_ROUTING_ENABLED,
+                OperationRouting.IGNORE_WEIGHTED_SHARD_ROUTING,
                 IndexGraveyard.SETTING_MAX_TOMBSTONES,
                 PersistentTasksClusterService.CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING,
                 EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING,
                 PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING,
+                PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_DURING_DECOMMISSION_SETTING,
                 PeerFinder.DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING,
                 ClusterFormationFailureHelper.DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING,
                 ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING,
@@ -552,10 +581,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 FsHealthService.REFRESH_INTERVAL_SETTING,
                 FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
                 FsHealthService.HEALTHY_TIMEOUT_SETTING,
-                TransportMainAction.OVERRIDE_MAIN_RESPONSE_VERSION,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_ALLOW_UNASSIGNED_PRIMARIES_SETTING,
+                NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_FLAT_SKEW_SETTING,
                 ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED,
                 ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENFORCED,
                 ShardIndexingPressureSettings.REQUEST_SIZE_WINDOW,
@@ -568,11 +597,68 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ShardIndexingPressureMemoryManager.THROUGHPUT_DEGRADATION_LIMITS,
                 ShardIndexingPressureMemoryManager.SUCCESSFUL_REQUEST_ELAPSED_TIMEOUT,
                 ShardIndexingPressureMemoryManager.MAX_OUTSTANDING_REQUESTS,
-                IndexingPressure.MAX_INDEXING_BYTES
+                IndexingPressure.MAX_INDEXING_BYTES,
+                TaskResourceTrackingService.TASK_RESOURCE_TRACKING_ENABLED,
+                TaskManager.TASK_RESOURCE_CONSUMERS_ENABLED,
+                TopNSearchTasksLogger.LOG_TOP_QUERIES_SIZE_SETTING,
+                TopNSearchTasksLogger.LOG_TOP_QUERIES_FREQUENCY_SETTING,
+                ClusterManagerTaskThrottler.THRESHOLD_SETTINGS,
+                ClusterManagerTaskThrottler.BASE_DELAY_SETTINGS,
+                ClusterManagerTaskThrottler.MAX_DELAY_SETTINGS,
+                // Settings related to search backpressure
+                SearchBackpressureSettings.SETTING_MODE,
+
+                NodeDuressSettings.SETTING_NUM_SUCCESSIVE_BREACHES,
+                NodeDuressSettings.SETTING_CPU_THRESHOLD,
+                NodeDuressSettings.SETTING_HEAP_THRESHOLD,
+                SearchTaskSettings.SETTING_CANCELLATION_RATIO,
+                SearchTaskSettings.SETTING_CANCELLATION_RATE,
+                SearchTaskSettings.SETTING_CANCELLATION_BURST,
+                SearchTaskSettings.SETTING_HEAP_PERCENT_THRESHOLD,
+                SearchTaskSettings.SETTING_HEAP_VARIANCE_THRESHOLD,
+                SearchTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE,
+                SearchTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD,
+                SearchTaskSettings.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD,
+                SearchTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD,
+                SearchShardTaskSettings.SETTING_CANCELLATION_RATIO,
+                SearchShardTaskSettings.SETTING_CANCELLATION_RATE,
+                SearchShardTaskSettings.SETTING_CANCELLATION_BURST,
+                SearchShardTaskSettings.SETTING_HEAP_PERCENT_THRESHOLD,
+                SearchShardTaskSettings.SETTING_HEAP_VARIANCE_THRESHOLD,
+                SearchShardTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE,
+                SearchShardTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD,
+                SearchShardTaskSettings.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD,
+                SearchShardTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD,
+                SearchBackpressureSettings.SETTING_CANCELLATION_RATIO,  // deprecated
+                SearchBackpressureSettings.SETTING_CANCELLATION_RATE,   // deprecated
+                SearchBackpressureSettings.SETTING_CANCELLATION_BURST,   // deprecated
+                SegmentReplicationPressureService.SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED,
+                SegmentReplicationPressureService.MAX_INDEXING_CHECKPOINTS,
+                SegmentReplicationPressureService.MAX_REPLICATION_TIME_SETTING,
+                SegmentReplicationPressureService.MAX_ALLOWED_STALE_SHARDS,
+
+                // Settings related to Searchable Snapshots
+                Node.NODE_SEARCH_CACHE_SIZE_SETTING
             )
         )
     );
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 
+    /**
+     * Map of feature flag name to feature-flagged cluster settings. Once each feature
+     * is ready for production release, the feature flag can be removed, and the
+     * setting should be moved to {@link #BUILT_IN_CLUSTER_SETTINGS}.
+     */
+    public static final Map<List<String>, List<Setting>> FEATURE_FLAGGED_CLUSTER_SETTINGS = Map.of(
+        List.of(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL),
+        List.of(IndicesService.CLUSTER_REPLICATION_TYPE_SETTING),
+        List.of(FeatureFlags.REMOTE_STORE),
+        List.of(
+            IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING,
+            IndicesService.CLUSTER_REMOTE_STORE_REPOSITORY_SETTING,
+            IndicesService.CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING,
+            IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING
+        )
+    );
 }

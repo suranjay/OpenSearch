@@ -40,10 +40,10 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.RerouteExplanation;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.shard.ShardNotFoundException;
 
@@ -53,6 +53,8 @@ import java.util.Optional;
 /**
  * Allocates an unassigned stale primary shard to a specific node. Use with extreme care as this will result in data loss.
  * Allocation deciders are ignored.
+ *
+ * @opensearch.internal
  */
 public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocationCommand {
     public static final String NAME = "allocate_stale_primary";
@@ -93,6 +95,11 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
         return new Builder().parse(parser).build();
     }
 
+    /**
+     * Builder for a stale primary allocation
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends BasePrimaryAllocationCommand.Builder<AllocateStalePrimaryAllocationCommand> {
 
         @Override

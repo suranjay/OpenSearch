@@ -47,14 +47,13 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
@@ -65,7 +64,6 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.hamcrest.CollectionAssertions;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
 
@@ -76,6 +74,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -83,6 +82,7 @@ import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertIndexTemplateExists;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -238,14 +238,14 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
             .setIndices(indices)
             .get();
 
-        ImmutableOpenMap<String, IndexMetadata> metadata = clusterState.getState().getMetadata().indices();
+        final Map<String, IndexMetadata> metadata = clusterState.getState().getMetadata().indices();
         assertThat(metadata.size(), is(expected.length));
 
         RoutingTable routingTable = clusterState.getState().getRoutingTable();
         assertThat(routingTable.indicesRouting().size(), is(expected.length));
 
-        for (String expectedIndex : expected) {
-            assertThat(metadata, CollectionAssertions.hasKey(expectedIndex));
+        for (final String expectedIndex : expected) {
+            assertThat(metadata, hasKey(expectedIndex));
             assertThat(routingTable.hasIndex(expectedIndex), is(true));
         }
     }
@@ -286,7 +286,12 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
                 .get()
         );
         ensureGreen(); // wait for green state, so its both green, and there are no more pending events
-        MappingMetadata masterMappingMetadata = client().admin().indices().prepareGetMappings("test").get().getMappings().get("test");
+        MappingMetadata clusterManagerMappingMetadata = client().admin()
+            .indices()
+            .prepareGetMappings("test")
+            .get()
+            .getMappings()
+            .get("test");
         for (Client client : clients()) {
             MappingMetadata mappingMetadata = client.admin()
                 .indices()
@@ -295,8 +300,8 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
                 .get()
                 .getMappings()
                 .get("test");
-            assertThat(mappingMetadata.source().string(), equalTo(masterMappingMetadata.source().string()));
-            assertThat(mappingMetadata, equalTo(masterMappingMetadata));
+            assertThat(mappingMetadata.source().string(), equalTo(clusterManagerMappingMetadata.source().string()));
+            assertThat(mappingMetadata, equalTo(clusterManagerMappingMetadata));
         }
     }
 
@@ -468,7 +473,7 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
                     return;
                 }
 
-                if (state.nodes().isLocalNodeElectedMaster()) {
+                if (state.nodes().isLocalNodeElectedClusterManager()) {
                     if (state.custom("test") == null) {
                         if (installed.compareAndSet(false, true)) {
                             clusterService.submitStateUpdateTask("install-metadata-custom", new ClusterStateUpdateTask(Priority.URGENT) {

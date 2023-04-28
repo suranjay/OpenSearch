@@ -39,11 +39,16 @@ import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.ReportingService;
 
 import java.io.IOException;
 
+/**
+ * Information about an http connection
+ *
+ * @opensearch.internal
+ */
 public class HttpInfo implements ReportingService.Info {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(HttpInfo.class);

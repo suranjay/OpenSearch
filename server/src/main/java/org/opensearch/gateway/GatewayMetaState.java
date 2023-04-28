@@ -32,12 +32,9 @@
 
 package org.opensearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.util.SetOnce;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
@@ -55,13 +52,13 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.NodeMetadata;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.MetadataUpgrader;
@@ -90,12 +87,14 @@ import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonTh
  * When started, ensures that this version is compatible with the state stored on disk, and performs a state upgrade if necessary. Note that
  * the state being loaded when constructing the instance of this class is not necessarily the state that will be used as {@link
  * ClusterState#metadata()} because it might be stale or incomplete. Cluster-manager-eligible nodes must perform an election to find a complete and
- * non-stale state, and master-ineligible nodes receive the real cluster state from the elected master after joining the cluster.
+ * non-stale state, and cluster-manager-ineligible nodes receive the real cluster state from the elected cluster-manager after joining the cluster.
+ *
+ * @opensearch.internal
  */
 public class GatewayMetaState implements Closeable {
 
     /**
-     * Fake node ID for a voting configuration written by a master-ineligible data node to indicate that its on-disk state is potentially
+     * Fake node ID for a voting configuration written by a cluster-manager-ineligible data node to indicate that its on-disk state is potentially
      * stale (since it is written asynchronously after application, rather than before acceptance). This node ID means that if the node is
      * restarted as a cluster-manager-eligible node then it does not win any elections until it has received a fresh cluster state.
      */
@@ -125,7 +124,7 @@ public class GatewayMetaState implements Closeable {
     ) {
         assert persistedState.get() == null : "should only start once, but already have " + persistedState.get();
 
-        if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
+        if (DiscoveryNode.isClusterManagerNode(settings) || DiscoveryNode.isDataNode(settings)) {
             try {
                 final PersistedClusterStateService.OnDiskState onDiskState = persistedClusterStateService.loadBestOnDiskState();
 
@@ -134,8 +133,8 @@ public class GatewayMetaState implements Closeable {
                 long currentTerm = onDiskState.currentTerm;
 
                 if (onDiskState.empty()) {
-                    assert Version.CURRENT.major <= LegacyESVersion.V_7_0_0.major + 1
-                        : "legacy metadata loader is not needed anymore from v9 onwards";
+                    assert Version.CURRENT.major <= Version.V_3_0_0.major + 1
+                        : "legacy metadata loader is not needed anymore from v4 onwards";
                     final Tuple<Manifest, Metadata> legacyState = metaStateService.loadFullState();
                     if (legacyState.v1().isEmpty() == false) {
                         metadata = legacyState.v2();
@@ -156,7 +155,7 @@ public class GatewayMetaState implements Closeable {
                             .build()
                     );
 
-                    if (DiscoveryNode.isMasterNode(settings)) {
+                    if (DiscoveryNode.isClusterManagerNode(settings)) {
                         persistedState = new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState);
                     } else {
                         persistedState = new AsyncLucenePersistedState(
@@ -269,15 +268,15 @@ public class GatewayMetaState implements Closeable {
     }
 
     private static boolean applyPluginUpgraders(
-        ImmutableOpenMap<String, IndexTemplateMetadata> existingData,
+        final Map<String, IndexTemplateMetadata> existingData,
         UnaryOperator<Map<String, IndexTemplateMetadata>> upgrader,
         Consumer<String> removeData,
         BiConsumer<String, IndexTemplateMetadata> putData
     ) {
         // collect current data
         Map<String, IndexTemplateMetadata> existingMap = new HashMap<>();
-        for (ObjectObjectCursor<String, IndexTemplateMetadata> customCursor : existingData) {
-            existingMap.put(customCursor.key, customCursor.value);
+        for (Map.Entry<String, IndexTemplateMetadata> customCursor : existingData.entrySet()) {
+            existingMap.put(customCursor.getKey(), customCursor.getValue());
         }
         // upgrade global custom meta data
         Map<String, IndexTemplateMetadata> upgradedCustoms = upgrader.apply(existingMap);
@@ -502,8 +501,8 @@ public class GatewayMetaState implements Closeable {
             // (2) the index is currently empty since it was opened with IndexWriterConfig.OpenMode.CREATE
 
             // In the common case it's actually sufficient to commit() the existing state and not do any indexing. For instance,
-            // this is true if there's only one data path on this master node, and the commit we just loaded was already written out
-            // by this version of OpenSearch. TODO TBD should we avoid indexing when possible?
+            // this is true if there's only one data path on this cluster-manager node, and the commit we just loaded was already written
+            // out by this version of OpenSearch. TODO TBD should we avoid indexing when possible?
             final PersistedClusterStateService.Writer writer = persistedClusterStateService.createWriter();
             try {
                 writer.writeFullStateAndCommit(currentTerm, lastAcceptedState);

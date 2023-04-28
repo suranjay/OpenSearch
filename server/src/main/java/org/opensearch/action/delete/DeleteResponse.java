@@ -34,7 +34,7 @@ package org.opensearch.action.delete;
 
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
 
@@ -47,6 +47,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
  *
  * @see org.opensearch.action.delete.DeleteRequest
  * @see org.opensearch.client.Client#delete(DeleteRequest)
+ *
+ * @opensearch.internal
  */
 public class DeleteResponse extends DocWriteResponse {
 
@@ -109,6 +111,8 @@ public class DeleteResponse extends DocWriteResponse {
      * Builder class for {@link DeleteResponse}. This builder is usually used during xcontent parsing to
      * temporarily store the parsed values, then the {@link DocWriteResponse.Builder#build()} method is called to
      * instantiate the {@link DeleteResponse}.
+     *
+     * @opensearch.internal
      */
     public static class Builder extends DocWriteResponse.Builder {
 

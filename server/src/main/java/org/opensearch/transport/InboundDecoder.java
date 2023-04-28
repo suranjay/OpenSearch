@@ -38,11 +38,16 @@ import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 
 import java.io.IOException;
 import java.util.function.Consumer;
 
+/**
+ * Decodes inbound data off the wire
+ *
+ * @opensearch.internal
+ */
 public class InboundDecoder implements Releasable {
 
     static final Object PING = new Object();
@@ -168,8 +173,6 @@ public class InboundDecoder implements Releasable {
         int fixedHeaderSize = TcpHeader.headerSize(remoteVersion);
         if (fixedHeaderSize > reference.length()) {
             return 0;
-        } else if (remoteVersion.before(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-            return fixedHeaderSize;
         } else {
             int variableHeaderSize = reference.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
             int totalHeaderSize = fixedHeaderSize + variableHeaderSize;
@@ -193,11 +196,9 @@ public class InboundDecoder implements Releasable {
             if (invalidVersion != null) {
                 throw invalidVersion;
             } else {
-                if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-                    // Skip since we already have ensured enough data available
-                    streamInput.readInt();
-                    header.finishParsingHeader(streamInput);
-                }
+                // Skip since we already have ensured enough data available
+                streamInput.readInt();
+                header.finishParsingHeader(streamInput);
             }
             return header;
         }

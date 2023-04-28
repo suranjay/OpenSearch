@@ -35,12 +35,11 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.TextFieldMapper;
@@ -67,6 +66,8 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * An internal registry for tokenizer, token filter, char filter and analyzer.
  * This class exists per node and allows to create per-index {@link IndexAnalyzers} via {@link #build(IndexSettings)}
+ *
+ * @opensearch.internal
  */
 public final class AnalysisRegistry implements Closeable {
     public static final String INDEX_ANALYSIS_CHAR_FILTER = "index.analysis.char_filter";
@@ -211,12 +212,10 @@ public final class AnalysisRegistry implements Closeable {
                 }
             });
         } else if ("standard_html_strip".equals(analyzer)) {
-            if (Version.CURRENT.onOrAfter(LegacyESVersion.V_7_0_0)) {
-                throw new IllegalArgumentException(
-                    "[standard_html_strip] analyzer is not supported for new indices, "
-                        + "use a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter"
-                );
-            }
+            throw new IllegalArgumentException(
+                "[standard_html_strip] analyzer is not supported for new indices, "
+                    + "use a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter"
+            );
         }
 
         return analyzerProvider.get(environment, analyzer).get();
@@ -568,6 +567,11 @@ public final class AnalysisRegistry implements Closeable {
         return type;
     }
 
+    /**
+     * Internal prebuilt analysis class
+     *
+     * @opensearch.internal
+     */
     private static class PrebuiltAnalysis implements Closeable {
 
         final Map<String, AnalysisProvider<AnalyzerProvider<?>>> analyzerProviderFactories;
@@ -641,7 +645,9 @@ public final class AnalysisRegistry implements Closeable {
                     charFilterFactoryFactories,
                     tokenizerFactoryFactories
                 ),
-                (k, v) -> { throw new IllegalStateException("already registered analyzer with name: " + entry.getKey()); }
+                (k, v) -> {
+                    throw new IllegalStateException("already registered analyzer with name: " + entry.getKey());
+                }
             );
         }
         for (Map.Entry<String, AnalyzerProvider<?>> entry : normalizerProviders.entrySet()) {

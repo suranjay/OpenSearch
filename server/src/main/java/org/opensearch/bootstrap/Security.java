@@ -116,6 +116,8 @@ import static org.opensearch.bootstrap.FilePermissionUtils.addSingleFilePath;
  * </pre>
  * See <a href="https://docs.oracle.com/javase/7/docs/technotes/guides/security/troubleshooting-security.html">
  * Troubleshooting Security</a> for information.
+ *
+ * @opensearch.internal
  */
 final class Security {
     /** no instantiation */
@@ -314,6 +316,7 @@ final class Security {
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libDir(), "read,readlink", false);
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesDir(), "read,readlink", false);
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsDir(), "read,readlink", false);
+        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.extensionDir(), "read,readlink", false);
         addDirectoryPath(policy, "path.conf'", environment.configDir(), "read,readlink", false);
         // read-write dirs
         addDirectoryPath(policy, "java.io.tmpdir", environment.tmpDir(), "read,readlink,write,delete", false);

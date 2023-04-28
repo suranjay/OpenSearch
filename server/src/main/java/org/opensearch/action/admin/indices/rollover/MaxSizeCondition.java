@@ -36,14 +36,16 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 
 /**
  * A size-based condition for an index size.
  * Evaluates to <code>true</code> if the index size is at least {@link #value}.
+ *
+ * @opensearch.internal
  */
 public class MaxSizeCondition extends Condition<ByteSizeValue> {
     public static final String NAME = "max_size";

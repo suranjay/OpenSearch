@@ -54,7 +54,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
@@ -75,7 +75,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.opensearch.test.NodeRoles.nonMasterNode;
+import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -405,7 +405,7 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
             );
             Settings settings = Settings.builder()
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value())
-                .put(nonMasterNode())
+                .put(nonClusterManagerNode())
                 .put(Node.NODE_NAME_SETTING.getKey(), "test")
                 .build();
             final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode, bigArrays);

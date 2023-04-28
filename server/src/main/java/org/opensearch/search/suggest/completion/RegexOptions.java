@@ -35,20 +35,22 @@ package org.opensearch.search.suggest.completion;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.RegexpFlag;
 
 import java.io.IOException;
 
 /**
  * Regular expression options for completion suggester
+ *
+ * @opensearch.internal
  */
 public class RegexOptions implements ToXContentFragment, Writeable {
     static final ParseField REGEX_OPTIONS = new ParseField("regex");
@@ -153,6 +155,8 @@ public class RegexOptions implements ToXContentFragment, Writeable {
 
     /**
      * Options for regular expression queries
+     *
+     * @opensearch.internal
      */
     public static class Builder {
         private int flagsValue = RegExp.ALL;

@@ -32,7 +32,6 @@
 
 package org.opensearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -65,6 +64,11 @@ import java.util.Set;
 
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 
+/**
+ * Allocates replica shards
+ *
+ * @opensearch.internal
+ */
 public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
     /**
      * Process existing recoveries of replicas and see if we need to cancel them if we find a better
@@ -304,8 +308,8 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         Decision madeDecision = Decision.NO;
         final boolean explain = allocation.debugDecision();
         Map<String, NodeAllocationResult> nodeDecisions = explain ? new HashMap<>() : null;
-        for (ObjectCursor<DiscoveryNode> cursor : allocation.nodes().getDataNodes().values()) {
-            RoutingNode node = allocation.routingNodes().node(cursor.value.getId());
+        for (final DiscoveryNode cursor : allocation.nodes().getDataNodes().values()) {
+            RoutingNode node = allocation.routingNodes().node(cursor.getId());
             if (node == null) {
                 continue;
             }

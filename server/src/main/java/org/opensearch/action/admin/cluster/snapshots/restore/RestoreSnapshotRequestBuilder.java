@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.cluster.snapshots.restore;
 
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
@@ -43,8 +43,10 @@ import java.util.Map;
 
 /**
  * Restore snapshot request builder
+ *
+ * @opensearch.internal
  */
-public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<
+public class RestoreSnapshotRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
     RestoreSnapshotRequest,
     RestoreSnapshotResponse,
     RestoreSnapshotRequestBuilder> {
@@ -244,6 +246,14 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
      */
     public RestoreSnapshotRequestBuilder setIgnoreIndexSettings(List<String> ignoreIndexSettings) {
         request.ignoreIndexSettings(ignoreIndexSettings);
+        return this;
+    }
+
+    /**
+     * Sets the storage type
+     */
+    public RestoreSnapshotRequestBuilder setStorageType(RestoreSnapshotRequest.StorageType storageType) {
+        request.storageType(storageType);
         return this;
     }
 }

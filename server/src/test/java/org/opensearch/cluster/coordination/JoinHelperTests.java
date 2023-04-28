@@ -37,7 +37,7 @@ import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.NotMasterException;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
@@ -86,11 +86,14 @@ public class JoinHelperTests extends OpenSearchTestCase {
             transportService,
             () -> 0L,
             () -> null,
-            (joinRequest, joinCallback) -> { throw new AssertionError(); },
+            (joinRequest, joinCallback) -> {
+                throw new AssertionError();
+            },
             startJoinRequest -> { throw new AssertionError(); },
             Collections.emptyList(),
             (s, p, r) -> {},
-            () -> new StatusInfo(HEALTHY, "info")
+            () -> new StatusInfo(HEALTHY, "info"),
+            nodeCommissioned -> {}
         );
         transportService.start();
 
@@ -186,7 +189,7 @@ public class JoinHelperTests extends OpenSearchTestCase {
 
         assertThat(
             JoinHelper.FailedJoinAttempt.getLogLevel(
-                new RemoteTransportException("caused by NotMasterException", new NotMasterException("test"))
+                new RemoteTransportException("caused by NotClusterManagerException", new NotClusterManagerException("test"))
             ),
             is(Level.DEBUG)
         );
@@ -219,19 +222,11 @@ public class JoinHelperTests extends OpenSearchTestCase {
             null,
             Collections.emptySet()
         );
-        new JoinHelper(
-            Settings.EMPTY,
-            null,
-            null,
-            transportService,
-            () -> 0L,
-            () -> localClusterState,
-            (joinRequest, joinCallback) -> { throw new AssertionError(); },
-            startJoinRequest -> { throw new AssertionError(); },
-            Collections.emptyList(),
-            (s, p, r) -> {},
-            null
-        ); // registers request handler
+        new JoinHelper(Settings.EMPTY, null, null, transportService, () -> 0L, () -> localClusterState, (joinRequest, joinCallback) -> {
+            throw new AssertionError();
+        }, startJoinRequest -> { throw new AssertionError(); }, Collections.emptyList(), (s, p, r) -> {}, null, nodeCommissioned -> {}); // registers
+                                                                                                                                         // request
+                                                                                                                                         // handler
         transportService.start();
         transportService.acceptIncomingRequests();
 
@@ -280,11 +275,14 @@ public class JoinHelperTests extends OpenSearchTestCase {
             transportService,
             () -> 0L,
             () -> null,
-            (joinRequest, joinCallback) -> { throw new AssertionError(); },
+            (joinRequest, joinCallback) -> {
+                throw new AssertionError();
+            },
             startJoinRequest -> { throw new AssertionError(); },
             Collections.emptyList(),
             (s, p, r) -> {},
-            () -> nodeHealthServiceStatus.get()
+            () -> nodeHealthServiceStatus.get(),
+            nodeCommissioned -> {}
         );
         transportService.start();
 

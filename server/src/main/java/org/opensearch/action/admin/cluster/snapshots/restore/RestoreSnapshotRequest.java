@@ -32,18 +32,18 @@
 
 package org.opensearch.action.admin.cluster.snapshots.restore;
 
-import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -61,10 +61,44 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBoole
 
 /**
  * Restore snapshot request
+ *
+ * @opensearch.internal
  */
-public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotRequest> implements ToXContentObject {
+public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSnapshotRequest> implements ToXContentObject {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestoreSnapshotRequest.class);
+
+    /**
+     * Enumeration of possible storage types
+     */
+    public enum StorageType {
+        LOCAL("local"),
+        REMOTE_SNAPSHOT("remote_snapshot");
+
+        private final String text;
+
+        StorageType(String text) {
+            this.text = text;
+        }
+
+        @Override
+        public String toString() {
+            return text;
+        }
+
+        private void toXContent(XContentBuilder builder) throws IOException {
+            builder.field("storage_type", text);
+        }
+
+        private static StorageType fromString(String string) {
+            for (StorageType type : values()) {
+                if (type.text.equals(string)) {
+                    return type;
+                }
+            }
+            throw new IllegalArgumentException("Invalid storage_type: " + string);
+        }
+    }
 
     private String snapshot;
     private String repository;
@@ -78,6 +112,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private boolean includeAliases = true;
     private Settings indexSettings = EMPTY_SETTINGS;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
+    private StorageType storageType = StorageType.LOCAL;
 
     @Nullable // if any snapshot UUID will do
     private String snapshotUuid;
@@ -107,13 +142,11 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         includeGlobalState = in.readBoolean();
         partial = in.readBoolean();
         includeAliases = in.readBoolean();
-        if (in.getVersion().before(LegacyESVersion.V_7_7_0)) {
-            readSettingsFromStream(in); // formerly the unused settings field
-        }
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            snapshotUuid = in.readOptionalString();
+        snapshotUuid = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
+            storageType = in.readEnum(StorageType.class);
         }
     }
 
@@ -130,17 +163,11 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(partial);
         out.writeBoolean(includeAliases);
-        if (out.getVersion().before(LegacyESVersion.V_7_7_0)) {
-            writeSettingsToStream(Settings.EMPTY, out); // formerly the unused settings field
-        }
         writeSettingsToStream(indexSettings, out);
         out.writeStringArray(ignoreIndexSettings);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            out.writeOptionalString(snapshotUuid);
-        } else if (snapshotUuid != null) {
-            throw new IllegalStateException(
-                "restricting the snapshot UUID is forbidden in a cluster with version [" + out.getVersion() + "] nodes"
-            );
+        out.writeOptionalString(snapshotUuid);
+        if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
+            out.writeEnum(storageType);
         }
     }
 
@@ -234,7 +261,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      * @return this request
      */
     public RestoreSnapshotRequest indices(List<String> indices) {
-        this.indices = indices.toArray(new String[indices.size()]);
+        this.indices = indices.toArray(new String[0]);
         return this;
     }
 
@@ -364,7 +391,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      * Sets the list of index settings and index settings groups that shouldn't be restored from snapshot
      */
     public RestoreSnapshotRequest ignoreIndexSettings(List<String> ignoreIndexSettings) {
-        this.ignoreIndexSettings = ignoreIndexSettings.toArray(new String[ignoreIndexSettings.size()]);
+        this.ignoreIndexSettings = ignoreIndexSettings.toArray(new String[0]);
         return this;
     }
 
@@ -479,6 +506,22 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     }
 
     /**
+     * Sets the storage type for this request.
+     */
+    RestoreSnapshotRequest storageType(StorageType storageType) {
+        this.storageType = storageType;
+        return this;
+    }
+
+    /**
+     * Gets the storage type for this request. {@link StorageType#LOCAL} is the
+     * implicit default if not overridden.
+     */
+    public StorageType storageType() {
+        return storageType;
+    }
+
+    /**
      * Parses restore definition
      *
      * @param source restore definition
@@ -535,6 +578,14 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                 } else {
                     throw new IllegalArgumentException("malformed ignore_index_settings section, should be an array of strings");
                 }
+            } else if (name.equals("storage_type")) {
+
+                if (entry.getValue() instanceof String) {
+                    storageType(StorageType.fromString((String) entry.getValue()));
+                } else {
+                    throw new IllegalArgumentException("malformed storage_type");
+                }
+
             } else {
                 if (IndicesOptions.isIndicesOptions(name) == false) {
                     throw new IllegalArgumentException("Unknown parameter " + name);
@@ -577,6 +628,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             builder.value(ignoreIndexSetting);
         }
         builder.endArray();
+        if (storageType != null) {
+            storageType.toXContent(builder);
+        }
         builder.endObject();
         return builder;
     }
@@ -603,7 +657,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             && Objects.equals(renameReplacement, that.renameReplacement)
             && Objects.equals(indexSettings, that.indexSettings)
             && Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings)
-            && Objects.equals(snapshotUuid, that.snapshotUuid);
+            && Objects.equals(snapshotUuid, that.snapshotUuid)
+            && Objects.equals(storageType, that.storageType);
     }
 
     @Override
@@ -619,7 +674,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             partial,
             includeAliases,
             indexSettings,
-            snapshotUuid
+            snapshotUuid,
+            storageType
         );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);
@@ -628,6 +684,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 }

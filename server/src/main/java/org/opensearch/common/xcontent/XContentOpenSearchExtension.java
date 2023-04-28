@@ -37,6 +37,8 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilderExtension;
 import org.opensearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -73,6 +75,8 @@ import java.util.function.Function;
  * SPI extensions for OpenSearch-specific classes (like the Lucene or Joda
  * dependency classes) that need to be encoded by {@link XContentBuilder} in a
  * specific way.
+ *
+ * @opensearch.internal
  */
 public class XContentOpenSearchExtension implements XContentBuilderExtension {
 

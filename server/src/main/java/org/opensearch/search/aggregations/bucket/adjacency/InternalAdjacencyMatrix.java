@@ -34,7 +34,7 @@ package org.opensearch.search.aggregations.bucket.adjacency;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
@@ -48,9 +48,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Internal class used to represent an adjacency matrix as a collection of buckets
+ *
+ * @opensearch.internal
+ */
 public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<InternalAdjacencyMatrix, InternalAdjacencyMatrix.InternalBucket>
     implements
         AdjacencyMatrix {
+
+    /**
+     * An internal bucket of the adjacency matrix
+     *
+     * @opensearch.internal
+     */
     public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket implements AdjacencyMatrix.Bucket {
 
         private final String key;

@@ -41,6 +41,7 @@ import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateTaskConfig;
+import org.opensearch.cluster.LocalNodeClusterManagerListener;
 import org.opensearch.cluster.LocalNodeMasterListener;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.TimeoutClusterStateListener;
@@ -56,7 +57,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.threadpool.Scheduler;
@@ -78,6 +79,11 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonThreadFactory;
 
+/**
+ * Service that provides callbacks when cluster state changes
+ *
+ * @opensearch.internal
+ */
 public class ClusterApplierService extends AbstractLifecycleComponent implements ClusterApplier {
     private static final Logger logger = LogManager.getLogger(ClusterApplierService.class);
 
@@ -270,10 +276,19 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     }
 
     /**
-     * Add a listener for on/off local node master events
+     * Add a listener for on/off local node cluster-manager events
      */
-    public void addLocalNodeMasterListener(LocalNodeMasterListener listener) {
+    public void addLocalNodeClusterManagerListener(LocalNodeClusterManagerListener listener) {
         addListener(listener);
+    }
+
+    /**
+     * Add a listener for on/off local node cluster-manager events
+     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #addLocalNodeClusterManagerListener}
+     */
+    @Deprecated
+    public void addLocalNodeMasterListener(LocalNodeMasterListener listener) {
+        addLocalNodeClusterManagerListener(listener);
     }
 
     /**

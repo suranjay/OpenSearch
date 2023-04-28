@@ -32,15 +32,13 @@
 
 package org.opensearch.action.admin.cluster.snapshots.status;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.StepListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -84,7 +82,12 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
-public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<SnapshotsStatusRequest, SnapshotsStatusResponse> {
+/**
+ * Transport action for accessing snapshot status
+ *
+ * @opensearch.internal
+ */
+public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeAction<SnapshotsStatusRequest, SnapshotsStatusResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportSnapshotsStatusAction.class);
 
@@ -131,7 +134,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final SnapshotsStatusRequest request,
         final ClusterState state,
         final ActionListener<SnapshotsStatusResponse> listener
@@ -149,9 +152,9 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
 
         Set<String> nodesIds = new HashSet<>();
         for (SnapshotsInProgress.Entry entry : currentSnapshots) {
-            for (ObjectCursor<SnapshotsInProgress.ShardSnapshotStatus> status : entry.shards().values()) {
-                if (status.value.nodeId() != null) {
-                    nodesIds.add(status.value.nodeId());
+            for (final SnapshotsInProgress.ShardSnapshotStatus status : entry.shards().values()) {
+                if (status.nodeId() != null) {
+                    nodesIds.add(status.nodeId());
                 }
             }
         }
@@ -164,7 +167,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             }
             transportNodesSnapshotsStatus.execute(
                 new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(Strings.EMPTY_ARRAY)).snapshots(snapshots)
-                    .timeout(request.masterNodeTimeout()),
+                    .timeout(request.clusterManagerNodeTimeout()),
                 ActionListener.wrap(
                     nodeSnapshotStatuses -> threadPool.generic()
                         .execute(
@@ -205,26 +208,26 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 currentSnapshotNames.add(entry.snapshot().getSnapshotId().getName());
                 List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
                 Map<String, IndexId> indexIdLookup = null;
-                for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardEntry : entry.shards()) {
-                    SnapshotsInProgress.ShardSnapshotStatus status = shardEntry.value;
+                for (final Map.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardEntry : entry.shards().entrySet()) {
+                    SnapshotsInProgress.ShardSnapshotStatus status = shardEntry.getValue();
                     if (status.nodeId() != null) {
                         // We should have information about this shard from the shard:
                         TransportNodesSnapshotsStatus.NodeSnapshotStatus nodeStatus = nodeSnapshotStatusMap.get(status.nodeId());
                         if (nodeStatus != null) {
                             Map<ShardId, SnapshotIndexShardStatus> shardStatues = nodeStatus.status().get(entry.snapshot());
                             if (shardStatues != null) {
-                                SnapshotIndexShardStatus shardStatus = shardStatues.get(shardEntry.key);
+                                SnapshotIndexShardStatus shardStatus = shardStatues.get(shardEntry.getKey());
                                 if (shardStatus != null) {
                                     // We have full information about this shard
                                     if (shardStatus.getStage() == SnapshotIndexShardStage.DONE
-                                        && shardEntry.value.state() != SnapshotsInProgress.ShardState.SUCCESS) {
+                                        && shardEntry.getValue().state() != SnapshotsInProgress.ShardState.SUCCESS) {
                                         // Unlikely edge case:
                                         // Data node has finished snapshotting the shard but the cluster state has not yet been updated
                                         // to reflect this. We adjust the status to show up as snapshot metadata being written because
-                                        // technically if the data node failed before successfully reporting DONE state to master, then
-                                        // this shards state would jump to a failed state.
+                                        // technically if the data node failed before successfully reporting DONE state to cluster-manager,
+                                        // then this shards state would jump to a failed state.
                                         shardStatus = new SnapshotIndexShardStatus(
-                                            shardEntry.key,
+                                            shardEntry.getKey(),
                                             SnapshotIndexShardStage.FINALIZE,
                                             shardStatus.getStats(),
                                             shardStatus.getNodeId(),
@@ -242,7 +245,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     // We rebuild the information they would have provided from their in memory state from the cluster
                     // state and the repository contents in the below logic
                     final SnapshotIndexShardStage stage;
-                    switch (shardEntry.value.state()) {
+                    switch (shardEntry.getValue().state()) {
                         case FAILED:
                         case ABORTED:
                         case MISSING:
@@ -257,7 +260,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                             stage = SnapshotIndexShardStage.DONE;
                             break;
                         default:
-                            throw new IllegalArgumentException("Unknown snapshot state " + shardEntry.value.state());
+                            throw new IllegalArgumentException("Unknown snapshot state " + shardEntry.getValue().state());
                     }
                     final SnapshotIndexShardStatus shardStatus;
                     if (stage == SnapshotIndexShardStage.DONE) {
@@ -266,7 +269,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                         if (indexIdLookup == null) {
                             indexIdLookup = entry.indices().stream().collect(Collectors.toMap(IndexId::getName, Function.identity()));
                         }
-                        final ShardId shardId = shardEntry.key;
+                        final ShardId shardId = shardEntry.getKey();
                         shardStatus = new SnapshotIndexShardStatus(
                             shardId,
                             repositoriesService.repository(entry.repository())
@@ -278,7 +281,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                                 .asCopy()
                         );
                     } else {
-                        shardStatus = new SnapshotIndexShardStatus(shardEntry.key, stage);
+                        shardStatus = new SnapshotIndexShardStatus(shardEntry.getKey(), stage);
                     }
                     shardStatusBuilder.add(shardStatus);
                 }
@@ -406,7 +409,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     /**
      * Returns status of shards currently finished snapshots
      * <p>
-     * This method is executed on master node and it's complimentary to the
+     * This method is executed on cluster-manager node and it's complimentary to the
      * {@link SnapshotShardsService#currentSnapshotShards(Snapshot)} because it
      * returns similar information but for already finished snapshots.
      * </p>

@@ -36,7 +36,7 @@ import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
@@ -54,6 +54,11 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * Transport action to get nodes usage
+ *
+ * @opensearch.api
+ */
 public class RestNodesUsageAction extends BaseRestHandler {
 
     @Override

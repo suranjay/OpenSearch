@@ -38,7 +38,7 @@ import org.opensearch.common.geo.parsers.GeoWKTParser;
 import org.opensearch.common.geo.parsers.ShapeParser;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geometry.MultiPolygon;
 import org.opensearch.geometry.Polygon;
 import org.locationtech.jts.geom.Coordinate;
@@ -50,6 +50,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
+/**
+ * Builds a multi polygon geometry
+ *
+ * @opensearch.internal
+ */
 public class MultiPolygonBuilder extends ShapeBuilder<Shape, MultiPolygon, MultiPolygonBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTIPOLYGON;

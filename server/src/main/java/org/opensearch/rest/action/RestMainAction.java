@@ -36,7 +36,7 @@ import org.opensearch.action.main.MainAction;
 import org.opensearch.action.main.MainRequest;
 import org.opensearch.action.main.MainResponse;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
@@ -51,6 +51,11 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.HEAD;
 
+/**
+ * Main OpenSearch Transport action
+ *
+ * @opensearch.api
+ */
 public class RestMainAction extends BaseRestHandler {
 
     @Override

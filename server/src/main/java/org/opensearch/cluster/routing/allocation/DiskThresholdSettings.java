@@ -33,6 +33,7 @@
 package org.opensearch.cluster.routing.allocation;
 
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.Version;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -49,6 +50,8 @@ import java.util.Map;
 
 /**
  * A container to keep settings for disk thresholds up to date with cluster setting changes.
+ *
+ * @opensearch.internal
  */
 public class DiskThresholdSettings {
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING = Setting.boolSetting(
@@ -94,6 +97,12 @@ public class DiskThresholdSettings {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    public static final Setting<Boolean> CLUSTER_CREATE_INDEX_BLOCK_AUTO_RELEASE = Setting.boolSetting(
+        "cluster.blocks.create_index.auto_release",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     private volatile String lowWatermarkRaw;
     private volatile String highWatermarkRaw;
@@ -102,22 +111,20 @@ public class DiskThresholdSettings {
     private volatile ByteSizeValue freeBytesThresholdLow;
     private volatile ByteSizeValue freeBytesThresholdHigh;
     private volatile boolean includeRelocations;
+    private volatile boolean createIndexBlockAutoReleaseEnabled;
     private volatile boolean enabled;
     private volatile TimeValue rerouteInterval;
     private volatile Double freeDiskThresholdFloodStage;
     private volatile ByteSizeValue freeBytesThresholdFloodStage;
-    private static final boolean autoReleaseIndexEnabled;
-    public static final String AUTO_RELEASE_INDEX_ENABLED_KEY = "opensearch.disk.auto_release_flood_stage_block";
 
     static {
+        assert Version.CURRENT.major == Version.V_2_0_0.major + 1; // this check is unnecessary in v4
+        final String AUTO_RELEASE_INDEX_ENABLED_KEY = "opensearch.disk.auto_release_flood_stage_block";
+
         final String property = System.getProperty(AUTO_RELEASE_INDEX_ENABLED_KEY);
-        if (property == null) {
-            autoReleaseIndexEnabled = true;
-        } else if (Boolean.FALSE.toString().equals(property)) {
-            autoReleaseIndexEnabled = false;
-        } else {
+        if (property != null) {
             throw new IllegalArgumentException(
-                AUTO_RELEASE_INDEX_ENABLED_KEY + " may only be unset or set to [false] but was [" + property + "]"
+                "system property [" + AUTO_RELEASE_INDEX_ENABLED_KEY + "] has been removed in 3.0.0 and is not supported anymore"
             );
         }
     }
@@ -132,14 +139,21 @@ public class DiskThresholdSettings {
         this.includeRelocations = CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.get(settings);
         this.rerouteInterval = CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(settings);
         this.enabled = CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
+        this.createIndexBlockAutoReleaseEnabled = CLUSTER_CREATE_INDEX_BLOCK_AUTO_RELEASE.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING, this::setLowWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING, this::setHighWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING, this::setFloodStage);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING, this::setIncludeRelocations);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING, this::setRerouteInterval);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_CREATE_INDEX_BLOCK_AUTO_RELEASE, this::setCreateIndexBlockAutoReleaseEnabled);
     }
 
+    /**
+     * Validates a low disk watermark.
+     *
+     * @opensearch.internal
+     */
     static final class LowDiskWatermarkValidator implements Setting.Validator<String> {
 
         @Override
@@ -165,6 +179,11 @@ public class DiskThresholdSettings {
 
     }
 
+    /**
+     * Validates a high disk watermark.
+     *
+     * @opensearch.internal
+     */
     static final class HighDiskWatermarkValidator implements Setting.Validator<String> {
 
         @Override
@@ -190,6 +209,11 @@ public class DiskThresholdSettings {
 
     }
 
+    /**
+     * Validates the flood stage.
+     *
+     * @opensearch.internal
+     */
     static final class FloodStageValidator implements Setting.Validator<String> {
 
         @Override
@@ -316,6 +340,10 @@ public class DiskThresholdSettings {
         );
     }
 
+    private void setCreateIndexBlockAutoReleaseEnabled(boolean createIndexBlockAutoReleaseEnabled) {
+        this.createIndexBlockAutoReleaseEnabled = createIndexBlockAutoReleaseEnabled;
+    }
+
     /**
      * Gets the raw (uninterpreted) low watermark value as found in the settings.
      */
@@ -354,10 +382,6 @@ public class DiskThresholdSettings {
         return freeBytesThresholdFloodStage;
     }
 
-    public boolean isAutoReleaseIndexEnabled() {
-        return autoReleaseIndexEnabled;
-    }
-
     public boolean includeRelocations() {
         return includeRelocations;
     }
@@ -368,6 +392,10 @@ public class DiskThresholdSettings {
 
     public TimeValue getRerouteInterval() {
         return rerouteInterval;
+    }
+
+    public boolean isCreateIndexBlockAutoReleaseEnabled() {
+        return createIndexBlockAutoReleaseEnabled;
     }
 
     String describeLowThreshold() {

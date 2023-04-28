@@ -32,8 +32,6 @@
 
 package org.opensearch.tools.launchers;
 
-import org.opensearch.tools.java_version_checker.JavaVersion;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -79,14 +77,23 @@ final class SystemJvmOptions {
                 // log4j 2
                 "-Dlog4j.shutdownHookEnabled=false",
                 "-Dlog4j2.disable.jmx=true",
-
+                // security manager
+                allowSecurityManagerOption(),
                 javaLocaleProviders()
             )
         ).stream().filter(e -> e.isEmpty() == false).collect(Collectors.toList());
     }
 
+    private static String allowSecurityManagerOption() {
+        if (Runtime.version().feature() > 17) {
+            return "-Djava.security.manager=allow";
+        } else {
+            return "";
+        }
+    }
+
     private static String maybeShowCodeDetailsInExceptionMessages() {
-        if (JavaVersion.majorVersion(JavaVersion.CURRENT) >= 14) {
+        if (Runtime.version().feature() >= 14) {
             return "-XX:+ShowCodeDetailsInExceptionMessages";
         } else {
             return "";
@@ -101,14 +108,10 @@ final class SystemJvmOptions {
          *
          *  Due to internationalization enhancements in JDK 9 OpenSearch need to set the provider to COMPAT otherwise time/date
          *  parsing will break in an incompatible way for some date patterns and locales.
-         *  //TODO COMPAT will be deprecated in jdk14 https://bugs.openjdk.java.net/browse/JDK-8232906
+         *  //TODO COMPAT will be deprecated in at some point, see please https://bugs.openjdk.java.net/browse/JDK-8232906
          * See also: documentation in <code>server/org.opensearch.common.time.IsoCalendarDataProvider</code>
          */
-        if (JavaVersion.majorVersion(JavaVersion.CURRENT) == 8) {
-            return "-Djava.locale.providers=SPI,JRE";
-        } else {
-            return "-Djava.locale.providers=SPI,COMPAT";
-        }
+        return "-Djava.locale.providers=SPI,COMPAT";
     }
 
 }

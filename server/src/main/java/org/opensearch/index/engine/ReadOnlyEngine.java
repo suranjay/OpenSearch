@@ -39,18 +39,18 @@ import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
-import org.opensearch.common.util.concurrent.ReleasableLock;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogManager;
+import org.opensearch.index.translog.NoOpTranslogManager;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogStats;
@@ -65,7 +65,6 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 /**
  * A basic read-only engine that allows switching a shard to be true read-only temporarily or permanently.
@@ -73,6 +72,8 @@ import java.util.stream.Stream;
  * engine.
  *
  * @see #ReadOnlyEngine(EngineConfig, SeqNoStats, TranslogStats, boolean, Function, boolean)
+ *
+ * @opensearch.internal
  */
 public class ReadOnlyEngine extends Engine {
 
@@ -88,6 +89,8 @@ public class ReadOnlyEngine extends Engine {
     private final SafeCommitInfo safeCommitInfo;
     private final CompletionStatsCache completionStatsCache;
     private final boolean requireCompleteHistory;
+    private final TranslogManager translogManager;
+    private final Version minimumSupportedVersion;
 
     protected volatile TranslogStats translogStats;
 
@@ -114,6 +117,8 @@ public class ReadOnlyEngine extends Engine {
     ) {
         super(config);
         this.requireCompleteHistory = requireCompleteHistory;
+        // fetch the minimum Version for extended backward compatibility use-cases
+        this.minimumSupportedVersion = config.getIndexSettings().getExtendedCompatibilitySnapshotVersion();
         try {
             Store store = config.getStore();
             store.incRef();
@@ -125,7 +130,11 @@ public class ReadOnlyEngine extends Engine {
                 // we obtain the IW lock even though we never modify the index.
                 // yet this makes sure nobody else does. including some testing tools that try to be messy
                 indexWriterLock = obtainLock ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : null;
-                this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
+                if (isExtendedCompatibility()) {
+                    this.lastCommittedSegmentInfos = Lucene.readSegmentInfosExtendedCompatibility(directory, this.minimumSupportedVersion);
+                } else {
+                    this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
+                }
                 if (seqNoStats == null) {
                     seqNoStats = buildSeqNoStats(config, lastCommittedSegmentInfos);
                     ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);
@@ -140,6 +149,21 @@ public class ReadOnlyEngine extends Engine {
                 this.safeCommitInfo = new SafeCommitInfo(seqNoStats.getLocalCheckpoint(), lastCommittedSegmentInfos.totalMaxDoc());
 
                 completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
+
+                translogManager = new NoOpTranslogManager(shardId, readLock, this::ensureOpen, this.translogStats, new Translog.Snapshot() {
+                    @Override
+                    public void close() {}
+
+                    @Override
+                    public int totalOperations() {
+                        return 0;
+                    }
+
+                    @Override
+                    public Translog.Operation next() {
+                        return null;
+                    }
+                });
 
                 success = true;
             } finally {
@@ -156,25 +180,21 @@ public class ReadOnlyEngine extends Engine {
         if (requireCompleteHistory == false) {
             return;
         }
-        // Before 8.0 the global checkpoint is not known and up to date when the engine is created after
+        // Before 3.0 the global checkpoint is not known and up to date when the engine is created after
         // peer recovery, so we only check the max seq no / global checkpoint coherency when the global
         // checkpoint is different from the unassigned sequence number value.
         // In addition to that we only execute the check if the index the engine belongs to has been
         // created after the refactoring of the Close Index API and its TransportVerifyShardBeforeCloseAction
         // that guarantee that all operations have been flushed to Lucene.
-        final Version indexVersionCreated = engineConfig.getIndexSettings().getIndexVersionCreated();
-        if (indexVersionCreated.onOrAfter(LegacyESVersion.V_7_2_0)
-            || (seqNoStats.getGlobalCheckpoint() != SequenceNumbers.UNASSIGNED_SEQ_NO)) {
-            assert assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), seqNoStats.getGlobalCheckpoint());
-            if (seqNoStats.getMaxSeqNo() != seqNoStats.getGlobalCheckpoint()) {
-                throw new IllegalStateException(
-                    "Maximum sequence number ["
-                        + seqNoStats.getMaxSeqNo()
-                        + "] from last commit does not match global checkpoint ["
-                        + seqNoStats.getGlobalCheckpoint()
-                        + "]"
-                );
-            }
+        assert assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), seqNoStats.getGlobalCheckpoint());
+        if (seqNoStats.getMaxSeqNo() != seqNoStats.getGlobalCheckpoint()) {
+            throw new IllegalStateException(
+                "Maximum sequence number ["
+                    + seqNoStats.getMaxSeqNo()
+                    + "] from last commit does not match global checkpoint ["
+                    + seqNoStats.getGlobalCheckpoint()
+                    + "]"
+            );
         }
     }
 
@@ -203,7 +223,17 @@ public class ReadOnlyEngine extends Engine {
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
         assert Transports.assertNotTransportThread("opening index commit of a read-only engine");
-        return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(commit), Lucene.SOFT_DELETES_FIELD);
+        DirectoryReader reader;
+        if (isExtendedCompatibility()) {
+            reader = DirectoryReader.open(commit, this.minimumSupportedVersion.luceneVersion.major, null);
+        } else {
+            reader = DirectoryReader.open(commit);
+        }
+        return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
+    }
+
+    private boolean isExtendedCompatibility() {
+        return Version.CURRENT.minimumIndexCompatibilityVersion().onOrAfter(this.minimumSupportedVersion);
     }
 
     @Override
@@ -240,14 +270,16 @@ public class ReadOnlyEngine extends Engine {
         final long localCheckpoint = Long.parseLong(infos.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
         translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
         try (
-            Translog translog = new Translog(
-                translogConfig,
-                translogUuid,
-                translogDeletionPolicy,
-                config.getGlobalCheckpointSupplier(),
-                config.getPrimaryTermSupplier(),
-                seqNo -> {}
-            )
+            Translog translog = config.getTranslogFactory()
+                .newTranslog(
+                    translogConfig,
+                    translogUuid,
+                    translogDeletionPolicy,
+                    config.getGlobalCheckpointSupplier(),
+                    config.getPrimaryTermSupplier(),
+                    seqNo -> {},
+                    config.getPrimaryModeSupplier()
+                )
         ) {
             return translog.stats();
         }
@@ -264,7 +296,17 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public TranslogManager translogManager() {
+        return translogManager;
+    }
+
+    @Override
     protected SegmentInfos getLastCommittedSegmentInfos() {
+        return lastCommittedSegmentInfos;
+    }
+
+    @Override
+    protected SegmentInfos getLatestSegmentInfos() {
         return lastCommittedSegmentInfos;
     }
 
@@ -307,19 +349,6 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public boolean isTranslogSyncNeeded() {
-        return false;
-    }
-
-    @Override
-    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) {
-        return false;
-    }
-
-    @Override
-    public void syncTranslog() {}
-
-    @Override
     public Closeable acquireHistoryRetentionLock() {
         return () -> {};
     }
@@ -353,18 +382,15 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public TranslogStats getTranslogStats() {
-        return translogStats;
-    }
-
-    @Override
-    public Translog.Location getTranslogLastWriteLocation() {
-        return new Translog.Location(0, 0, 0);
-    }
-
-    @Override
     public long getPersistedLocalCheckpoint() {
         return seqNoStats.getLocalCheckpoint();
+    }
+
+    @Override
+    public long getProcessedLocalCheckpoint() {
+        // the read-only engine does not process checkpoints, so its
+        // processed checkpoint is identical to its persisted one.
+        return getPersistedLocalCheckpoint();
     }
 
     @Override
@@ -442,44 +468,9 @@ public class ReadOnlyEngine extends Engine {
     public void deactivateThrottling() {}
 
     @Override
-    public void trimUnreferencedTranslogFiles() {}
-
-    @Override
-    public boolean shouldRollTranslogGeneration() {
-        return false;
-    }
-
-    @Override
-    public void rollTranslogGeneration() {}
-
-    @Override
-    public int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) {
-        return 0;
-    }
-
-    @Override
     public int fillSeqNoGaps(long primaryTerm) {
         return 0;
     }
-
-    @Override
-    public Engine recoverFromTranslog(final TranslogRecoveryRunner translogRecoveryRunner, final long recoverUpToSeqNo) {
-        try (ReleasableLock lock = readLock.acquire()) {
-            ensureOpen();
-            try (Translog.Snapshot snapshot = newEmptySnapshot()) {
-                translogRecoveryRunner.run(this, snapshot);
-            } catch (final Exception e) {
-                throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
-            }
-        }
-        return this;
-    }
-
-    @Override
-    public void skipTranslogRecovery() {}
-
-    @Override
-    public void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) {}
 
     @Override
     public void maybePruneDeletes() {}

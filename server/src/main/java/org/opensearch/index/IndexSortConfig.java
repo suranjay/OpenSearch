@@ -69,6 +69,7 @@ import java.util.function.Supplier;
  *     </li>
  * </ul>
  *
+ * @opensearch.internal
 **/
 public final class IndexSortConfig {
     /**
@@ -220,10 +221,9 @@ public final class IndexSortConfig {
             }
             IndexFieldData<?> fieldData;
             try {
-                fieldData = fieldDataLookup.apply(
-                    ft,
-                    () -> { throw new UnsupportedOperationException("index sorting not supported on runtime field [" + ft.name() + "]"); }
-                );
+                fieldData = fieldDataLookup.apply(ft, () -> {
+                    throw new UnsupportedOperationException("index sorting not supported on runtime field [" + ft.name() + "]");
+                });
             } catch (Exception e) {
                 throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]", e);
             }
@@ -243,6 +243,11 @@ public final class IndexSortConfig {
         }
     }
 
+    /**
+     * Field sort specification
+     *
+     * @opensearch.internal
+     */
     static class FieldSortSpec {
         final String field;
         SortOrder order;

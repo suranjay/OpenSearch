@@ -37,7 +37,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
@@ -57,6 +57,11 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.rest.action.RestActions.buildBroadcastShardsHeader;
 import static org.opensearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
+/**
+ * Transport action to count documents
+ *
+ * @opensearch.api
+ */
 public class RestCountAction extends BaseRestHandler {
 
     @Override

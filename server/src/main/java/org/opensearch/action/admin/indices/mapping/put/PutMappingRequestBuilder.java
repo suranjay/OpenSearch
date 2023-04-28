@@ -36,7 +36,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchClient;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
 
@@ -44,6 +44,8 @@ import java.util.Map;
 
 /**
  * Builder for a put mapping request
+ *
+ * @opensearch.internal
  */
 public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<
     PutMappingRequest,

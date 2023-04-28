@@ -34,13 +34,18 @@ package org.opensearch.action.admin.cluster.health;
 
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Priority;
 import org.opensearch.common.unit.TimeValue;
 
-public class ClusterHealthRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+/**
+ * Builder for requesting cluster health
+ *
+ * @opensearch.internal
+ */
+public class ClusterHealthRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     ClusterHealthRequest,
     ClusterHealthResponse,
     ClusterHealthRequestBuilder> {
@@ -144,6 +149,24 @@ public class ClusterHealthRequestBuilder extends MasterNodeReadOperationRequestB
 
     public ClusterHealthRequestBuilder setWaitForEvents(Priority waitForEvents) {
         request.waitForEvents(waitForEvents);
+        return this;
+    }
+
+    public ClusterHealthRequestBuilder setAwarenessAttribute(String awarenessAttribute) {
+        request.setAwarenessAttribute(awarenessAttribute);
+        return this;
+    }
+
+    public ClusterHealthRequestBuilder setLevel(String level) {
+        request.setLevel(level);
+        return this;
+    }
+
+    /**
+     * Specifies if the local request should ensure that the local node is commissioned
+     */
+    public final ClusterHealthRequestBuilder setEnsureNodeWeighedIn(boolean ensureNodeCommissioned) {
+        request.ensureNodeWeighedIn(ensureNodeCommissioned);
         return this;
     }
 }

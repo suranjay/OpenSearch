@@ -37,14 +37,14 @@ import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContent;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContent;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -53,7 +53,7 @@ import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.BiConsumer;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -61,11 +61,12 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM
 
 /**
  * Helper to parse bulk requests. This should be considered an internal class.
+ *
+ * @opensearch.internal
  */
 public final class BulkRequestParser {
 
     private static final ParseField INDEX = new ParseField("_index");
-    private static final ParseField TYPE = new ParseField("_type");
     private static final ParseField ID = new ParseField("_id");
     private static final ParseField ROUTING = new ParseField("routing");
     private static final ParseField OP_TYPE = new ParseField("op_type");
@@ -78,16 +79,7 @@ public final class BulkRequestParser {
     private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
     private static final ParseField REQUIRE_ALIAS = new ParseField(DocWriteRequest.REQUIRE_ALIAS);
 
-    // TODO: Remove this parameter once the BulkMonitoring endpoint has been removed
-    private final boolean errorOnType;
-
-    /**
-     * Create a new parser.
-     * @param errorOnType whether to allow _type information in the index line; used by BulkMonitoring
-     */
-    public BulkRequestParser(boolean errorOnType) {
-        this.errorOnType = errorOnType;
-    }
+    private static final Set<String> VALID_ACTIONS = Set.of("create", "delete", "index", "update");
 
     private static int findNextMarker(byte marker, int from, BytesReference data) {
         final int res = data.indexOf(marker, from);
@@ -134,7 +126,7 @@ public final class BulkRequestParser {
         @Nullable Boolean defaultRequireAlias,
         boolean allowExplicitIndex,
         XContentType xContentType,
-        BiConsumer<IndexRequest, String> indexRequestConsumer,
+        Consumer<IndexRequest> indexRequestConsumer,
         Consumer<UpdateRequest> updateRequestConsumer,
         Consumer<DeleteRequest> deleteRequestConsumer
     ) throws IOException {
@@ -188,9 +180,17 @@ public final class BulkRequestParser {
                     );
                 }
                 String action = parser.currentName();
+                if (action == null || VALID_ACTIONS.contains(action) == false) {
+                    throw new IllegalArgumentException(
+                        "Malformed action/metadata line ["
+                            + line
+                            + "], expected one of [create, delete, index, update] but found ["
+                            + action
+                            + "]"
+                    );
+                }
 
                 String index = defaultIndex;
-                String type = null;
                 String id = null;
                 String routing = defaultRouting;
                 FetchSourceContext fetchSourceContext = defaultFetchSourceContext;
@@ -203,7 +203,7 @@ public final class BulkRequestParser {
                 String pipeline = defaultPipeline;
                 boolean requireAlias = defaultRequireAlias != null && defaultRequireAlias;
 
-                // at this stage, next token can either be END_OBJECT (and use default index and type, with auto generated id)
+                // at this stage, next token can either be END_OBJECT (and use default index with auto generated id)
                 // or START_OBJECT which will have another set of parameters
                 token = parser.nextToken();
 
@@ -218,13 +218,6 @@ public final class BulkRequestParser {
                                     throw new IllegalArgumentException("explicit index in bulk is not allowed");
                                 }
                                 index = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
-                            } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                if (errorOnType) {
-                                    throw new IllegalArgumentException(
-                                        "Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]"
-                                    );
-                                }
-                                type = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                                 id = parser.text();
                             } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -320,8 +313,7 @@ public final class BulkRequestParser {
                                     .setIfSeqNo(ifSeqNo)
                                     .setIfPrimaryTerm(ifPrimaryTerm)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
-                                    .setRequireAlias(requireAlias),
-                                type
+                                    .setRequireAlias(requireAlias)
                             );
                         } else {
                             indexRequestConsumer.accept(
@@ -334,8 +326,7 @@ public final class BulkRequestParser {
                                     .setIfSeqNo(ifSeqNo)
                                     .setIfPrimaryTerm(ifPrimaryTerm)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
-                                    .setRequireAlias(requireAlias),
-                                type
+                                    .setRequireAlias(requireAlias)
                             );
                         }
                     } else if ("create".equals(action)) {
@@ -349,8 +340,7 @@ public final class BulkRequestParser {
                                 .setIfSeqNo(ifSeqNo)
                                 .setIfPrimaryTerm(ifPrimaryTerm)
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
-                                .setRequireAlias(requireAlias),
-                            type
+                                .setRequireAlias(requireAlias)
                         );
                     } else if ("update".equals(action)) {
                         if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {

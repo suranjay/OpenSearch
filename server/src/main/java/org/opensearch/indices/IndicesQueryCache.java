@@ -62,6 +62,11 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
+/**
+ * The query cache for indices
+ *
+ * @opensearch.internal
+ */
 public class IndicesQueryCache implements QueryCache, Closeable {
 
     private static final Logger logger = LogManager.getLogger(IndicesQueryCache.class);
@@ -123,13 +128,17 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
         // We also have some shared ram usage that we try to distribute to
         // proportionally to their number of cache entries of each shard
-        long totalSize = 0;
-        for (QueryCacheStats s : stats.values()) {
-            totalSize += s.getCacheSize();
+        if (stats.isEmpty()) {
+            shardStats.add(new QueryCacheStats(sharedRamBytesUsed, 0, 0, 0, 0));
+        } else {
+            long totalSize = 0;
+            for (QueryCacheStats s : stats.values()) {
+                totalSize += s.getCacheSize();
+            }
+            final double weight = totalSize == 0 ? 1d / stats.size() : ((double) shardStats.getCacheSize()) / totalSize;
+            final long additionalRamBytesUsed = Math.round(weight * sharedRamBytesUsed);
+            shardStats.add(new QueryCacheStats(additionalRamBytesUsed, 0, 0, 0, 0));
         }
-        final double weight = totalSize == 0 ? 1d / stats.size() : ((double) shardStats.getCacheSize()) / totalSize;
-        final long additionalRamBytesUsed = Math.round(weight * sharedRamBytesUsed);
-        shardStats.add(new QueryCacheStats(additionalRamBytesUsed, 0, 0, 0, 0));
         return shardStats;
     }
 
@@ -211,6 +220,11 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         cache.clear();
     }
 
+    /**
+     * Statistics for the indices query cache
+     *
+     * @opensearch.internal
+     */
     private static class Stats implements Cloneable {
 
         final ShardId shardId;
@@ -246,6 +260,11 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
     }
 
+    /**
+     * Statistics and Counts
+     *
+     * @opensearch.internal
+     */
     private static class StatsAndCount {
         volatile int count;
         final Stats stats;

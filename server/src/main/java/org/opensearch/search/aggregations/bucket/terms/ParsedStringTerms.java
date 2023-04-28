@@ -33,13 +33,18 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.nio.CharBuffer;
 
+/**
+ * A string result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedStringTerms extends ParsedTerms {
 
     @Override
@@ -62,6 +67,11 @@ public class ParsedStringTerms extends ParsedTerms {
         return aggregation;
     }
 
+    /**
+     * Parsed bucket for string values
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedTerms.ParsedBucket {
 
         private BytesRef key;

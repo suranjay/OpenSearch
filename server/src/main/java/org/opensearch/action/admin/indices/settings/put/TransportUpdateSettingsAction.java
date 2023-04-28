@@ -38,7 +38,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -50,14 +50,37 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.index.Index;
+import org.opensearch.index.IndexModule;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.stream.Stream;
+import java.util.Set;
 
-public class TransportUpdateSettingsAction extends TransportMasterNodeAction<UpdateSettingsRequest, AcknowledgedResponse> {
+import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+
+/**
+ * Transport action for updating index settings
+ *
+ * @opensearch.internal
+ */
+public class TransportUpdateSettingsAction extends TransportClusterManagerNodeAction<UpdateSettingsRequest, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportUpdateSettingsAction.class);
+
+    private final static Set<String> ALLOWLIST_REMOTE_SNAPSHOT_SETTINGS = Set.of(
+        "index.max_result_window",
+        "index.max_inner_result_window",
+        "index.max_rescore_window",
+        "index.max_docvalue_fields_search",
+        "index.max_script_fields",
+        "index.max_terms_count",
+        "index.max_regex_length",
+        "index.highlight.max_analyzed_offset"
+    );
+
+    private final static String[] ALLOWLIST_REMOTE_SNAPSHOT_SETTINGS_PREFIXES = { "index.search.slowlog" };
 
     private final MetadataUpdateSettingsService updateSettingsService;
 
@@ -101,8 +124,31 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeAction<Upd
             || IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.settings())) {
             return null;
         }
-        return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
+
+        final Index[] requestIndices = indexNameExpressionResolver.concreteIndices(state, request);
+        boolean allowSearchableSnapshotSettingsUpdate = true;
+        // check if all indices in the request are remote snapshot
+        for (Index index : requestIndices) {
+            if (state.blocks().indexBlocked(ClusterBlockLevel.METADATA_WRITE, index.getName())) {
+                allowSearchableSnapshotSettingsUpdate = allowSearchableSnapshotSettingsUpdate
+                    && IndexModule.Type.REMOTE_SNAPSHOT.match(
+                        state.getMetadata().getIndexSafe(index).getSettings().get(INDEX_STORE_TYPE_SETTING.getKey())
+                    );
+            }
+        }
+        // check if all settings in the request are in the allow list
+        if (allowSearchableSnapshotSettingsUpdate) {
+            for (String setting : request.settings().keySet()) {
+                allowSearchableSnapshotSettingsUpdate = allowSearchableSnapshotSettingsUpdate
+                    && (ALLOWLIST_REMOTE_SNAPSHOT_SETTINGS.contains(setting)
+                        || Stream.of(ALLOWLIST_REMOTE_SNAPSHOT_SETTINGS_PREFIXES).anyMatch(setting::startsWith));
+            }
+        }
+
+        return allowSearchableSnapshotSettingsUpdate
+            ? null
+            : state.blocks()
+                .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
@@ -111,7 +157,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeAction<Upd
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final UpdateSettingsRequest request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
@@ -123,7 +169,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeAction<Upd
             .settings(request.settings())
             .setPreserveExisting(request.isPreserveExisting())
             .ackTimeout(request.timeout())
-            .masterNodeTimeout(request.masterNodeTimeout());
+            .masterNodeTimeout(request.clusterManagerNodeTimeout());
 
         updateSettingsService.updateSettings(clusterStateUpdateRequest, new ActionListener<ClusterStateUpdateResponse>() {
             @Override

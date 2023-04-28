@@ -36,9 +36,9 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,6 +47,11 @@ import java.util.List;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * Transport request for clearing a search scroll
+ *
+ * @opensearch.internal
+ */
 public class ClearScrollRequest extends ActionRequest implements ToXContentObject {
 
     private List<String> scrollIds;
@@ -96,7 +101,7 @@ public class ClearScrollRequest extends ActionRequest implements ToXContentObjec
         if (scrollIds == null) {
             out.writeVInt(0);
         } else {
-            out.writeStringArray(scrollIds.toArray(new String[scrollIds.size()]));
+            out.writeStringArray(scrollIds.toArray(new String[0]));
         }
     }
 

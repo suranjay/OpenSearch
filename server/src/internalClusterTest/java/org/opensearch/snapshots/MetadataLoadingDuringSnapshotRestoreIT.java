@@ -41,7 +41,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.Plugin;
@@ -198,8 +198,8 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
     }
 
     private CountingMockRepository getCountingMockRepository() {
-        String master = internalCluster().getMasterName();
-        RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, master);
+        String clusterManager = internalCluster().getClusterManagerName();
+        RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, clusterManager);
         Repository repository = repositoriesService.repository("repository");
         assertThat(repository, instanceOf(CountingMockRepository.class));
         return (CountingMockRepository) repository;

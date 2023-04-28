@@ -69,9 +69,9 @@ import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.common.ReplicationListener;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -152,6 +152,7 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
             final IndexShard remainingReplica = shards.getReplicas().get(1);
             // slip the extra document into the replica
             remainingReplica.applyIndexOperationOnReplica(
+                "id",
                 remainingReplica.getLocalCheckpoint() + 1,
                 remainingReplica.getOperationPrimaryTerm(),
                 1,
@@ -809,7 +810,7 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
             CountDownLatch releaseRecovery,
             IndexShard shard,
             DiscoveryNode sourceNode,
-            PeerRecoveryTargetService.RecoveryListener listener,
+            ReplicationListener listener,
             Logger logger
         ) {
             super(shard, sourceNode, listener);

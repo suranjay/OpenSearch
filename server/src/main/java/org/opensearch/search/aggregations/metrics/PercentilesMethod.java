@@ -32,16 +32,18 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ObjectParser;
 
 import java.io.IOException;
 
 /**
  * An enum representing the methods for calculating percentiles
+ *
+ * @opensearch.internal
  */
 public enum PercentilesMethod implements Writeable {
     /**

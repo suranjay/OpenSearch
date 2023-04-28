@@ -62,6 +62,8 @@ import java.util.function.Supplier;
  * Abstract base class for scroll execution modes. This class encapsulates the basic logic to
  * fan out to nodes and execute the query part of the scroll request. Subclasses can for instance
  * run separate fetch phases etc.
+ *
+ * @opensearch.internal
  */
 abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements Runnable {
     protected final Logger logger;
@@ -241,7 +243,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         if (shardFailures.isEmpty()) {
             return ShardSearchFailure.EMPTY_ARRAY;
         }
-        return shardFailures.toArray(new ShardSearchFailure[shardFailures.size()]);
+        return shardFailures.toArray(new ShardSearchFailure[0]);
     }
 
     // we do our best to return the shard failures, but its ok if its not fully concurrently safe

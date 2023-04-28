@@ -36,7 +36,7 @@ import org.apache.lucene.util.PriorityQueue;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.BucketOrder;
@@ -60,12 +60,19 @@ import java.util.Objects;
 
 /**
  * Implementation of {@link Histogram}.
+ *
+ * @opensearch.internal
  */
 public final class InternalDateHistogram extends InternalMultiBucketAggregation<InternalDateHistogram, InternalDateHistogram.Bucket>
     implements
         Histogram,
         HistogramFactory {
 
+    /**
+     * Bucket for an internal date histogram agg
+     *
+     * @opensearch.internal
+     */
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Histogram.Bucket, KeyComparable<Bucket> {
 
         final long key;
@@ -168,6 +175,11 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         }
     }
 
+    /**
+     * Information about an empty bucket
+     *
+     * @opensearch.internal
+     */
     static class EmptyBucketInfo {
 
         final Rounding rounding;

@@ -32,18 +32,18 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.NamedDiff;
-import org.opensearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -51,8 +51,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.opensearch.cluster.metadata.ComposableIndexTemplateMetadata.MINIMMAL_SUPPORTED_VERSION;
+
 /**
  * Custom {@link Metadata} implementation for storing a map of {@link DataStream}s and their names.
+ *
+ * @opensearch.internal
  */
 public class DataStreamMetadata implements Metadata.Custom {
 
@@ -111,7 +115,7 @@ public class DataStreamMetadata implements Metadata.Custom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return LegacyESVersion.V_7_7_0;
+        return MINIMMAL_SUPPORTED_VERSION;
     }
 
     @Override
@@ -156,9 +160,14 @@ public class DataStreamMetadata implements Metadata.Custom {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
+    /**
+     * Builder of data stream metadata.
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
 
         private final Map<String, DataStream> dataStreams = new HashMap<>();
@@ -173,6 +182,11 @@ public class DataStreamMetadata implements Metadata.Custom {
         }
     }
 
+    /**
+     * A diff between data stream metadata.
+     *
+     * @opensearch.internal
+     */
     static class DataStreamMetadataDiff implements NamedDiff<Metadata.Custom> {
 
         final Diff<Map<String, DataStream>> dataStreamDiff;

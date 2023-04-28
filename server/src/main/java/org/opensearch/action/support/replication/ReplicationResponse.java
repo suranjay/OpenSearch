@@ -41,9 +41,9 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
 
@@ -56,6 +56,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
 
 /**
  * Base class for write action responses.
+ *
+ * @opensearch.internal
  */
 public class ReplicationResponse extends ActionResponse {
 
@@ -83,6 +85,11 @@ public class ReplicationResponse extends ActionResponse {
         this.shardInfo = shardInfo;
     }
 
+    /**
+     * Holds shard information
+     *
+     * @opensearch.internal
+     */
     public static class ShardInfo implements Writeable, ToXContentObject {
 
         private static final String TOTAL = "total";
@@ -215,7 +222,7 @@ public class ReplicationResponse extends ActionResponse {
             }
             Failure[] failures = EMPTY;
             if (failuresList != null) {
-                failures = failuresList.toArray(new Failure[failuresList.size()]);
+                failures = failuresList.toArray(new Failure[0]);
             }
             return new ShardInfo(total, successful, failures);
         }
@@ -225,6 +232,11 @@ public class ReplicationResponse extends ActionResponse {
             return "ShardInfo{" + "total=" + total + ", successful=" + successful + ", failures=" + Arrays.toString(failures) + '}';
         }
 
+        /**
+         * Holds failure information
+         *
+         * @opensearch.internal
+         */
         public static class Failure extends ShardOperationFailedException implements ToXContentObject {
 
             private static final String _INDEX = "_index";

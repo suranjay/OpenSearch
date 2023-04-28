@@ -33,16 +33,15 @@
 package org.opensearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.IndexReader;
-import org.opensearch.LegacyESVersion;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.script.Script;
@@ -63,16 +62,24 @@ import org.opensearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.LongConsumer;
 
 /**
  * A {@link CompositeValuesSourceBuilder} that builds a {@link RoundingValuesSource} from a {@link Script} or
  * a field name using the provided interval.
+ *
+ * @opensearch.internal
  */
 public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<DateHistogramValuesSourceBuilder>
     implements
         DateIntervalConsumer {
+    /**
+     * Supplier for a composite date histogram
+     *
+     * @opensearch.internal
+     */
     @FunctionalInterface
     public interface DateHistogramCompositeSupplier {
         CompositeValuesSourceConfig apply(
@@ -129,18 +136,14 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
         super(in);
         dateHistogramInterval = new DateIntervalWrapper(in);
         timeZone = in.readOptionalZoneId();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-            offset = in.readLong();
-        }
+        offset = in.readLong();
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         dateHistogramInterval.writeTo(out);
         out.writeOptionalZoneId(timeZone);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-            out.writeLong(offset);
-        }
+        out.writeLong(offset);
     }
 
     @Override
@@ -289,7 +292,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
     public static void register(ValuesSourceRegistry.Builder builder) {
         builder.register(
             REGISTRY_KEY,
-            org.opensearch.common.collect.List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
+            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
             (valuesSourceConfig, rounding, name, hasScript, format, missingBucket, missingOrder, order) -> {
                 ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
                 // TODO once composite is plugged in to the values source registry or at least understands Date values source types use it

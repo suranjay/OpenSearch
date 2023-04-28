@@ -53,6 +53,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * be wrapped and assign a default {@link Priority#NORMAL} priority.
  * <p>
  * Note, if two tasks have the same priority, the first to arrive will be executed first (FIFO style).
+ *
+ * @opensearch.internal
  */
 public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoolExecutor {
 
@@ -79,7 +81,7 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
         List<Pending> pending = new ArrayList<>();
         addPending(new ArrayList<>(current), pending, true);
         addPending(new ArrayList<>(getQueue()), pending, false);
-        return pending.toArray(new Pending[pending.size()]);
+        return pending.toArray(new Pending[0]);
     }
 
     public int getNumberOfPendingTasks() {
@@ -198,6 +200,11 @@ public class PrioritizedOpenSearchThreadPoolExecutor extends OpenSearchThreadPoo
         return new PrioritizedFutureTask<>((PrioritizedCallable) callable, insertionOrder.incrementAndGet());
     }
 
+    /**
+     * A pending thread
+     *
+     * @opensearch.internal
+     */
     public static class Pending {
         public final Object task;
         public final Priority priority;

@@ -48,6 +48,11 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+/**
+ * Core network service.
+ *
+ * @opensearch.internal
+ */
 public final class NetworkService {
 
     /** By default, we bind to loopback interfaces */
@@ -108,6 +113,8 @@ public final class NetworkService {
     /**
      * A custom name resolver can support custom lookup keys (my_net_key:ipv4) and also change
      * the default inet address used in case no settings is provided.
+     *
+     * @opensearch.internal
      */
     public interface CustomNameResolver {
         /**
@@ -198,7 +205,7 @@ public final class NetworkService {
         // 1. single wildcard address, probably set by network.host: expand to all interface addresses.
         if (addresses.length == 1 && addresses[0].isAnyLocalAddress()) {
             HashSet<InetAddress> all = new HashSet<>(Arrays.asList(NetworkUtils.getAllAddresses()));
-            addresses = all.toArray(new InetAddress[all.size()]);
+            addresses = all.toArray(new InetAddress[0]);
         }
 
         // 2. try to deal with some (mis)configuration
@@ -241,7 +248,7 @@ public final class NetworkService {
         for (String host : hosts) {
             set.addAll(Arrays.asList(resolveInternal(host)));
         }
-        return set.toArray(new InetAddress[set.size()]);
+        return set.toArray(new InetAddress[0]);
     }
 
     /** resolves a single host specification */

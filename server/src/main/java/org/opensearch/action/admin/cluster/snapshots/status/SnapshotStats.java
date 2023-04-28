@@ -38,14 +38,20 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParserUtils;
+import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
+/**
+ * Stats for snapshots
+ *
+ * @opensearch.internal
+ */
 public class SnapshotStats implements Writeable, ToXContentObject {
 
     private long startTime;
@@ -165,6 +171,11 @@ public class SnapshotStats implements Writeable, ToXContentObject {
         out.writeVLong(totalSize);
     }
 
+    /**
+     * Inner Fields used for creating XContent and parsing
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String STATS = "stats";
 
@@ -346,7 +357,7 @@ public class SnapshotStats implements Writeable, ToXContentObject {
             time = endTime - startTime;
         }
         assert time >= 0 : "Update with ["
-            + Strings.toString(stats)
+            + Strings.toString(XContentType.JSON, stats)
             + "]["
             + updateTimestamps
             + "] resulted in negative total time ["

@@ -33,13 +33,13 @@
 package org.opensearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.search.MatchQuery;
 import org.opensearch.index.search.MatchQuery.ZeroTermsQuery;
 
@@ -49,6 +49,8 @@ import java.util.Objects;
 /**
  * Match query is a query that analyzes the text and constructs a phrase query
  * as the result of the analysis.
+ *
+ * @opensearch.internal
  */
 public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQueryBuilder> {
     public static final String NAME = "match_phrase";

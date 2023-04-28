@@ -32,9 +32,9 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.io.IOException;
@@ -45,6 +45,8 @@ import java.util.Map;
 
 /**
  * A parser for parsing requests for a {@link BucketMetricsPipelineAggregator}
+ *
+ * @opensearch.internal
  */
 public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
 
@@ -83,7 +85,7 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
                         String path = parser.text();
                         paths.add(path);
                     }
-                    bucketsPaths = paths.toArray(new String[paths.size()]);
+                    bucketsPaths = paths.toArray(new String[0]);
                 } else {
                     parseToken(pipelineAggregatorName, parser, currentFieldName, token, params);
                 }

@@ -37,7 +37,6 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.PriorityQueue;
-import org.opensearch.common.collect.List;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.LongArray;
@@ -62,6 +61,7 @@ import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -70,6 +70,11 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 
+/**
+ * Aggregate all docs that contain numeric terms
+ *
+ * @opensearch.internal
+ */
 public class NumericTermsAggregator extends TermsAggregator {
     private final ResultStrategy<?, ?> resultStrategy;
     private final ValuesSource.Numeric valuesSource;

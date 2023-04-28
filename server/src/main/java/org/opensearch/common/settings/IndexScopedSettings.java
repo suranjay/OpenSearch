@@ -40,6 +40,7 @@ import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecid
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
@@ -60,6 +61,7 @@ import org.opensearch.indices.IndicesRequestCache;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -67,6 +69,8 @@ import java.util.function.Predicate;
 /**
  * Encapsulates all valid index level settings.
  * @see Property#IndexScope
+ *
+ * @opensearch.internal
  */
 public final class IndexScopedSettings extends AbstractScopedSettings {
 
@@ -97,6 +101,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_DATA_PATH_SETTING,
                 IndexMetadata.INDEX_FORMAT_SETTING,
                 IndexMetadata.INDEX_HIDDEN_SETTING,
+                IndexMetadata.INDEX_REPLICATION_TYPE_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
@@ -146,6 +151,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_CHECK_ON_STARTUP,
                 IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD,
                 IndexSettings.MAX_SLICES_PER_SCROLL,
+                IndexSettings.MAX_SLICES_PER_PIT,
                 IndexSettings.MAX_REGEX_LENGTH_SETTING,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
                 IndexSettings.INDEX_GC_DELETES_SETTING,
@@ -176,6 +182,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
                 IndexModule.INDEX_STORE_TYPE_SETTING,
                 IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
+                IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS,
                 IndexModule.INDEX_RECOVERY_TYPE_SETTING,
                 IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING,
                 FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING,
@@ -189,6 +196,13 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING,
                 IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED,
                 IndexSettings.INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME,
+                IndexSettings.INDEX_MERGE_ON_FLUSH_POLICY,
+
+                // Settings for Searchable Snapshots
+                IndexSettings.SEARCHABLE_SNAPSHOT_REPOSITORY,
+                IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID,
+                IndexSettings.SEARCHABLE_SNAPSHOT_ID_NAME,
+                IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
@@ -204,6 +218,22 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 Setting.groupSetting("index.analysis.", Property.IndexScope) // this allows analysis settings to be passed
 
             )
+        )
+    );
+
+    /**
+     * Map of feature flag name to feature-flagged index setting. Once each feature
+     * is ready for production release, the feature flag can be removed, and the
+     * setting should be moved to {@link #BUILT_IN_INDEX_SETTINGS}.
+     */
+    public static final Map<String, List<Setting>> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of(
+        FeatureFlags.REMOTE_STORE,
+        List.of(
+            IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING,
+            IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING,
+            IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING,
+            IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
+            IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING
         )
     );
 

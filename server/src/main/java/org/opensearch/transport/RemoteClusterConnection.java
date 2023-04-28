@@ -42,7 +42,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -61,6 +61,8 @@ import java.util.function.Function;
  * In the case of a disconnection, this class will issue a re-connect task to establish at most
  * {@link SniffConnectionStrategy#REMOTE_CONNECTIONS_PER_CLUSTER} until either all eligible nodes are exhausted or the maximum number of
  * connections per cluster has been reached.
+ *
+ * @opensearch.internal
  */
 final class RemoteClusterConnection implements Closeable {
 

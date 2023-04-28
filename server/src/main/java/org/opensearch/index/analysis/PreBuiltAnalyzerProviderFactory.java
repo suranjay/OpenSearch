@@ -35,7 +35,7 @@ package org.opensearch.index.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.opensearch.Version;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.analysis.PreBuiltAnalyzers;
@@ -49,6 +49,11 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+/**
+ * Factory to create the providers for all prebuilt analyzers
+ *
+ * @opensearch.internal
+ */
 public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisComponent<AnalyzerProvider<?>> implements Closeable {
 
     private final Function<Version, Analyzer> create;
@@ -99,6 +104,8 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
      *
      *  This can be removed when all analyzers have been moved away from PreBuiltAnalyzers to
      *  PreBuiltAnalyzerProviderFactory either in server or analysis-common.
+     *
+     * @opensearch.internal
      */
     static class PreBuiltAnalyzersDelegateCache implements PreBuiltCacheFactory.PreBuiltCache<AnalyzerProvider<?>> {
 

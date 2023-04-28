@@ -83,11 +83,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MapperTestUtils;
@@ -111,8 +111,13 @@ import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.InternalTranslogManager;
+import org.opensearch.index.translog.LocalTranslog;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.index.translog.TranslogDeletionPolicy;
+import org.opensearch.index.translog.TranslogManager;
+import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.DummyShardLock;
@@ -146,6 +151,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.shuffle;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.opensearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
@@ -221,7 +227,6 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         Lucene.cleanLuceneIndex(store.directory());
         Lucene.cleanLuceneIndex(storeReplica.directory());
         primaryTranslogDir = createTempDir("translog-primary");
-        translogHandler = createTranslogHandler(defaultSettings);
         engine = createEngine(store, primaryTranslogDir);
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
@@ -242,84 +247,81 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     }
 
     public EngineConfig copy(EngineConfig config, LongSupplier globalCheckpointSupplier) {
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            config.getIndexSettings(),
-            config.getWarmer(),
-            config.getStore(),
-            config.getMergePolicy(),
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            new CodecService(null, logger),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            config.getTranslogConfig(),
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            Collections.emptyList(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            globalCheckpointSupplier,
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            tombstoneDocSupplier()
-        );
+        return new EngineConfig.Builder().shardId(config.getShardId())
+            .threadPool(config.getThreadPool())
+            .indexSettings(config.getIndexSettings())
+            .warmer(config.getWarmer())
+            .store(config.getStore())
+            .mergePolicy(config.getMergePolicy())
+            .analyzer(config.getAnalyzer())
+            .similarity(config.getSimilarity())
+            .codecService(new CodecService(null, logger))
+            .eventListener(config.getEventListener())
+            .queryCache(config.getQueryCache())
+            .queryCachingPolicy(config.getQueryCachingPolicy())
+            .translogConfig(config.getTranslogConfig())
+            .flushMergesAfter(config.getFlushMergesAfter())
+            .externalRefreshListener(config.getExternalRefreshListener())
+            .internalRefreshListener(emptyList())
+            .indexSort(config.getIndexSort())
+            .circuitBreakerService(config.getCircuitBreakerService())
+            .globalCheckpointSupplier(globalCheckpointSupplier)
+            .retentionLeasesSupplier(config.retentionLeasesSupplier())
+            .primaryTermSupplier(config.getPrimaryTermSupplier())
+            .tombstoneDocSupplier(tombstoneDocSupplier())
+            .build();
     }
 
     public EngineConfig copy(EngineConfig config, Analyzer analyzer) {
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            config.getIndexSettings(),
-            config.getWarmer(),
-            config.getStore(),
-            config.getMergePolicy(),
-            analyzer,
-            config.getSimilarity(),
-            new CodecService(null, logger),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            config.getTranslogConfig(),
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            Collections.emptyList(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            config.getGlobalCheckpointSupplier(),
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            config.getTombstoneDocSupplier()
-        );
+        return new EngineConfig.Builder().shardId(config.getShardId())
+            .threadPool(config.getThreadPool())
+            .indexSettings(config.getIndexSettings())
+            .warmer(config.getWarmer())
+            .store(config.getStore())
+            .mergePolicy(config.getMergePolicy())
+            .analyzer(analyzer)
+            .similarity(config.getSimilarity())
+            .codecService(new CodecService(null, logger))
+            .eventListener(config.getEventListener())
+            .queryCache(config.getQueryCache())
+            .queryCachingPolicy(config.getQueryCachingPolicy())
+            .translogConfig(config.getTranslogConfig())
+            .flushMergesAfter(config.getFlushMergesAfter())
+            .externalRefreshListener(config.getExternalRefreshListener())
+            .internalRefreshListener(emptyList())
+            .indexSort(config.getIndexSort())
+            .circuitBreakerService(config.getCircuitBreakerService())
+            .globalCheckpointSupplier(config.getGlobalCheckpointSupplier())
+            .retentionLeasesSupplier(config.retentionLeasesSupplier())
+            .primaryTermSupplier(config.getPrimaryTermSupplier())
+            .tombstoneDocSupplier(config.getTombstoneDocSupplier())
+            .build();
     }
 
     public EngineConfig copy(EngineConfig config, MergePolicy mergePolicy) {
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            config.getIndexSettings(),
-            config.getWarmer(),
-            config.getStore(),
-            mergePolicy,
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            new CodecService(null, logger),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            config.getTranslogConfig(),
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            Collections.emptyList(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            config.getGlobalCheckpointSupplier(),
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            config.getTombstoneDocSupplier()
-        );
+        return new EngineConfig.Builder().shardId(config.getShardId())
+            .threadPool(config.getThreadPool())
+            .indexSettings(config.getIndexSettings())
+            .warmer(config.getWarmer())
+            .store(config.getStore())
+            .mergePolicy(mergePolicy)
+            .analyzer(config.getAnalyzer())
+            .similarity(config.getSimilarity())
+            .codecService(new CodecService(null, logger))
+            .eventListener(config.getEventListener())
+            .queryCache(config.getQueryCache())
+            .queryCachingPolicy(config.getQueryCachingPolicy())
+            .translogConfig(config.getTranslogConfig())
+            .flushMergesAfter(config.getFlushMergesAfter())
+            .externalRefreshListener(config.getExternalRefreshListener())
+            .internalRefreshListener(emptyList())
+            .indexSort(config.getIndexSort())
+            .circuitBreakerService(config.getCircuitBreakerService())
+            .globalCheckpointSupplier(config.getGlobalCheckpointSupplier())
+            .retentionLeasesSupplier(config.retentionLeasesSupplier())
+            .primaryTermSupplier(config.getPrimaryTermSupplier())
+            .tombstoneDocSupplier(config.getTombstoneDocSupplier())
+            .build();
     }
 
     @Override
@@ -328,21 +330,33 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         super.tearDown();
         try {
             if (engine != null && engine.isClosed.get() == false) {
-                engine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
-                assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
-                assertNoInFlightDocuments(engine);
-                assertMaxSeqNoInCommitUserData(engine);
-                assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
+                engine.ensureOpen();
+                assertEngineCleanedUp(engine, assertAndGetInternalTranslogManager(engine.translogManager()).getDeletionPolicy());
             }
             if (replicaEngine != null && replicaEngine.isClosed.get() == false) {
-                replicaEngine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
-                assertConsistentHistoryBetweenTranslogAndLuceneIndex(replicaEngine);
-                assertNoInFlightDocuments(replicaEngine);
-                assertMaxSeqNoInCommitUserData(replicaEngine);
-                assertAtMostOneLuceneDocumentPerSequenceNumber(replicaEngine);
+                replicaEngine.ensureOpen();
+                assertEngineCleanedUp(
+                    replicaEngine,
+                    assertAndGetInternalTranslogManager(replicaEngine.translogManager()).getDeletionPolicy()
+                );
             }
         } finally {
             IOUtils.close(replicaEngine, storeReplica, engine, store, () -> terminate(threadPool));
+        }
+    }
+
+    protected InternalTranslogManager assertAndGetInternalTranslogManager(final TranslogManager translogManager) {
+        assertThat(translogManager, instanceOf(InternalTranslogManager.class));
+        return (InternalTranslogManager) translogManager;
+    }
+
+    protected void assertEngineCleanedUp(Engine engine, TranslogDeletionPolicy translogDeletionPolicy) throws Exception {
+        if (engine.isClosed.get() == false) {
+            translogDeletionPolicy.assertNoOpenTranslogRefs();
+            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
+            assertNoInFlightDocuments(engine);
+            assertMaxSeqNoInCommitUserData(engine);
+            assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
         }
     }
 
@@ -512,7 +526,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             shardId,
             primaryTermSupplier.getAsLong()
         );
-        return new Translog(
+        return new LocalTranslog(
             translogConfig,
             translogUUID,
             createTranslogDeletionPolicy(INDEX_SETTINGS),
@@ -522,8 +536,8 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         );
     }
 
-    protected TranslogHandler createTranslogHandler(IndexSettings indexSettings) {
-        return new TranslogHandler(xContentRegistry(), indexSettings);
+    protected TranslogHandler createTranslogHandler(IndexSettings indexSettings, Engine engine) {
+        return new TranslogHandler(xContentRegistry(), indexSettings, engine);
     }
 
     protected InternalEngine createEngine(Store store, Path translogPath) throws IOException {
@@ -660,12 +674,13 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
 
         }
         InternalEngine internalEngine = createInternalEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
-        internalEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+        translogHandler = createTranslogHandler(config.getIndexSettings(), internalEngine);
+        internalEngine.translogManager().recoverFromTranslog(translogHandler, internalEngine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
         return internalEngine;
     }
 
     public static InternalEngine createEngine(EngineConfig engineConfig, int maxDocs) {
-        return new InternalEngine(engineConfig, maxDocs, LocalCheckpointTracker::new);
+        return new InternalEngine(engineConfig, maxDocs, LocalCheckpointTracker::new, TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER);
     }
 
     @FunctionalInterface
@@ -849,30 +864,29 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             globalCheckpointSupplier = maybeGlobalCheckpointSupplier;
             retentionLeasesSupplier = maybeRetentionLeasesSupplier;
         }
-        return new EngineConfig(
-            shardId,
-            threadPool,
-            indexSettings,
-            null,
-            store,
-            mergePolicy,
-            iwc.getAnalyzer(),
-            iwc.getSimilarity(),
-            new CodecService(null, logger),
-            eventListener,
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            translogConfig,
-            TimeValue.timeValueMinutes(5),
-            extRefreshListenerList,
-            intRefreshListenerList,
-            indexSort,
-            breakerService,
-            globalCheckpointSupplier,
-            retentionLeasesSupplier,
-            primaryTerm,
-            tombstoneDocSupplier()
-        );
+        return new EngineConfig.Builder().shardId(shardId)
+            .threadPool(threadPool)
+            .indexSettings(indexSettings)
+            .warmer(null)
+            .store(store)
+            .mergePolicy(mergePolicy)
+            .analyzer(iwc.getAnalyzer())
+            .similarity(iwc.getSimilarity())
+            .codecService(new CodecService(null, logger))
+            .eventListener(eventListener)
+            .queryCache(IndexSearcher.getDefaultQueryCache())
+            .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
+            .translogConfig(translogConfig)
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .externalRefreshListener(extRefreshListenerList)
+            .internalRefreshListener(intRefreshListenerList)
+            .indexSort(indexSort)
+            .circuitBreakerService(breakerService)
+            .globalCheckpointSupplier(globalCheckpointSupplier)
+            .retentionLeasesSupplier(retentionLeasesSupplier)
+            .primaryTermSupplier(primaryTerm)
+            .tombstoneDocSupplier(tombstoneDocSupplier())
+            .build();
     }
 
     protected EngineConfig config(
@@ -889,30 +903,29 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 .build()
         );
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            indexSettings,
-            config.getWarmer(),
-            store,
-            config.getMergePolicy(),
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            new CodecService(null, logger),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            translogConfig,
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            config.getInternalRefreshListener(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            config.getGlobalCheckpointSupplier(),
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            tombstoneDocSupplier
-        );
+        return new EngineConfig.Builder().shardId(config.getShardId())
+            .threadPool(config.getThreadPool())
+            .indexSettings(indexSettings)
+            .warmer(config.getWarmer())
+            .store(store)
+            .mergePolicy(config.getMergePolicy())
+            .analyzer(config.getAnalyzer())
+            .similarity(config.getSimilarity())
+            .codecService(new CodecService(null, logger))
+            .eventListener(config.getEventListener())
+            .queryCache(config.getQueryCache())
+            .queryCachingPolicy(config.getQueryCachingPolicy())
+            .translogConfig(translogConfig)
+            .flushMergesAfter(config.getFlushMergesAfter())
+            .externalRefreshListener(config.getExternalRefreshListener())
+            .internalRefreshListener(config.getInternalRefreshListener())
+            .indexSort(config.getIndexSort())
+            .circuitBreakerService(config.getCircuitBreakerService())
+            .globalCheckpointSupplier(config.getGlobalCheckpointSupplier())
+            .retentionLeasesSupplier(config.retentionLeasesSupplier())
+            .primaryTermSupplier(config.getPrimaryTermSupplier())
+            .tombstoneDocSupplier(tombstoneDocSupplier)
+            .build();
     }
 
     protected EngineConfig noOpConfig(IndexSettings indexSettings, Store store, Path translogPath) {
@@ -1054,13 +1067,28 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         boolean allowDuplicate,
         boolean includeNestedDocs
     ) throws Exception {
+        return generateHistoryOnReplica(
+            numOps,
+            allowGapInSeqNo,
+            allowDuplicate,
+            includeNestedDocs,
+            randomFrom(Engine.Operation.TYPE.values())
+        );
+    }
+
+    public List<Engine.Operation> generateHistoryOnReplica(
+        int numOps,
+        boolean allowGapInSeqNo,
+        boolean allowDuplicate,
+        boolean includeNestedDocs,
+        Engine.Operation.TYPE opType
+    ) throws Exception {
         long seqNo = 0;
         final int maxIdValue = randomInt(numOps * 2);
         final List<Engine.Operation> operations = new ArrayList<>(numOps);
         CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedParsedDocFactory = nestedParsedDocFactory();
         for (int i = 0; i < numOps; i++) {
             final String id = Integer.toString(randomInt(maxIdValue));
-            final Engine.Operation.TYPE opType = randomFrom(Engine.Operation.TYPE.values());
             final boolean isNestedDoc = includeNestedDocs && opType == Engine.Operation.TYPE.INDEX && randomBoolean();
             final int nestedValues = between(0, 3);
             final long startTime = threadPool.relativeTimeInNanos();
@@ -1475,9 +1503,14 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
      * Exposes a translog associated with the given engine for testing purpose.
      */
     public static Translog getTranslog(Engine engine) {
-        assert engine instanceof InternalEngine : "only InternalEngines have translogs, got: " + engine.getClass();
-        InternalEngine internalEngine = (InternalEngine) engine;
-        return internalEngine.getTranslog();
+        assert engine instanceof InternalEngine || engine instanceof NRTReplicationEngine
+            : "only InternalEngines or NRTReplicationEngines have translogs, got: " + engine.getClass();
+        engine.ensureOpen();
+        TranslogManager translogManager = engine.translogManager();
+        assert translogManager instanceof InternalTranslogManager : "only InternalTranslogManager have translogs, got: "
+            + engine.getClass();
+        InternalTranslogManager internalTranslogManager = (InternalTranslogManager) translogManager;
+        return internalTranslogManager.getTranslog();
     }
 
     /**

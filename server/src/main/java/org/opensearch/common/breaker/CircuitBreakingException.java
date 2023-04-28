@@ -31,17 +31,18 @@
 
 package org.opensearch.common.breaker;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
 /**
  * Exception thrown when the circuit breaker trips
+ *
+ * @opensearch.internal
  */
 public class CircuitBreakingException extends OpenSearchException {
 
@@ -53,11 +54,7 @@ public class CircuitBreakingException extends OpenSearchException {
         super(in);
         byteLimit = in.readLong();
         bytesWanted = in.readLong();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            durability = in.readEnum(CircuitBreaker.Durability.class);
-        } else {
-            durability = CircuitBreaker.Durability.PERMANENT;
-        }
+        durability = in.readEnum(CircuitBreaker.Durability.class);
     }
 
     public CircuitBreakingException(String message, CircuitBreaker.Durability durability) {
@@ -76,9 +73,7 @@ public class CircuitBreakingException extends OpenSearchException {
         super.writeTo(out);
         out.writeLong(byteLimit);
         out.writeLong(bytesWanted);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            out.writeEnum(durability);
-        }
+        out.writeEnum(durability);
     }
 
     public long getBytesWanted() {

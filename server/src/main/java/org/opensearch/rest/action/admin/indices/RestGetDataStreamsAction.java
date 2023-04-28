@@ -41,6 +41,11 @@ import org.opensearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Transport action to get data streams
+ *
+ * @opensearch.api
+ */
 public class RestGetDataStreamsAction extends BaseRestHandler {
 
     @Override
@@ -50,10 +55,7 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.opensearch.common.collect.List.of(
-            new Route(RestRequest.Method.GET, "/_data_stream"),
-            new Route(RestRequest.Method.GET, "/_data_stream/{name}")
-        );
+        return List.of(new Route(RestRequest.Method.GET, "/_data_stream"), new Route(RestRequest.Method.GET, "/_data_stream/{name}"));
     }
 
     @Override

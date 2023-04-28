@@ -35,8 +35,8 @@ package org.opensearch.cluster.routing.allocation;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -52,6 +52,8 @@ import java.io.IOException;
  * the shard is neither unassigned nor started (i.e. it is initializing or relocating),
  * then both {@link #getAllocateDecision()} and {@link #getMoveDecision()} will return
  * objects whose {@code isDecisionTaken()} method returns {@code false}.
+ *
+ * @opensearch.internal
  */
 public final class ShardAllocationDecision implements ToXContentFragment, Writeable {
     public static final ShardAllocationDecision NOT_TAKEN = new ShardAllocationDecision(

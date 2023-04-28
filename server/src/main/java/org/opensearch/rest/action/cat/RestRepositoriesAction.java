@@ -49,6 +49,8 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
  * Cat API class to display information about snapshot repositories
+ *
+ * @opensearch.api
  */
 public class RestRepositoriesAction extends AbstractCatAction {
 
@@ -63,8 +65,8 @@ public class RestRepositoriesAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) {
         GetRepositoriesRequest getRepositoriesRequest = new GetRepositoriesRequest();
         getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));
-        getRepositoriesRequest.masterNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", getRepositoriesRequest.masterNodeTimeout())
+        getRepositoriesRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", getRepositoriesRequest.clusterManagerNodeTimeout())
         );
         parseDeprecatedMasterTimeoutParameter(getRepositoriesRequest, request, deprecationLogger, getName());
 

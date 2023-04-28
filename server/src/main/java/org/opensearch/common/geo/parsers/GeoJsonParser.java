@@ -41,8 +41,8 @@ import org.opensearch.common.geo.builders.GeometryCollectionBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.opensearch.common.unit.DistanceUnit;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentSubParser;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentSubParser;
 import org.opensearch.index.mapper.AbstractShapeGeometryFieldMapper;
 
 import java.io.IOException;
@@ -53,6 +53,8 @@ import java.util.List;
  * Parses shape geometry represented in geojson
  *
  * complies with geojson specification: https://tools.ietf.org/html/rfc7946
+ *
+ * @opensearch.internal
  */
 abstract class GeoJsonParser {
     protected static ShapeBuilder parse(XContentParser parser, AbstractShapeGeometryFieldMapper shapeMapper) throws IOException {

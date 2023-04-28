@@ -32,8 +32,6 @@
 
 package org.opensearch.repositories;
 
-import com.carrotsearch.hppc.ObjectContainer;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -55,10 +53,16 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Action to verify a node repository
+ *
+ * @opensearch.internal
+ */
 public class VerifyNodeRepositoryAction {
 
     private static final Logger logger = LogManager.getLogger(VerifyNodeRepositoryAction.class);
@@ -91,10 +95,9 @@ public class VerifyNodeRepositoryAction {
         final DiscoveryNodes discoNodes = clusterService.state().nodes();
         final DiscoveryNode localNode = discoNodes.getLocalNode();
 
-        final ObjectContainer<DiscoveryNode> masterAndDataNodes = discoNodes.getMasterAndDataNodes().values();
+        final Collection<DiscoveryNode> masterAndDataNodes = discoNodes.getClusterManagerAndDataNodes().values();
         final List<DiscoveryNode> nodes = new ArrayList<>();
-        for (ObjectCursor<DiscoveryNode> cursor : masterAndDataNodes) {
-            DiscoveryNode node = cursor.value;
+        for (final DiscoveryNode node : masterAndDataNodes) {
             if (RepositoriesService.isDedicatedVotingOnlyNode(node.getRoles()) == false) {
                 nodes.add(node);
             }
@@ -156,6 +159,11 @@ public class VerifyNodeRepositoryAction {
         repository.verify(verificationToken, localNode);
     }
 
+    /**
+     * Request to verify a node repository.
+     *
+     * @opensearch.internal
+     */
     public static class VerifyNodeRepositoryRequest extends TransportRequest {
 
         private String repository;

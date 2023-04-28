@@ -39,7 +39,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Strings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
@@ -57,6 +57,11 @@ import java.util.function.Supplier;
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * Transport action to list tasks
+ *
+ * @opensearch.api
+ */
 public class RestListTasksAction extends BaseRestHandler {
 
     private final Supplier<DiscoveryNodes> nodesInCluster;

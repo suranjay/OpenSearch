@@ -43,8 +43,8 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
@@ -64,6 +64,11 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
+/**
+ * Transport action to get cluster state
+ *
+ * @opensearch.api
+ */
 public class RestClusterStateAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
@@ -76,7 +81,7 @@ public class RestClusterStateAction extends BaseRestHandler {
     // It's used to log deprecation when request parameter 'metric' contains 'master_node', or request parameter 'master_timeout' is used.
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterStateAction.class);
     private static final String DEPRECATED_MESSAGE_MASTER_NODE =
-        "Deprecated value [master_node] used for parameter [metric]. To promote inclusive language, please use [cluster_manager_node] instead. It will be unsupported in a future major version.";
+        "Assigning [master_node] to parameter [metric] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_node] instead.";
 
     @Override
     public String getName() {
@@ -104,7 +109,9 @@ public class RestClusterStateAction extends BaseRestHandler {
         final ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest();
         clusterStateRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterStateRequest.indicesOptions()));
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", clusterStateRequest.clusterManagerNodeTimeout())
+        );
         parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
         if (request.hasParam("wait_for_metadata_version")) {
             clusterStateRequest.waitForMetadataVersion(request.paramAsLong("wait_for_metadata_version", 0));

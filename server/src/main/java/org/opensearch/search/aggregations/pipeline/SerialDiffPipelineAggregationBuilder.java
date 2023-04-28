@@ -32,12 +32,12 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
@@ -50,6 +50,11 @@ import java.util.Objects;
 import static org.opensearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
 import static org.opensearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 
+/**
+ * Aggregation Builder for serial_diff agg
+ *
+ * @opensearch.internal
+ */
 public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<SerialDiffPipelineAggregationBuilder> {
     public static final String NAME = "serial_diff";
 
@@ -215,7 +220,7 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
                         String path = parser.text();
                         paths.add(path);
                     }
-                    bucketsPaths = paths.toArray(new String[paths.size()]);
+                    bucketsPaths = paths.toArray(new String[0]);
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),

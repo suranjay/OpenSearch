@@ -32,12 +32,14 @@
 
 package org.opensearch.index.query.functionscore;
 
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 
 /**
  * Parses XContent into a {@link ScoreFunctionBuilder}.
+ *
+ * @opensearch.internal
  */
 @FunctionalInterface
 public interface ScoreFunctionParser<FB extends ScoreFunctionBuilder<FB>> {

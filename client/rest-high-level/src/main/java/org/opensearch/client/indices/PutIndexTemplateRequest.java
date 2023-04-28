@@ -37,21 +37,22 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.DeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -69,7 +70,10 @@ import static org.opensearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 /**
  * A request to create an index template.
  */
-public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateRequest> implements IndicesRequest, ToXContentFragment {
+public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexTemplateRequest>
+    implements
+        IndicesRequest,
+        ToXContentFragment {
 
     private String name;
 
@@ -265,9 +269,10 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            Objects.requireNonNull(builder.contentType());
+            MediaType mediaType = builder.contentType();
+            Objects.requireNonNull(mediaType);
             try {
-                mappings = new BytesArray(XContentHelper.convertToJson(BytesReference.bytes(builder), false, false, builder.contentType()));
+                mappings = new BytesArray(XContentHelper.convertToJson(BytesReference.bytes(builder), false, false, mediaType));
                 return this;
             } catch (IOException e) {
                 throw new UncheckedIOException("failed to convert source to json", e);
@@ -339,7 +344,10 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     /**
      * The template source definition.
+     *
+     * @deprecated use {@link #source(String, MediaType)} instead
      */
+    @Deprecated
     public PutIndexTemplateRequest source(String templateSource, XContentType xContentType) {
         return source(XContentHelper.convertToMap(xContentType.xContent(), templateSource, true));
     }
@@ -347,6 +355,16 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     /**
      * The template source definition.
      */
+    public PutIndexTemplateRequest source(String templateSource, MediaType mediaType) {
+        return source(XContentHelper.convertToMap(mediaType.xContent(), templateSource, true));
+    }
+
+    /**
+     * The template source definition.
+     *
+     * @deprecated use {@link #source(byte[], MediaType)} instead
+     */
+    @Deprecated
     public PutIndexTemplateRequest source(byte[] source, XContentType xContentType) {
         return source(source, 0, source.length, xContentType);
     }
@@ -354,6 +372,16 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     /**
      * The template source definition.
      */
+    public PutIndexTemplateRequest source(byte[] source, MediaType mediaType) {
+        return source(source, 0, source.length, mediaType);
+    }
+
+    /**
+     * The template source definition.
+     *
+     * @deprecated use {@link #source(byte[], int, int, MediaType)} instead
+     */
+    @Deprecated
     public PutIndexTemplateRequest source(byte[] source, int offset, int length, XContentType xContentType) {
         return source(new BytesArray(source, offset, length), xContentType);
     }
@@ -361,8 +389,25 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     /**
      * The template source definition.
      */
+    public PutIndexTemplateRequest source(byte[] source, int offset, int length, MediaType mediaType) {
+        return source(new BytesArray(source, offset, length), mediaType);
+    }
+
+    /**
+     * The template source definition.
+     *
+     * @deprecated use {@link #source(BytesReference, MediaType)} instead
+     */
+    @Deprecated
     public PutIndexTemplateRequest source(BytesReference source, XContentType xContentType) {
         return source(XContentHelper.convertToMap(source, true, xContentType).v2());
+    }
+
+    /**
+     * The template source definition.
+     */
+    public PutIndexTemplateRequest source(BytesReference source, MediaType mediaType) {
+        return source(XContentHelper.convertToMap(source, true, mediaType).v2());
     }
 
     public Set<Alias> aliases() {
@@ -432,7 +477,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     @Override
     public String[] indices() {
-        return indexPatterns.toArray(new String[indexPatterns.size()]);
+        return indexPatterns.toArray(new String[0]);
     }
 
     @Override

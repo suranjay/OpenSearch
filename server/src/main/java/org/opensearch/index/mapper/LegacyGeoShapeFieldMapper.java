@@ -41,11 +41,10 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.Explicit;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.common.geo.GeometryParser;
 import org.opensearch.common.geo.ShapeRelation;
@@ -58,8 +57,8 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.index.query.LegacyGeoShapeQueryProcessor;
@@ -93,14 +92,26 @@ import java.util.Map;
  * "field" : "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0))
  *
  * @deprecated use {@link GeoShapeFieldMapper}
+ *
+ * @opensearch.internal
  */
 @Deprecated
 public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<ShapeBuilder<?, ?, ?>, Shape> {
 
     public static final String CONTENT_TYPE = "geo_shape";
 
+    /**
+     * Legacy prefix tree parameters that are now deprecated
+     *
+     * @opensearch.internal
+     */
     @Deprecated
     public static class DeprecatedParameters {
+        /**
+         * Deprecated parameter names for Prefix trees
+         *
+         * @opensearch.internal
+         */
         public static class Names {
             public static final ParseField STRATEGY = new ParseField("strategy");
             public static final ParseField TREE = new ParseField("tree");
@@ -110,12 +121,22 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             public static final ParseField POINTS_ONLY = new ParseField("points_only");
         }
 
+        /**
+         * Deprecated prefix tree types
+         *
+         * @opensearch.internal
+         */
         public static class PrefixTrees {
             public static final String LEGACY_QUADTREE = "legacyquadtree";
             public static final String QUADTREE = "quadtree";
             public static final String GEOHASH = "geohash";
         }
 
+        /**
+         * Deprecated defaults for legacy prefix trees
+         *
+         * @opensearch.internal
+         */
         public static class Defaults {
             public static final SpatialStrategy STRATEGY = SpatialStrategy.RECURSIVE;
             public static final String TREE = "quadtree";
@@ -201,6 +222,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(LegacyGeoShapeFieldMapper.class);
 
+    /**
+     * The builder for the deprecated prefix tree implementation
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<Builder, LegacyGeoShapeFieldMapper.GeoShapeFieldType> {
 
         DeprecatedParameters deprecatedParameters;
@@ -323,6 +349,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
     }
 
+    /**
+     * A legacy parser for prefix trees
+     *
+     * @opensearch.internal
+     */
     private static class LegacyGeoShapeParser extends Parser<ShapeBuilder<?, ?, ?>> {
         /**
          * Note that this parser is only used for formatting values.
@@ -345,6 +376,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
     }
 
+    /**
+     * Field type for GeoShape fields
+     *
+     * @opensearch.internal
+     */
     public static final class GeoShapeFieldType extends AbstractShapeGeometryFieldType<ShapeBuilder<?, ?, ?>, Shape>
         implements
             GeoShapeQueryable {
@@ -540,11 +576,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         } else if (includeDefaults && fieldType().treeLevels() == 0) { // defaults only make sense if tree levels are not specified
             builder.field(DeprecatedParameters.Names.PRECISION.getPreferredName(), DistanceUnit.METERS.toString(50));
         }
-
-        if (indexCreatedVersion.onOrAfter(LegacyESVersion.V_7_0_0)) {
-            builder.field(DeprecatedParameters.Names.STRATEGY.getPreferredName(), fieldType().strategy().getStrategyName());
-        }
-
+        builder.field(DeprecatedParameters.Names.STRATEGY.getPreferredName(), fieldType().strategy().getStrategyName());
         if (includeDefaults || fieldType().distanceErrorPct() != fieldType().defaultDistanceErrorPct) {
             builder.field(DeprecatedParameters.Names.DISTANCE_ERROR_PCT.getPreferredName(), fieldType().distanceErrorPct());
         }

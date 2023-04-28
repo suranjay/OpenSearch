@@ -35,12 +35,17 @@ package org.opensearch.common.geo.builders;
 import org.opensearch.common.geo.GeoShapeType;
 import org.opensearch.common.geo.parsers.ShapeParser;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.spatial4j.shape.Point;
 
 import java.io.IOException;
 
+/**
+ * Builds a point geometry
+ *
+ * @opensearch.internal
+ */
 public class PointBuilder extends ShapeBuilder<Point, org.opensearch.geometry.Point, PointBuilder> {
     public static final GeoShapeType TYPE = GeoShapeType.POINT;
 

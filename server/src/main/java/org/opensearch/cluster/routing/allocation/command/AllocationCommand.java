@@ -37,7 +37,7 @@ import org.opensearch.cluster.routing.allocation.RerouteExplanation;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.network.NetworkModule;
-import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.ToXContentObject;
 
 import java.util.Optional;
 
@@ -45,6 +45,8 @@ import java.util.Optional;
  * A command to move shards in some way.
  *
  * Commands are registered in {@link NetworkModule}.
+ *
+ * @opensearch.internal
  */
 public interface AllocationCommand extends NamedWriteable, ToXContentObject {
 

@@ -34,7 +34,6 @@ package org.opensearch.common;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.LocalTimeOffset.Gap;
 import org.opensearch.common.LocalTimeOffset.Overlap;
@@ -75,10 +74,17 @@ import java.util.concurrent.TimeUnit;
  * See <a href="https://davecturner.github.io/2019/04/14/timezone-rounding.html">this</a>
  * blog for some background reading. Its super interesting and the links are
  * a comedy gold mine. If you like time zones. Or hate them.
+ *
+ * @opensearch.internal
  */
 public abstract class Rounding implements Writeable {
     private static final Logger logger = LogManager.getLogger(Rounding.class);
 
+    /**
+     * A Date Time Unit
+     *
+     * @opensearch.internal
+     */
     public enum DateTimeUnit {
         WEEK_OF_WEEKYEAR((byte) 1, "week", IsoFields.WEEK_OF_WEEK_BASED_YEAR, true, TimeUnit.DAYS.toMillis(7)) {
             private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(7);
@@ -260,6 +266,8 @@ public abstract class Rounding implements Writeable {
 
     /**
      * A strategy for rounding milliseconds since epoch.
+     *
+     * @opensearch.internal
      */
     public interface Prepared {
         /**
@@ -347,6 +355,11 @@ public abstract class Rounding implements Writeable {
         return new Builder(interval);
     }
 
+    /**
+     * Builder for rounding
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
 
         private final DateTimeUnit unit;
@@ -426,6 +439,11 @@ public abstract class Rounding implements Writeable {
         }
     }
 
+    /**
+     * Rounding time units
+     *
+     * @opensearch.internal
+     */
     static class TimeUnitRounding extends Rounding {
         static final byte ID = 1;
 
@@ -440,20 +458,13 @@ public abstract class Rounding implements Writeable {
         }
 
         TimeUnitRounding(StreamInput in) throws IOException {
-            this(
-                DateTimeUnit.resolve(in.readByte()),
-                in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0) ? in.readZoneId() : DateUtils.of(in.readString())
-            );
+            this(DateTimeUnit.resolve(in.readByte()), in.readZoneId());
         }
 
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeByte(unit.getId());
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                out.writeZoneId(timeZone);
-            } else {
-                out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
-            }
+            out.writeZoneId(timeZone);
         }
 
         @Override
@@ -887,6 +898,11 @@ public abstract class Rounding implements Writeable {
         }
     }
 
+    /**
+     * Rounding time intervals
+     *
+     * @opensearch.internal
+     */
     static class TimeIntervalRounding extends Rounding {
         static final byte ID = 2;
 
@@ -900,17 +916,13 @@ public abstract class Rounding implements Writeable {
         }
 
         TimeIntervalRounding(StreamInput in) throws IOException {
-            this(in.readVLong(), in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0) ? in.readZoneId() : DateUtils.of(in.readString()));
+            this(in.readVLong(), in.readZoneId());
         }
 
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeVLong(interval);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                out.writeZoneId(timeZone);
-            } else {
-                out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
-            }
+            out.writeZoneId(timeZone);
         }
 
         @Override
@@ -1204,6 +1216,11 @@ public abstract class Rounding implements Writeable {
         }
     }
 
+    /**
+     * Rounding offsets
+     *
+     * @opensearch.internal
+     */
     static class OffsetRounding extends Rounding {
         static final byte ID = 3;
 
@@ -1223,9 +1240,6 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
-            if (out.getVersion().before(LegacyESVersion.V_7_6_0)) {
-                throw new IllegalArgumentException("Offset rounding not supported before 7.6.0");
-            }
             delegate.writeTo(out);
             out.writeZLong(offset);
         }
@@ -1315,6 +1329,8 @@ public abstract class Rounding implements Writeable {
 
     /**
      * Implementation of {@link Prepared} using pre-calculated "round down" points.
+     *
+     * @opensearch.internal
      */
     private static class ArrayRounding implements Prepared {
         private final long[] values;

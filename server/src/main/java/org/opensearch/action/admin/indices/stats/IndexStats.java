@@ -38,6 +38,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Index Stats for OpenSearch
+ *
+ * @opensearch.internal
+ */
 public class IndexStats implements Iterable<IndexShardStats> {
 
     private final String index;
@@ -83,10 +88,7 @@ public class IndexStats implements Iterable<IndexShardStats> {
         for (Map.Entry<Integer, List<ShardStats>> entry : tmpIndexShards.entrySet()) {
             indexShards.put(
                 entry.getKey(),
-                new IndexShardStats(
-                    entry.getValue().get(0).getShardRouting().shardId(),
-                    entry.getValue().toArray(new ShardStats[entry.getValue().size()])
-                )
+                new IndexShardStats(entry.getValue().get(0).getShardRouting().shardId(), entry.getValue().toArray(new ShardStats[0]))
             );
         }
         return indexShards;
@@ -127,6 +129,11 @@ public class IndexStats implements Iterable<IndexShardStats> {
         return stats;
     }
 
+    /**
+     * Builder for Index Stats
+     *
+     * @opensearch.internal
+     */
     public static class IndexStatsBuilder {
         private final String indexName;
         private final String uuid;
@@ -143,7 +150,7 @@ public class IndexStats implements Iterable<IndexShardStats> {
         }
 
         public IndexStats build() {
-            return new IndexStats(indexName, uuid, shards.toArray(new ShardStats[shards.size()]));
+            return new IndexStats(indexName, uuid, shards.toArray(new ShardStats[0]));
         }
     }
 }

@@ -38,7 +38,6 @@ import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.opensearch.action.admin.indices.rollover.RolloverInfo;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -47,10 +46,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.test.OpenSearchTestCase;
@@ -128,7 +128,10 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         final IndexMetadata fromXContentMeta = IndexMetadata.fromXContent(parser);
         assertEquals(
-            "expected: " + Strings.toString(metadata) + "\nactual  : " + Strings.toString(fromXContentMeta),
+            "expected: "
+                + Strings.toString(XContentType.JSON, metadata)
+                + "\nactual  : "
+                + Strings.toString(XContentType.JSON, fromXContentMeta),
             metadata,
             fromXContentMeta
         );
@@ -142,9 +145,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         assertEquals(metadata.getRoutingFactor(), fromXContentMeta.getRoutingFactor());
         assertEquals(metadata.primaryTerm(0), fromXContentMeta.primaryTerm(0));
         assertEquals(metadata.isSystem(), fromXContentMeta.isSystem());
-        ImmutableOpenMap.Builder<String, DiffableStringMap> expectedCustomBuilder = ImmutableOpenMap.builder();
-        expectedCustomBuilder.put("my_custom", new DiffableStringMap(customMap));
-        ImmutableOpenMap<String, DiffableStringMap> expectedCustom = expectedCustomBuilder.build();
+        final Map<String, DiffableStringMap> expectedCustom = Map.of("my_custom", new DiffableStringMap(customMap));
         assertEquals(metadata.getCustomData(), expectedCustom);
         assertEquals(metadata.getCustomData(), fromXContentMeta.getCustomData());
 

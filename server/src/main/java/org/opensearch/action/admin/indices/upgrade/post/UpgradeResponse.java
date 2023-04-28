@@ -38,7 +38,7 @@ import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -47,7 +47,7 @@ import java.util.Map;
 /**
  * A response for the upgrade action.
  *
- *
+ * @opensearch.internal
  */
 public class UpgradeResponse extends BroadcastResponse {
 

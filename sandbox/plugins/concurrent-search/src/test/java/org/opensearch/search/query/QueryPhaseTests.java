@@ -33,7 +33,6 @@
 package org.opensearch.search.query;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field.Store;
@@ -52,11 +51,11 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.queries.spans.SpanNearQuery;
+import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FieldComparator;
@@ -75,15 +74,12 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
-import org.apache.lucene.queries.spans.SpanNearQuery;
-import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
@@ -122,7 +118,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import static org.opensearch.search.query.TopDocsCollectorContext.hasInfMaxScore;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -130,8 +125,9 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
+import static org.opensearch.search.query.TopDocsCollectorContext.hasInfMaxScore;
 
 public class QueryPhaseTests extends IndexShardTestCase {
 
@@ -367,6 +363,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         ScrollContext scrollContext = new ScrollContext();
         TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader, executor), scrollContext);
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+        context.sort(new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW }));
         scrollContext.lastEmittedDoc = null;
         scrollContext.maxScore = Float.NaN;
         scrollContext.totalHits = null;
@@ -383,7 +380,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
         context.setSearcher(newEarlyTerminationContextSearcher(reader, size, executor));
         QueryPhase.executeInternal(context.withCleanQueryResult(), queryPhaseSearcher);
         assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
-        assertThat(context.terminateAfter(), equalTo(size));
         assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
         assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0].doc, greaterThanOrEqualTo(size));
         reader.close();
@@ -1114,8 +1110,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
                     indexShard,
                     newContextSearcher(reader, executor)
                 );
-                PrefixQuery prefixQuery = new PrefixQuery(new Term("foo", "a"));
-                prefixQuery.setRewriteMethod(MultiTermQuery.SCORING_BOOLEAN_REWRITE);
+                PrefixQuery prefixQuery = new PrefixQuery(new Term("foo", "a"), MultiTermQuery.SCORING_BOOLEAN_REWRITE);
                 context.parsedQuery(new ParsedQuery(prefixQuery));
                 SearchShardTask task = mock(SearchShardTask.class);
                 when(task.isCancelled()).thenReturn(true);
@@ -1176,75 +1171,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
             public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
                 final Collector in = new AssertingEarlyTerminationFilterCollector(collector, size);
                 super.search(leaves, weight, in);
-            }
-        };
-    }
-
-    // used to check that numeric long or date sort optimization was run
-    private static ContextIndexSearcher newOptimizedContextSearcher(IndexReader reader, int queryType, ExecutorService executor)
-        throws IOException {
-        return new ContextIndexSearcher(
-            reader,
-            IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            true,
-            executor
-        ) {
-
-            @Override
-            public void search(
-                Query query,
-                CollectorManager<?, TopFieldDocs> manager,
-                QuerySearchResult result,
-                DocValueFormat[] formats,
-                TotalHits totalHits
-            ) throws IOException {
-                assertTrue(query instanceof BooleanQuery);
-                List<BooleanClause> clauses = ((BooleanQuery) query).clauses();
-                assertTrue(clauses.size() == 2);
-                assertTrue(clauses.get(0).getOccur() == Occur.FILTER);
-                assertTrue(clauses.get(1).getOccur() == Occur.SHOULD);
-                if (queryType == 0) {
-                    assertTrue(
-                        clauses.get(1).getQuery().getClass() == LongPoint.newDistanceFeatureQuery("random_field", 1, 1, 1).getClass()
-                    );
-                }
-                if (queryType == 1) assertTrue(clauses.get(1).getQuery() instanceof DocValuesFieldExistsQuery);
-                super.search(query, manager, result, formats, totalHits);
-            }
-
-            @Override
-            public void search(
-                List<LeafReaderContext> leaves,
-                Weight weight,
-                @SuppressWarnings("rawtypes") CollectorManager manager,
-                QuerySearchResult result,
-                DocValueFormat[] formats,
-                TotalHits totalHits
-            ) throws IOException {
-                final Query query = weight.getQuery();
-                assertTrue(query instanceof BooleanQuery);
-                List<BooleanClause> clauses = ((BooleanQuery) query).clauses();
-                assertTrue(clauses.size() == 2);
-                assertTrue(clauses.get(0).getOccur() == Occur.FILTER);
-                assertTrue(clauses.get(1).getOccur() == Occur.SHOULD);
-                if (queryType == 0) {
-                    assertTrue(
-                        clauses.get(1).getQuery().getClass() == LongPoint.newDistanceFeatureQuery("random_field", 1, 1, 1).getClass()
-                    );
-                }
-                if (queryType == 1) assertTrue(clauses.get(1).getQuery() instanceof DocValuesFieldExistsQuery);
-                super.search(leaves, weight, manager, result, formats, totalHits);
-            }
-
-            @Override
-            public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-                if (getExecutor() == null) {
-                    assert (false);  // should not be there, expected to search with CollectorManager
-                } else {
-                    super.search(leaves, weight, collector);
-                }
             }
         };
     }

@@ -55,6 +55,11 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Transport Action for Upgrading an Index
+ *
+ * @opensearch.internal
+ */
 public class TransportUpgradeStatusAction extends TransportBroadcastByNodeAction<
     UpgradeStatusRequest,
     UpgradeStatusResponse,
@@ -116,7 +121,7 @@ public class TransportUpgradeStatusAction extends TransportBroadcastByNodeAction
         ClusterState clusterState
     ) {
         return new UpgradeStatusResponse(
-            responses.toArray(new ShardUpgradeStatus[responses.size()]),
+            responses.toArray(new ShardUpgradeStatus[0]),
             totalShards,
             successfulShards,
             failedShards,

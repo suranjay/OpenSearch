@@ -34,14 +34,13 @@ package org.opensearch.action.admin.indices.settings.get;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeReadAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.regex.Regex;
@@ -54,8 +53,15 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
-public class TransportGetSettingsAction extends TransportMasterNodeReadAction<GetSettingsRequest, GetSettingsResponse> {
+/**
+ * Transport action for getting index settings
+ *
+ * @opensearch.internal
+ */
+public class TransportGetSettingsAction extends TransportClusterManagerNodeReadAction<GetSettingsRequest, GetSettingsResponse> {
 
     private final SettingsFilter settingsFilter;
     private final IndexScopedSettings indexScopedSettings;
@@ -105,10 +111,10 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
     }
 
     @Override
-    protected void masterOperation(GetSettingsRequest request, ClusterState state, ActionListener<GetSettingsResponse> listener) {
+    protected void clusterManagerOperation(GetSettingsRequest request, ClusterState state, ActionListener<GetSettingsResponse> listener) {
         Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
-        ImmutableOpenMap.Builder<String, Settings> indexToSettingsBuilder = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, Settings> indexToDefaultSettingsBuilder = ImmutableOpenMap.builder();
+        final Map<String, Settings> indexToSettingsBuilder = new HashMap<>();
+        final Map<String, Settings> indexToDefaultSettingsBuilder = new HashMap<>();
         for (Index concreteIndex : concreteIndices) {
             IndexMetadata indexMetadata = state.getMetadata().index(concreteIndex);
             if (indexMetadata == null) {
@@ -133,6 +139,6 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
                 indexToDefaultSettingsBuilder.put(concreteIndex.getName(), defaultSettings);
             }
         }
-        listener.onResponse(new GetSettingsResponse(indexToSettingsBuilder.build(), indexToDefaultSettingsBuilder.build()));
+        listener.onResponse(new GetSettingsResponse(indexToSettingsBuilder, indexToDefaultSettingsBuilder));
     }
 }

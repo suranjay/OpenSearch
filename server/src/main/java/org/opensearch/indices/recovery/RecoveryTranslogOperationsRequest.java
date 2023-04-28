@@ -32,7 +32,6 @@
 
 package org.opensearch.indices.recovery;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.index.seqno.RetentionLeases;
@@ -42,6 +41,11 @@ import org.opensearch.index.translog.Translog;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Request for recovery translog operations
+ *
+ * @opensearch.internal
+ */
 public class RecoveryTranslogOperationsRequest extends RecoveryTransportRequest {
 
     private final long recoveryId;
@@ -134,8 +138,6 @@ public class RecoveryTranslogOperationsRequest extends RecoveryTransportRequest 
         out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
         out.writeZLong(maxSeqNoOfUpdatesOrDeletesOnPrimary);
         retentionLeases.writeTo(out);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            out.writeVLong(mappingVersionOnPrimary);
-        }
+        out.writeVLong(mappingVersionOnPrimary);
     }
 }

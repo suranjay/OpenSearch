@@ -36,14 +36,16 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
 
 /**
  * Class encapsulating stats about the circuit breaker
+ *
+ * @opensearch.internal
  */
 public class CircuitBreakerStats implements Writeable, ToXContentObject {
 
@@ -130,6 +132,11 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
             + "]";
     }
 
+    /**
+     * Fields used for statistics
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String LIMIT = "limit_size_in_bytes";
         static final String LIMIT_HUMAN = "limit_size";

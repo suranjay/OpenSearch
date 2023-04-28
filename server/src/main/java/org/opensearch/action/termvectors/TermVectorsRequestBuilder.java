@@ -34,7 +34,7 @@ package org.opensearch.action.termvectors;
 
 import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.VersionType;
 
 import java.util.Map;
@@ -45,6 +45,8 @@ import java.util.Map;
  * <p>
  * Note, the {@code index}, {@code type} and {@code id} are
  * required.
+ *
+ * @opensearch.internal
  */
 public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsRequest, TermVectorsResponse> {
 

@@ -38,15 +38,14 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
-import org.opensearch.index.mapper.TypeFieldMapper;
 import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.RandomObjects;
@@ -106,7 +105,7 @@ public class GetResultTests extends OpenSearchTestCase {
                 singletonMap("field1", new DocumentField("field1", singletonList("value1"))),
                 singletonMap("field1", new DocumentField("metafield", singletonList("metavalue")))
             );
-            String output = Strings.toString(getResult);
+            String output = Strings.toString(XContentType.JSON, getResult);
             assertEquals(
                 "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":1,\"_seq_no\":0,\"_primary_term\":1,"
                     + "\"metafield\":\"metavalue\",\"found\":true,\"_source\":{ \"field1\" : \"value1\", \"field2\":\"value2\"},"
@@ -116,7 +115,7 @@ public class GetResultTests extends OpenSearchTestCase {
         }
         {
             GetResult getResult = new GetResult("index", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null);
-            String output = Strings.toString(getResult);
+            String output = Strings.toString(XContentType.JSON, getResult);
             assertEquals("{\"_index\":\"index\",\"_id\":\"id\",\"found\":false}", output);
         }
     }
@@ -372,9 +371,8 @@ public class GetResultTests extends OpenSearchTestCase {
         Map<String, DocumentField> fields = new HashMap<>(numFields);
         Map<String, DocumentField> expectedFields = new HashMap<>(numFields);
         // As we are using this to construct a GetResult object that already contains
-        // index, type, id, version, seqNo, and source fields, we need to exclude them from random fields
-        Predicate<String> excludeMetaFieldFilter = field -> field.equals(TypeFieldMapper.NAME)
-            || field.equals(IndexFieldMapper.NAME)
+        // index, id, version, seqNo, and source fields, we need to exclude them from random fields
+        Predicate<String> excludeMetaFieldFilter = field -> field.equals(IndexFieldMapper.NAME)
             || field.equals(IdFieldMapper.NAME)
             || field.equals(VersionFieldMapper.NAME)
             || field.equals(SourceFieldMapper.NAME)

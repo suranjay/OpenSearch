@@ -43,6 +43,11 @@ import org.opensearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Transport action to resolve index
+ *
+ * @opensearch.api
+ */
 public class RestResolveIndexAction extends BaseRestHandler {
 
     @Override
@@ -52,7 +57,7 @@ public class RestResolveIndexAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.opensearch.common.collect.List.of(new Route(RestRequest.Method.GET, "/_resolve/index/{name}"));
+        return List.of(new Route(RestRequest.Method.GET, "/_resolve/index/{name}"));
     }
 
     @Override

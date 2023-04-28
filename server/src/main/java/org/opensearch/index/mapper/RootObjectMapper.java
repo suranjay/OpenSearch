@@ -32,15 +32,15 @@
 
 package org.opensearch.index.mapper;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 
@@ -57,9 +57,19 @@ import java.util.Map;
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.opensearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
+/**
+ * The root object mapper for a document
+ *
+ * @opensearch.internal
+ */
 public class RootObjectMapper extends ObjectMapper {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RootObjectMapper.class);
 
+    /**
+     * Default parameters for root object
+     *
+     * @opensearch.internal
+     */
     public static class Defaults {
         public static final DateFormatter[] DYNAMIC_DATE_TIME_FORMATTERS = new DateFormatter[] {
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
@@ -68,6 +78,11 @@ public class RootObjectMapper extends ObjectMapper {
         public static final boolean NUMERIC_DETECTION = false;
     }
 
+    /**
+     * Builder for the root object
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends ObjectMapper.Builder<Builder> {
 
         protected Explicit<DynamicTemplate[]> dynamicTemplates = new Explicit<>(new DynamicTemplate[0], false);
@@ -148,6 +163,11 @@ public class RootObjectMapper extends ObjectMapper {
         }
     }
 
+    /**
+     * Type parser for the root object
+     *
+     * @opensearch.internal
+     */
     public static class TypeParser extends ObjectMapper.TypeParser {
 
         @Override
@@ -434,13 +454,12 @@ public class RootObjectMapper extends ObjectMapper {
             }
         }
 
-        final boolean shouldEmitDeprecationWarning = parserContext.indexVersionCreated().onOrAfter(LegacyESVersion.V_7_7_0);
-        if (dynamicTemplateInvalid && shouldEmitDeprecationWarning) {
+        if (dynamicTemplateInvalid) {
             String message = String.format(
                 Locale.ROOT,
                 "dynamic template [%s] has invalid content [%s]",
                 dynamicTemplate.getName(),
-                Strings.toString(dynamicTemplate)
+                Strings.toString(XContentType.JSON, dynamicTemplate)
             );
 
             final String deprecationMessage;

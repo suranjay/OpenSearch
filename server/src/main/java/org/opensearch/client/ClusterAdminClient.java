@@ -37,6 +37,15 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateRequestBuilder;
+import org.opensearch.action.admin.cluster.decommission.awareness.delete.DeleteDecommissionStateResponse;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateRequestBuilder;
+import org.opensearch.action.admin.cluster.decommission.awareness.get.GetDecommissionStateResponse;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequest;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionRequestBuilder;
+import org.opensearch.action.admin.cluster.decommission.awareness.put.DecommissionResponse;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -62,6 +71,8 @@ import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequestBuilder;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageResponse;
+import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
+import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequestBuilder;
 import org.opensearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
@@ -84,6 +95,15 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRespons
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingResponse;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequest;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingRequestBuilder;
+import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequestBuilder;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
@@ -130,6 +150,10 @@ import org.opensearch.action.ingest.PutPipelineRequestBuilder;
 import org.opensearch.action.ingest.SimulatePipelineRequest;
 import org.opensearch.action.ingest.SimulatePipelineRequestBuilder;
 import org.opensearch.action.ingest.SimulatePipelineResponse;
+import org.opensearch.action.search.DeleteSearchPipelineRequest;
+import org.opensearch.action.search.GetSearchPipelineRequest;
+import org.opensearch.action.search.GetSearchPipelineResponse;
+import org.opensearch.action.search.PutSearchPipelineRequest;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
@@ -139,6 +163,8 @@ import org.opensearch.tasks.TaskId;
  * Administrative actions/operations against indices.
  *
  * @see AdminClient#cluster()
+ *
+ * @opensearch.internal
  */
 public interface ClusterAdminClient extends OpenSearchClient {
 
@@ -576,6 +602,11 @@ public interface ClusterAdminClient extends OpenSearchClient {
     void restoreSnapshot(RestoreSnapshotRequest request, ActionListener<RestoreSnapshotResponse> listener);
 
     /**
+     * Restores from remote store.
+     */
+    void restoreRemoteStore(RestoreRemoteStoreRequest request, ActionListener<RestoreRemoteStoreResponse> listener);
+
+    /**
      * Restores a snapshot.
      */
     RestoreSnapshotRequestBuilder prepareRestoreSnapshot(String repository, String snapshot);
@@ -782,4 +813,124 @@ public interface ClusterAdminClient extends OpenSearchClient {
      * Delete specified dangling indices.
      */
     ActionFuture<AcknowledgedResponse> deleteDanglingIndex(DeleteDanglingIndexRequest request);
+
+    /**
+     * Updates weights for weighted round-robin search routing policy.
+     */
+    ActionFuture<ClusterPutWeightedRoutingResponse> putWeightedRouting(ClusterPutWeightedRoutingRequest request);
+
+    /**
+     * Updates weights for weighted round-robin search routing policy.
+     */
+    void putWeightedRouting(ClusterPutWeightedRoutingRequest request, ActionListener<ClusterPutWeightedRoutingResponse> listener);
+
+    /**
+     * Updates weights for weighted round-robin search routing policy.
+     */
+    ClusterPutWeightedRoutingRequestBuilder prepareWeightedRouting();
+
+    /**
+     * Gets weights for weighted round-robin search routing policy.
+     */
+    ActionFuture<ClusterGetWeightedRoutingResponse> getWeightedRouting(ClusterGetWeightedRoutingRequest request);
+
+    /**
+     * Gets weights for weighted round-robin search routing policy.
+     */
+    void getWeightedRouting(ClusterGetWeightedRoutingRequest request, ActionListener<ClusterGetWeightedRoutingResponse> listener);
+
+    /**
+     * Gets weights for weighted round-robin search routing policy.
+     */
+    ClusterGetWeightedRoutingRequestBuilder prepareGetWeightedRouting();
+
+    /**
+     * Deletes weights for weighted round-robin search routing policy.
+     */
+    ActionFuture<ClusterDeleteWeightedRoutingResponse> deleteWeightedRouting(ClusterDeleteWeightedRoutingRequest request);
+
+    /**
+     * Deletes weights for weighted round-robin search routing policy.
+     */
+    void deleteWeightedRouting(ClusterDeleteWeightedRoutingRequest request, ActionListener<ClusterDeleteWeightedRoutingResponse> listener);
+
+    /**
+     * Deletes weights for weighted round-robin search routing policy.
+     */
+    ClusterDeleteWeightedRoutingRequestBuilder prepareDeleteWeightedRouting();
+
+    /**
+     * Decommission awareness attribute
+     */
+    ActionFuture<DecommissionResponse> decommission(DecommissionRequest request);
+
+    /**
+     * Decommission awareness attribute
+     */
+    void decommission(DecommissionRequest request, ActionListener<DecommissionResponse> listener);
+
+    /**
+     * Decommission awareness attribute
+     */
+    DecommissionRequestBuilder prepareDecommission(DecommissionRequest request);
+
+    /**
+     * Get Decommissioned attribute
+     */
+    ActionFuture<GetDecommissionStateResponse> getDecommissionState(GetDecommissionStateRequest request);
+
+    /**
+     * Get Decommissioned attribute
+     */
+    void getDecommissionState(GetDecommissionStateRequest request, ActionListener<GetDecommissionStateResponse> listener);
+
+    /**
+     * Get Decommissioned attribute
+     */
+    GetDecommissionStateRequestBuilder prepareGetDecommissionState();
+
+    /**
+     * Deletes the decommission metadata.
+     */
+    ActionFuture<DeleteDecommissionStateResponse> deleteDecommissionState(DeleteDecommissionStateRequest request);
+
+    /**
+     * Deletes the decommission metadata.
+     */
+    void deleteDecommissionState(DeleteDecommissionStateRequest request, ActionListener<DeleteDecommissionStateResponse> listener);
+
+    /**
+     * Deletes the decommission metadata.
+     */
+    DeleteDecommissionStateRequestBuilder prepareDeleteDecommissionRequest();
+
+    /**
+     * Stores a search pipeline
+     */
+    void putSearchPipeline(PutSearchPipelineRequest request, ActionListener<AcknowledgedResponse> listener);
+
+    /**
+     * Stores a search pipeline
+     */
+    ActionFuture<AcknowledgedResponse> putSearchPipeline(PutSearchPipelineRequest request);
+
+    /**
+     * Returns a stored search pipeline
+     */
+    void getSearchPipeline(GetSearchPipelineRequest request, ActionListener<GetSearchPipelineResponse> listener);
+
+    /**
+     * Returns a stored search pipeline
+     */
+    ActionFuture<GetSearchPipelineResponse> getSearchPipeline(GetSearchPipelineRequest request);
+
+    /**
+     * Deletes a stored search pipeline
+     */
+    void deleteSearchPipeline(DeleteSearchPipelineRequest request, ActionListener<AcknowledgedResponse> listener);
+
+    /**
+     * Deletes a stored search pipeline
+     */
+    ActionFuture<AcknowledgedResponse> deleteSearchPipeline(DeleteSearchPipelineRequest request);
 }

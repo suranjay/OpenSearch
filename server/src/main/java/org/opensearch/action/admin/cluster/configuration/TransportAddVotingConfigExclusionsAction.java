@@ -37,17 +37,15 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateObserver.Listener;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
-import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
@@ -66,7 +64,15 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-public class TransportAddVotingConfigExclusionsAction extends TransportMasterNodeAction<
+import static org.opensearch.action.admin.cluster.configuration.VotingConfigExclusionsHelper.resolveVotingConfigExclusionsAndCheckMaximum;
+import static org.opensearch.action.admin.cluster.configuration.VotingConfigExclusionsHelper.addExclusionAndGetState;
+
+/**
+ * Transport endpoint action for adding exclusions to voting config
+ *
+ * @opensearch.internal
+ */
+public class TransportAddVotingConfigExclusionsAction extends TransportClusterManagerNodeAction<
     AddVotingConfigExclusionsRequest,
     AddVotingConfigExclusionsResponse> {
 
@@ -121,7 +127,7 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         AddVotingConfigExclusionsRequest request,
         ClusterState state,
         ActionListener<AddVotingConfigExclusionsResponse> listener
@@ -139,13 +145,7 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
                 assert resolvedExclusions == null : resolvedExclusions;
                 final int finalMaxVotingConfigExclusions = TransportAddVotingConfigExclusionsAction.this.maxVotingConfigExclusions;
                 resolvedExclusions = resolveVotingConfigExclusionsAndCheckMaximum(request, currentState, finalMaxVotingConfigExclusions);
-
-                final CoordinationMetadata.Builder builder = CoordinationMetadata.builder(currentState.coordinationMetadata());
-                resolvedExclusions.forEach(builder::addVotingConfigExclusion);
-                final Metadata newMetadata = Metadata.builder(currentState.metadata()).coordinationMetadata(builder.build()).build();
-                final ClusterState newState = ClusterState.builder(currentState).metadata(newMetadata).build();
-                assert newState.getVotingConfigExclusions().size() <= finalMaxVotingConfigExclusions;
-                return newState;
+                return addExclusionAndGetState(currentState, resolvedExclusions, finalMaxVotingConfigExclusions);
             }
 
             @Override
@@ -206,18 +206,6 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
                 }
             }
         });
-    }
-
-    private static Set<VotingConfigExclusion> resolveVotingConfigExclusionsAndCheckMaximum(
-        AddVotingConfigExclusionsRequest request,
-        ClusterState state,
-        int maxVotingConfigExclusions
-    ) {
-        return request.resolveVotingConfigExclusionsAndCheckMaximum(
-            state,
-            maxVotingConfigExclusions,
-            MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING.getKey()
-        );
     }
 
     @Override

@@ -34,8 +34,8 @@ package org.opensearch.search.aggregations.bucket.terms.heuristic;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.script.Script;
 import org.opensearch.script.SignificantTermsHeuristicScoreScript;
@@ -46,8 +46,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 
+/**
+ * Script significance heuristic for significant terms agg
+ *
+ * @opensearch.internal
+ */
 public class ScriptHeuristic extends SignificanceHeuristic {
     public static final String NAME = "script_heuristic";
     public static final ConstructingObjectParser<ScriptHeuristic, Void> PARSER = new ConstructingObjectParser<>(
@@ -60,8 +65,12 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     private final Script script;
 
-    // This class holds an executable form of the script with private variables ready for execution
-    // on a single search thread.
+    /**
+     * This class holds an executable form of the script with private variables ready for execution
+     * on a single search thread.
+     *
+     * @opensearch.internal
+     */
     static class ExecutableScriptHeuristic extends ScriptHeuristic {
         private final LongAccessor subsetSizeHolder;
         private final LongAccessor supersetSizeHolder;
@@ -173,6 +182,11 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         return Objects.equals(script, other.script);
     }
 
+    /**
+     * Accesses long values
+     *
+     * @opensearch.internal
+     */
     public final class LongAccessor extends Number {
         public long value;
 

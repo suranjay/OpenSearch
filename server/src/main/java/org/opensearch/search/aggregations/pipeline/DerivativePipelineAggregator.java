@@ -32,8 +32,6 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -43,7 +41,6 @@ import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.opensearch.search.aggregations.bucket.histogram.HistogramFactory;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +49,11 @@ import java.util.stream.StreamSupport;
 
 import static org.opensearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
+/**
+ * Aggregate all docs into a derivative value
+ *
+ * @opensearch.internal
+ */
 public class DerivativePipelineAggregator extends PipelineAggregator {
     private final DocValueFormat formatter;
     private final GapPolicy gapPolicy;
@@ -69,28 +71,6 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         this.formatter = formatter;
         this.gapPolicy = gapPolicy;
         this.xAxisUnits = xAxisUnits == null ? null : (double) xAxisUnits;
-    }
-
-    /**
-     * Read from a stream.
-     */
-    public DerivativePipelineAggregator(StreamInput in) throws IOException {
-        super(in);
-        formatter = in.readNamedWriteable(DocValueFormat.class);
-        gapPolicy = GapPolicy.readFrom(in);
-        xAxisUnits = in.readOptionalDouble();
-    }
-
-    @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(formatter);
-        gapPolicy.writeTo(out);
-        out.writeOptionalDouble(xAxisUnits);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return DerivativePipelineAggregationBuilder.NAME;
     }
 
     @Override
@@ -115,9 +95,9 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
                 if (xAxisUnits != null) {
                     xDiff = (thisBucketKey.doubleValue() - lastBucketKey.doubleValue()) / xAxisUnits;
                 }
-                final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
-                    .map((p) -> { return (InternalAggregation) p; })
-                    .collect(Collectors.toList());
+                final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map((p) -> {
+                    return (InternalAggregation) p;
+                }).collect(Collectors.toList());
                 aggs.add(new InternalDerivative(name(), gradient, xDiff, formatter, metadata()));
                 Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
                 newBuckets.add(newBucket);

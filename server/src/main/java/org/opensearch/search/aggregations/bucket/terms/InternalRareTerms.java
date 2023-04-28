@@ -34,7 +34,7 @@ package org.opensearch.search.aggregations.bucket.terms;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.util.SetBackedScalingCuckooFilter;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.BucketOrder;
@@ -50,17 +50,29 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of rare terms
+ *
+ * @opensearch.internal
+ */
 public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B extends InternalRareTerms.Bucket<B>> extends
     InternalMultiBucketAggregation<A, B>
     implements
         RareTerms {
 
+    /**
+     * Bucket for a rare terms agg
+     *
+     * @opensearch.internal
+     */
     public abstract static class Bucket<B extends Bucket<B>> extends InternalMultiBucketAggregation.InternalBucket
         implements
             RareTerms.Bucket,
             KeyComparable<B> {
         /**
          * Reads a bucket. Should be a constructor reference.
+         *
+         * @opensearch.internal
          */
         @FunctionalInterface
         public interface Reader<B extends Bucket<B>> {

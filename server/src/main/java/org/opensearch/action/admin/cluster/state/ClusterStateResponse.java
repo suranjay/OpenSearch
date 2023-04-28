@@ -32,20 +32,20 @@
 
 package org.opensearch.action.admin.cluster.state;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
  * The response for getting the cluster state.
+ *
+ * @opensearch.internal
  */
 public class ClusterStateResponse extends ActionResponse {
 
@@ -57,9 +57,6 @@ public class ClusterStateResponse extends ActionResponse {
         super(in);
         clusterName = new ClusterName(in);
         clusterState = in.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
-        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            new ByteSizeValue(in);
-        }
         waitForTimedOut = in.readBoolean();
     }
 
@@ -96,10 +93,12 @@ public class ClusterStateResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         clusterName.writeTo(out);
         out.writeOptionalWriteable(clusterState);
-        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            ByteSizeValue.ZERO.writeTo(out);
-        }
         out.writeBoolean(waitForTimedOut);
+    }
+
+    @Override
+    public String toString() {
+        return "ClusterStateResponse{" + "clusterState=" + clusterState + '}';
     }
 
     @Override
@@ -108,26 +107,26 @@ public class ClusterStateResponse extends ActionResponse {
         if (o == null || getClass() != o.getClass()) return false;
         ClusterStateResponse response = (ClusterStateResponse) o;
         return waitForTimedOut == response.waitForTimedOut && Objects.equals(clusterName, response.clusterName) &&
-        // Best effort. Only compare cluster state version and master node id,
+        // Best effort. Only compare cluster state version and cluster-manager node id,
         // because cluster state doesn't implement equals()
             Objects.equals(getVersion(clusterState), getVersion(response.clusterState))
-            && Objects.equals(getMasterNodeId(clusterState), getMasterNodeId(response.clusterState));
+            && Objects.equals(getClusterManagerNodeId(clusterState), getClusterManagerNodeId(response.clusterState));
     }
 
     @Override
     public int hashCode() {
-        // Best effort. Only use cluster state version and master node id,
+        // Best effort. Only use cluster state version and cluster-manager node id,
         // because cluster state doesn't implement hashcode()
-        return Objects.hash(clusterName, getVersion(clusterState), getMasterNodeId(clusterState), waitForTimedOut);
+        return Objects.hash(clusterName, getVersion(clusterState), getClusterManagerNodeId(clusterState), waitForTimedOut);
     }
 
-    private static String getMasterNodeId(ClusterState clusterState) {
+    private static String getClusterManagerNodeId(ClusterState clusterState) {
         if (clusterState == null) {
             return null;
         }
         DiscoveryNodes nodes = clusterState.getNodes();
         if (nodes != null) {
-            return nodes.getMasterNodeId();
+            return nodes.getClusterManagerNodeId();
         } else {
             return null;
         }

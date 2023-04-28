@@ -43,6 +43,11 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import java.io.IOException;
 import java.util.Set;
 
+/**
+ * Outbound data as a message
+ *
+ * @opensearch.internal
+ */
 abstract class OutboundMessage extends NetworkMessage {
 
     private final Writeable message;
@@ -60,11 +65,8 @@ abstract class OutboundMessage extends NetworkMessage {
         BytesReference reference;
         int variableHeaderLength = -1;
         final long preHeaderPosition = bytesStream.position();
-
-        if (version.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-            writeVariableHeader(bytesStream);
-            variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
-        }
+        writeVariableHeader(bytesStream);
+        variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
 
         try (CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
             stream.setVersion(version);
@@ -112,6 +114,11 @@ abstract class OutboundMessage extends NetworkMessage {
         }
     }
 
+    /**
+     * Internal outbound message request
+     *
+     * @opensearch.internal
+     */
     static class Request extends OutboundMessage {
 
         private final String[] features;
@@ -153,6 +160,11 @@ abstract class OutboundMessage extends NetworkMessage {
         }
     }
 
+    /**
+     * Internal message response
+     *
+     * @opensearch.internal
+     */
     static class Response extends OutboundMessage {
 
         private final Set<String> features;

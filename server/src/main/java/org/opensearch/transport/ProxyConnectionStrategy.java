@@ -33,7 +33,6 @@
 package org.opensearch.transport;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterName;
@@ -47,7 +46,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.concurrent.CountDown;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -60,6 +59,11 @@ import java.util.stream.Stream;
 
 import static org.opensearch.common.settings.Setting.intSetting;
 
+/**
+ * Connect through a proxy
+ *
+ * @opensearch.internal
+ */
 public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
     /**
@@ -339,6 +343,11 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         return new TransportAddress(parseConfiguredAddress(address));
     }
 
+    /**
+     * Contains information about the proxy mode
+     *
+     * @opensearch.internal
+     */
     public static class ProxyModeInfo implements RemoteConnectionInfo.ModeInfo {
 
         private final String address;
@@ -355,11 +364,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
         private ProxyModeInfo(StreamInput input) throws IOException {
             address = input.readString();
-            if (input.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-                serverName = input.readString();
-            } else {
-                serverName = null;
-            }
+            serverName = input.readString();
             maxSocketConnections = input.readVInt();
             numSocketsConnected = input.readVInt();
         }
@@ -376,9 +381,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(address);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-                out.writeString(serverName);
-            }
+            out.writeString(serverName);
             out.writeVInt(maxSocketConnections);
             out.writeVInt(numSocketsConnected);
         }

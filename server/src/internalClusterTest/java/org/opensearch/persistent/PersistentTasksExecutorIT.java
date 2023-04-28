@@ -224,7 +224,7 @@ public class PersistentTasksExecutorIT extends OpenSearchIntegTestCase {
     public void testPersistentActionWithNonClusterStateCondition() throws Exception {
         PersistentTasksClusterService persistentTasksClusterService = internalCluster().getInstance(
             PersistentTasksClusterService.class,
-            internalCluster().getMasterName()
+            internalCluster().getClusterManagerName()
         );
         // Speed up rechecks to a rate that is quicker than what settings would allow
         persistentTasksClusterService.setRecheckInterval(TimeValue.timeValueMillis(1));
@@ -384,7 +384,7 @@ public class PersistentTasksExecutorIT extends OpenSearchIntegTestCase {
     public void testUnassignRunningPersistentTask() throws Exception {
         PersistentTasksClusterService persistentTasksClusterService = internalCluster().getInstance(
             PersistentTasksClusterService.class,
-            internalCluster().getMasterName()
+            internalCluster().getClusterManagerName()
         );
         // Speed up rechecks to a rate that is quicker than what settings would allow
         persistentTasksClusterService.setRecheckInterval(TimeValue.timeValueMillis(1));
@@ -403,7 +403,7 @@ public class PersistentTasksExecutorIT extends OpenSearchIntegTestCase {
 
         PlainActionFuture<PersistentTask<?>> unassignmentFuture = new PlainActionFuture<>();
 
-        // Disallow re-assignment after it is unallocated to verify master and node state
+        // Disallow re-assignment after it is unallocated to verify cluster-manager and node state
         TestPersistentTasksExecutor.setNonClusterStateCondition(false);
 
         persistentTasksClusterService.unassignPersistentTask(taskId, task.getAllocationId() + 1, "unassignment test", unassignmentFuture);

@@ -31,7 +31,6 @@
 
 package org.opensearch.action.admin.cluster.configuration;
 
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
 import org.opensearch.action.support.ActionFilters;
@@ -49,6 +48,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes.Builder;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.ClusterSettings;
@@ -175,7 +175,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
                     .add(otherNode2)
                     .add(otherDataNode)
                     .localNodeId(localNode.getId())
-                    .masterNodeId(localNode.getId())
+                    .clusterManagerNodeId(localNode.getId())
             )
                 .metadata(
                     Metadata.builder()
@@ -252,7 +252,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
-    public void testWithdrawsVotesFromAllMasterEligibleNodes() throws InterruptedException {
+    public void testWithdrawsVotesFromAllClusterManagerEligibleNodes() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(2);
 
         clusterStateObserver.waitForNextChange(new AdjustConfigurationForExclusions(countDownLatch));
@@ -349,14 +349,14 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
-    public void testOnlyMatchesMasterEligibleNodes() throws InterruptedException {
+    public void testOnlyMatchesClusterManagerEligibleNodes() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         final SetOnce<TransportException> exceptionHolder = new SetOnce<>();
 
         transportService.sendRequest(
             localNode,
             AddVotingConfigExclusionsAction.NAME,
-            makeRequestWithNodeDescriptions("_all", "master:false"),
+            makeRequestWithNodeDescriptions("_all", "cluster_manager:false"),
             expectError(e -> {
                 exceptionHolder.set(e);
                 countDownLatch.countDown();
@@ -368,7 +368,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
         assertThat(rootCause, instanceOf(IllegalArgumentException.class));
         assertThat(
             rootCause.getMessage(),
-            equalTo("add voting config exclusions request for [_all, master:false] matched no cluster-manager-eligible nodes")
+            equalTo("add voting config exclusions request for [_all, cluster_manager:false] matched no cluster-manager-eligible nodes")
         );
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
@@ -386,7 +386,9 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
                 Strings.EMPTY_ARRAY,
                 TimeValue.timeValueSeconds(30)
             ),
-            expectSuccess(e -> { countDownLatch.countDown(); })
+            expectSuccess(e -> {
+                countDownLatch.countDown();
+            })
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
@@ -430,7 +432,9 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
             localNode,
             AddVotingConfigExclusionsAction.NAME,
             new AddVotingConfigExclusionsRequest("absent_node"),
-            expectSuccess(e -> { countDownLatch.countDown(); })
+            expectSuccess(e -> {
+                countDownLatch.countDown();
+            })
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
@@ -692,7 +696,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
 
         @Override
         public void onNewClusterState(ClusterState state) {
-            clusterService.getMasterService().submitStateUpdateTask("reconfiguration", new ClusterStateUpdateTask() {
+            clusterService.getClusterManagerService().submitStateUpdateTask("reconfiguration", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     assertThat(currentState, sameInstance(state));

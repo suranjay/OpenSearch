@@ -41,7 +41,7 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.tasks.Task;
@@ -53,6 +53,11 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+/**
+ * The search time slow log implementation
+ *
+ * @opensearch.internal
+ */
 public final class SearchSlowLog implements SearchOperationListener {
     private static final Charset UTF_8 = Charset.forName("UTF-8");
 
@@ -203,6 +208,11 @@ public final class SearchSlowLog implements SearchOperationListener {
         }
     }
 
+    /**
+     * Search slow log message
+     *
+     * @opensearch.internal
+     */
     static final class SearchSlowLogMessage extends OpenSearchLogMessage {
 
         SearchSlowLogMessage(SearchContext context, long tookInNanos) {

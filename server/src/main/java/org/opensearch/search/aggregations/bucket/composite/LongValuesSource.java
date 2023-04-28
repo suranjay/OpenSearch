@@ -63,8 +63,10 @@ import java.util.function.ToLongFunction;
 
 /**
  * A {@link SingleDimensionValuesSource} for longs.
+ *
+ * @opensearch.internal
  */
-class LongValuesSource extends SingleDimensionValuesSource<Long> {
+public class LongValuesSource extends SingleDimensionValuesSource<Long> {
     private final BigArrays bigArrays;
     private final CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc;
     private final LongUnaryOperator rounding;
@@ -74,7 +76,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     private long currentValue;
     private boolean missingCurrentValue;
 
-    LongValuesSource(
+    public LongValuesSource(
         BigArrays bigArrays,
         MappedFieldType fieldType,
         CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc,
@@ -163,16 +165,14 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     }
 
     @Override
-    void setAfter(Comparable value) {
+    protected void setAfter(Comparable value) {
         if (missingBucket && value == null) {
             afterValue = null;
         } else {
             // parse the value from a string in case it is a date or a formatted unsigned long.
-            afterValue = format.parseLong(
-                value.toString(),
-                false,
-                () -> { throw new IllegalArgumentException("now() is not supported in [after] key"); }
-            );
+            afterValue = format.parseLong(value.toString(), false, () -> {
+                throw new IllegalArgumentException("now() is not supported in [after] key");
+            });
         }
     }
 

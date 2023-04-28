@@ -35,7 +35,6 @@ import org.opensearch.search.aggregations.bucket.adjacency.InternalAdjacencyMatr
 import org.opensearch.search.aggregations.bucket.composite.InternalComposite;
 import org.opensearch.search.aggregations.bucket.filter.InternalFilter;
 import org.opensearch.search.aggregations.bucket.filter.InternalFilters;
-import org.opensearch.search.aggregations.bucket.geogrid.InternalGeoGrid;
 import org.opensearch.search.aggregations.bucket.global.InternalGlobal;
 import org.opensearch.search.aggregations.bucket.histogram.InternalVariableWidthHistogram;
 import org.opensearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram;
@@ -54,7 +53,6 @@ import org.opensearch.search.aggregations.bucket.terms.UnmappedTerms;
 import org.opensearch.search.aggregations.metrics.InternalAvg;
 import org.opensearch.search.aggregations.metrics.InternalCardinality;
 import org.opensearch.search.aggregations.metrics.InternalExtendedStats;
-import org.opensearch.search.aggregations.metrics.InternalGeoBounds;
 import org.opensearch.search.aggregations.metrics.InternalGeoCentroid;
 import org.opensearch.search.aggregations.metrics.InternalHDRPercentileRanks;
 import org.opensearch.search.aggregations.metrics.InternalHDRPercentiles;
@@ -88,6 +86,8 @@ import java.util.stream.StreamSupport;
  * or because of summing to zero).  Pipeline aggs in particular are not well supported
  * by these helpers since most share InternalSimpleValue and it's not clear which pipeline
  * generated the value.
+ *
+ * @opensearch.internal
  */
 public class AggregationInspectionHelper {
     public static <A extends InternalTerms<A, B>, B extends InternalTerms.Bucket<B>> boolean hasValue(InternalTerms<A, B> agg) {
@@ -116,10 +116,6 @@ public class AggregationInspectionHelper {
 
     public static boolean hasValue(InternalFilter agg) {
         return agg.getDocCount() > 0;
-    }
-
-    public static boolean hasValue(InternalGeoGrid<?> agg) {
-        return agg.getBuckets().stream().anyMatch(bucket -> bucket.getDocCount() > 0);
     }
 
     public static boolean hasValue(InternalGlobal agg) {
@@ -187,10 +183,6 @@ public class AggregationInspectionHelper {
 
     public static boolean hasValue(InternalExtendedStats agg) {
         return agg.getCount() > 0;
-    }
-
-    public static boolean hasValue(InternalGeoBounds agg) {
-        return (agg.topLeft() == null && agg.bottomRight() == null) == false;
     }
 
     public static boolean hasValue(InternalGeoCentroid agg) {

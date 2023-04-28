@@ -34,7 +34,7 @@ package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.Assertions;
+import org.opensearch.core.Assertions;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.FutureUtils;
@@ -58,11 +58,15 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 /**
  * Represents a collection of global checkpoint listeners. This collection can be added to, and all listeners present at the time of an
  * update will be notified together. All listeners will be notified when the shard is closed.
+ *
+ * @opensearch.internal
  */
 public class GlobalCheckpointListeners implements Closeable {
 
     /**
      * A global checkpoint listener consisting of a callback that is notified when the global checkpoint is updated or the shard is closed.
+     *
+     * @opensearch.internal
      */
     public interface GlobalCheckpointListener {
 

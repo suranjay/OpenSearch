@@ -49,36 +49,38 @@ opensearchplugin {
   classname 'org.opensearch.repositories.gcs.GoogleCloudStoragePlugin'
 }
 
+versions << [
+  'google_auth': '1.7.0'
+]
+
 dependencies {
   api 'com.google.cloud:google-cloud-storage:1.113.1'
   api 'com.google.cloud:google-cloud-core:2.5.10'
   runtimeOnly 'com.google.guava:guava:30.1.1-jre'
   api 'com.google.guava:failureaccess:1.0.1'
-  api 'com.google.http-client:google-http-client:1.35.0'
+  api 'com.google.http-client:google-http-client:1.42.0'
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api 'com.google.api:api-common:1.8.1'
-  api 'com.google.api:gax:1.54.0'
+  api 'com.google.api:gax:2.17.0'
   api 'org.threeten:threetenbp:1.4.4'
-  api 'com.google.protobuf:protobuf-java-util:3.19.3'
-  api 'com.google.protobuf:protobuf-java:3.19.3'
   api 'com.google.code.gson:gson:2.9.0'
-  api 'com.google.api.grpc:proto-google-common-protos:2.8.0'
+  api 'com.google.api.grpc:proto-google-common-protos:2.10.0'
   api 'com.google.api.grpc:proto-google-iam-v1:0.12.0'
   api 'com.google.cloud:google-cloud-core-http:1.93.3'
-  api 'com.google.auth:google-auth-library-credentials:0.20.0'
-  api 'com.google.auth:google-auth-library-oauth2-http:0.20.0'
-  api 'com.google.oauth-client:google-oauth-client:1.33.1'
-  api 'com.google.api-client:google-api-client:1.30.10'
-  api 'com.google.http-client:google-http-client-appengine:1.35.0'
-  api 'com.google.http-client:google-http-client-jackson2:1.35.0'
+  api "com.google.auth:google-auth-library-credentials:${versions.google_auth}"
+  api "com.google.auth:google-auth-library-oauth2-http:${versions.google_auth}"
+  api 'com.google.oauth-client:google-oauth-client:1.33.3'
+  api 'com.google.api-client:google-api-client:1.34.0'
+  api 'com.google.http-client:google-http-client-appengine:1.41.8'
+  api 'com.google.http-client:google-http-client-jackson2:1.42.3'
   api 'com.google.http-client:google-http-client-gson:1.41.4'
-  api 'com.google.api:gax-httpjson:0.62.0'
-  api 'io.grpc:grpc-context:1.29.0'
+  api 'com.google.api:gax-httpjson:0.103.1'
+  api 'io.grpc:grpc-context:1.46.0'
   api 'io.opencensus:opencensus-api:0.18.0'
-  api 'io.opencensus:opencensus-contrib-http-util:0.18.0'
-  api 'com.google.apis:google-api-services-storage:v1-rev20200814-1.30.10'
+  api 'io.opencensus:opencensus-contrib-http-util:0.31.1'
+  api 'com.google.apis:google-api-services-storage:v1-rev20220608-1.32.1'
 
   testImplementation project(':test:fixtures:gcs-fixture')
 }
@@ -101,13 +103,6 @@ tasks.named("dependencyLicenses").configure {
 thirdPartyAudit {
   ignoreViolations(
     // uses internal java api: sun.misc.Unsafe
-    'com.google.protobuf.UnsafeUtil',
-    'com.google.protobuf.UnsafeUtil$1',
-    'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
-    'com.google.protobuf.UnsafeUtil$MemoryAccessor',
-    'com.google.protobuf.MessageSchema',
-    'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
-    'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
     'com.google.common.cache.Striped64',
     'com.google.common.cache.Striped64$1',
     'com.google.common.cache.Striped64$Cell',
@@ -126,6 +121,7 @@ thirdPartyAudit {
   )
 
   ignoreMissingClasses(
+    'com.google.api.client.http.apache.v2.ApacheHttpTransport',
     'com.google.appengine.api.datastore.Blob',
     'com.google.appengine.api.datastore.DatastoreService',
     'com.google.appengine.api.datastore.DatastoreServiceFactory',
@@ -145,6 +141,11 @@ thirdPartyAudit {
     'com.google.appengine.api.urlfetch.HTTPResponse',
     'com.google.appengine.api.urlfetch.URLFetchService',
     'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
+    'com.oracle.svm.core.configure.ResourcesRegistry',
+    'com.google.protobuf.util.JsonFormat',
+    'com.google.protobuf.util.JsonFormat$Parser',
+    'com.google.protobuf.util.JsonFormat$Printer',
+    'com.google.protobuf.util.Timestamps',
     // commons-logging optional dependencies
     'org.apache.avalon.framework.logger.Logger',
     'org.apache.log.Hierarchy',
@@ -168,6 +169,8 @@ thirdPartyAudit {
     'org.apache.http.client.UserTokenHandler',
     'org.apache.http.client.methods.HttpEntityEnclosingRequestBase',
     'org.apache.http.client.methods.HttpRequestBase',
+    'org.apache.http.config.Registry',
+    'org.apache.http.config.RegistryBuilder',
     'org.apache.http.config.SocketConfig',
     'org.apache.http.config.SocketConfig$Builder',
     'org.apache.http.conn.ClientConnectionManager',
@@ -177,6 +180,7 @@ thirdPartyAudit {
     'org.apache.http.conn.routing.HttpRoutePlanner',
     'org.apache.http.conn.scheme.PlainSocketFactory',
     'org.apache.http.conn.scheme.SchemeRegistry',
+    'org.apache.http.conn.socket.PlainConnectionSocketFactory',
     'org.apache.http.conn.ssl.SSLSocketFactory',
     'org.apache.http.conn.ssl.X509HostnameVerifier',
     'org.apache.http.entity.AbstractHttpEntity',
@@ -189,10 +193,19 @@ thirdPartyAudit {
     'org.apache.http.protocol.HttpContext',
     'org.apache.http.protocol.HttpProcessor',
     'org.apache.http.protocol.HttpRequestExecutor',
+    'org.graalvm.nativeimage.ImageSingletons',
+    'org.graalvm.nativeimage.hosted.Feature',
+    'org.graalvm.nativeimage.hosted.Feature$BeforeAnalysisAccess',
+    'org.graalvm.nativeimage.hosted.Feature$DuringAnalysisAccess',
+    'org.graalvm.nativeimage.hosted.Feature$FeatureAccess',
+    'org.graalvm.nativeimage.hosted.RuntimeReflection',
+    'org.graalvm.nativeimage.impl.ConfigurationCondition',
     // commons-logging provided dependencies
     'javax.jms.Message',
     'javax.servlet.ServletContextEvent',
     'javax.servlet.ServletContextListener',
+    'io.opencensus.tags.TagMetadata',
+    'io.opencensus.tags.TagMetadata$TagTtl',
   )
 }
 

@@ -32,12 +32,17 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 
+/**
+ * A double numeric terms result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedDoubleTerms extends ParsedTerms {
 
     @Override
@@ -60,6 +65,11 @@ public class ParsedDoubleTerms extends ParsedTerms {
         return aggregation;
     }
 
+    /**
+     * Parsed bucket for double terms
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedTerms.ParsedBucket {
 
         private Double key;

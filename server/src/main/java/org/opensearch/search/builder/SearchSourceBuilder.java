@@ -32,11 +32,10 @@
 
 package org.opensearch.search.builder;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
@@ -44,11 +43,11 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
@@ -89,6 +88,8 @@ import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISA
  * {@link org.opensearch.search.builder.SearchSourceBuilder#searchSource()}.
  *
  * @see org.opensearch.action.search.SearchRequest#source(SearchSourceBuilder)
+ *
+ * @opensearch.internal
  */
 public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SearchSourceBuilder.class);
@@ -258,19 +259,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
         sliceBuilder = in.readOptionalWriteable(SliceBuilder::new);
         collapse = in.readOptionalWriteable(CollapseBuilder::new);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            trackTotalHitsUpTo = in.readOptionalInt();
-        } else {
-            trackTotalHitsUpTo = in.readBoolean() ? TRACK_TOTAL_HITS_ACCURATE : TRACK_TOTAL_HITS_DISABLED;
+        trackTotalHitsUpTo = in.readOptionalInt();
+        if (in.readBoolean()) {
+            fetchFields = in.readList(FieldAndFormat::new);
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            if (in.readBoolean()) {
-                fetchFields = in.readList(FieldAndFormat::new);
-            }
-        }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
-        }
+        pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
     }
 
     @Override
@@ -324,20 +317,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalWriteable(searchAfterBuilder);
         out.writeOptionalWriteable(sliceBuilder);
         out.writeOptionalWriteable(collapse);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            out.writeOptionalInt(trackTotalHitsUpTo);
-        } else {
-            out.writeBoolean(trackTotalHitsUpTo == null ? true : trackTotalHitsUpTo > SearchContext.TRACK_TOTAL_HITS_DISABLED);
+        out.writeOptionalInt(trackTotalHitsUpTo);
+        out.writeBoolean(fetchFields != null);
+        if (fetchFields != null) {
+            out.writeList(fetchFields);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            out.writeBoolean(fetchFields != null);
-            if (fetchFields != null) {
-                out.writeList(fetchFields);
-            }
-        }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            out.writeOptionalWriteable(pointInTimeBuilder);
-        }
+        out.writeOptionalWriteable(pointInTimeBuilder);
     }
 
     /**
@@ -1469,6 +1454,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return builder;
     }
 
+    /**
+     * Boosts on an index
+     *
+     * @opensearch.internal
+     */
     public static class IndexBoost implements Writeable, ToXContentObject {
         private final String index;
         private final float boost;
@@ -1565,6 +1555,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     }
 
+    /**
+     * Script field
+     *
+     * @opensearch.internal
+     */
     public static class ScriptField implements Writeable, ToXContentFragment {
 
         private final boolean ignoreFailure;

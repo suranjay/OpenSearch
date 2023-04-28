@@ -36,7 +36,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
@@ -48,6 +48,8 @@ import java.util.Set;
 /**
  * Identifies an object that supplies a filter for the content of a {@link RestRequest}. This interface should be implemented by a
  * {@link org.opensearch.rest.RestHandler} that expects there will be sensitive content in the body of the request such as a password
+ *
+ * @opensearch.api
  */
 public interface RestRequestFilter {
 

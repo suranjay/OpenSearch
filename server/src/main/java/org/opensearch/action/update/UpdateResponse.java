@@ -35,8 +35,8 @@ package org.opensearch.action.update;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
@@ -45,6 +45,11 @@ import java.io.IOException;
 
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
+/**
+ * Transport response for updating an index
+ *
+ * @opensearch.internal
+ */
 public class UpdateResponse extends DocWriteResponse {
 
     private static final String GET = "get";
@@ -167,6 +172,8 @@ public class UpdateResponse extends DocWriteResponse {
      * Builder class for {@link UpdateResponse}. This builder is usually used during xcontent parsing to
      * temporarily store the parsed values, then the {@link DocWriteResponse.Builder#build()} method is called to
      * instantiate the {@link UpdateResponse}.
+     *
+     * @opensearch.internal
      */
     public static class Builder extends DocWriteResponse.Builder {
 

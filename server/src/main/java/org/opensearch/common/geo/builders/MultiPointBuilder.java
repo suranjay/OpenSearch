@@ -36,7 +36,7 @@ import org.opensearch.common.geo.GeoShapeType;
 import org.opensearch.common.geo.XShapeCollection;
 import org.opensearch.common.geo.parsers.ShapeParser;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geometry.MultiPoint;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.spatial4j.shape.Point;
@@ -46,6 +46,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Builds a multi point geometry
+ *
+ * @opensearch.internal
+ */
 public class MultiPointBuilder extends ShapeBuilder<XShapeCollection<Point>, MultiPoint, MultiPointBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTIPOINT;

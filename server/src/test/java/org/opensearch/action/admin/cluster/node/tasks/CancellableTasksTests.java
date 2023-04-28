@@ -40,7 +40,6 @@ import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.support.ActionTestUtils;
-import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -55,6 +54,7 @@ import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -78,7 +78,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class CancellableTasksTests extends TaskManagerTestCase {
 
-    public static class CancellableNodeRequest extends BaseNodeRequest {
+    public static class CancellableNodeRequest extends TransportRequest {
         protected String requestName;
 
         public CancellableNodeRequest() {
@@ -474,12 +474,12 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             for (int i = 1; i < testNodes.length; i++) {
                 discoveryNodes[i - 1] = testNodes[i].discoveryNode();
             }
-            DiscoveryNode master = discoveryNodes[0];
+            DiscoveryNode clusterManager = discoveryNodes[0];
             for (int i = 1; i < testNodes.length; i++) {
                 // Notify only nodes that should remain in the cluster
                 setState(
                     testNodes[i].clusterService,
-                    ClusterStateCreationUtils.state(testNodes[i].discoveryNode(), master, discoveryNodes)
+                    ClusterStateCreationUtils.state(testNodes[i].discoveryNode(), clusterManager, discoveryNodes)
                 );
             }
             if (randomBoolean()) {

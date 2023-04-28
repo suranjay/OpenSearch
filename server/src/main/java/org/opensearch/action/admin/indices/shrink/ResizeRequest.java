@@ -31,7 +31,7 @@
 
 package org.opensearch.action.admin.indices.shrink;
 
-import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.admin.indices.alias.Alias;
@@ -40,13 +40,14 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -55,10 +56,14 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * Request class to shrink an index into a single shard
+ *
+ * @opensearch.internal
  */
 public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements IndicesRequest, ToXContentObject {
 
     public static final ObjectParser<ResizeRequest, Void> PARSER = new ObjectParser<>("resize_request");
+    private static final ParseField MAX_SHARD_SIZE = new ParseField("max_shard_size");
+
     static {
         PARSER.declareField(
             (parser, request, context) -> request.getTargetIndexRequest().settings(parser.map()),
@@ -70,12 +75,20 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
             new ParseField("aliases"),
             ObjectParser.ValueType.OBJECT
         );
+        PARSER.declareField(
+            ResizeRequest::setMaxShardSize,
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SHARD_SIZE.getPreferredName()),
+            MAX_SHARD_SIZE,
+            ObjectParser.ValueType.STRING
+        );
     }
 
     private CreateIndexRequest targetIndexRequest;
     private String sourceIndex;
     private ResizeType type = ResizeType.SHRINK;
     private Boolean copySettings = true;
+    private ByteSizeValue maxShardSize;
+    private boolean shouldStoreResult;
 
     public ResizeRequest(StreamInput in) throws IOException {
         super(in);
@@ -83,6 +96,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         sourceIndex = in.readString();
         type = in.readEnum(ResizeType.class);
         copySettings = in.readOptionalBoolean();
+        if (in.getVersion().onOrAfter(Version.V_2_5_0)) {
+            maxShardSize = in.readOptionalWriteable(ByteSizeValue::new);
+        }
     }
 
     ResizeRequest() {}
@@ -104,8 +120,31 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         if (targetIndexRequest.settings().getByPrefix("index.sort.").isEmpty() == false) {
             validationException = addValidationError("can't override index sort when resizing an index", validationException);
         }
+        if (IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.exists(targetIndexRequest.settings())) {
+            validationException = addValidationError(
+                "cannot provide a routing partition size value when resizing an index",
+                validationException
+            );
+        }
         if (type == ResizeType.SPLIT && IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexRequest.settings()) == false) {
             validationException = addValidationError("index.number_of_shards is required for split operations", validationException);
+        }
+
+        // max_shard_size is only supported for shrink
+        if (type != ResizeType.SHRINK && maxShardSize != null) {
+            validationException = addValidationError("Unsupported parameter [max_shard_size]", validationException);
+        }
+        // max_shard_size conflicts with the index.number_of_shards setting
+        if (type == ResizeType.SHRINK
+            && IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexRequest.settings())
+            && maxShardSize != null) {
+            validationException = addValidationError(
+                "Cannot set max_shard_size and index.number_of_shards at the same time!",
+                validationException
+            );
+        }
+        if (maxShardSize != null && maxShardSize.getBytes() <= 0) {
+            validationException = addValidationError("max_shard_size must be greater than 0", validationException);
         }
         assert copySettings == null || copySettings;
         return validationException;
@@ -120,11 +159,11 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         super.writeTo(out);
         targetIndexRequest.writeTo(out);
         out.writeString(sourceIndex);
-        if (type == ResizeType.CLONE && out.getVersion().before(LegacyESVersion.V_7_4_0)) {
-            throw new IllegalArgumentException("can't send clone request to a node that's older than " + LegacyESVersion.V_7_4_0);
-        }
         out.writeEnum(type);
         out.writeOptionalBoolean(copySettings);
+        if (out.getVersion().onOrAfter(Version.V_2_5_0)) {
+            out.writeOptionalWriteable(maxShardSize);
+        }
     }
 
     @Override
@@ -207,6 +246,36 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         return copySettings;
     }
 
+    /**
+     * Sets the maximum size of a primary shard in the new shrunken index.
+     * This parameter can be used to calculate the lowest factor of the source index's shards number
+     * which satisfies the maximum shard size requirement.
+     *
+     * @param maxShardSize the maximum size of a primary shard in the new shrunken index
+     */
+    public void setMaxShardSize(ByteSizeValue maxShardSize) {
+        this.maxShardSize = maxShardSize;
+    }
+
+    /**
+     * Returns the maximum size of a primary shard in the new shrunken index.
+     */
+    public ByteSizeValue getMaxShardSize() {
+        return maxShardSize;
+    }
+
+    /**
+     * Should this task store its result after it has finished?
+     */
+    public void setShouldStoreResult(boolean shouldStoreResult) {
+        this.shouldStoreResult = shouldStoreResult;
+    }
+
+    @Override
+    public boolean getShouldStoreResult() {
+        return shouldStoreResult;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -223,6 +292,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
                 }
             }
             builder.endObject();
+            if (maxShardSize != null) {
+                builder.field(MAX_SHARD_SIZE.getPreferredName(), maxShardSize);
+            }
         }
         builder.endObject();
         return builder;
@@ -230,5 +302,28 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
 
     public void fromXContent(XContentParser parser) throws IOException {
         PARSER.parse(parser, this, null);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder b = new StringBuilder();
+        switch (getResizeType()) {
+            case SPLIT:
+                b.append("split from");
+                break;
+            case CLONE:
+                b.append("clone from");
+                break;
+            default:
+                b.append("shrink from");
+        }
+        b.append(" [").append(sourceIndex).append("]");
+        b.append(" to [").append(getTargetIndexRequest().index()).append(']');
+        return b.toString();
+    }
+
+    @Override
+    public String getDescription() {
+        return this.toString();
     }
 }

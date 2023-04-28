@@ -33,7 +33,7 @@ package org.opensearch.search.aggregations.bucket.terms;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -47,10 +47,17 @@ import java.util.Objects;
 
 /**
  * Result of the {@link TermsAggregator} when the field is some kind of whole number like a integer, long, or a date.
+ *
+ * @opensearch.internal
  */
 public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> {
     public static final String NAME = "lterms";
 
+    /**
+     * Bucket for long terms
+     *
+     * @opensearch.internal
+     */
     public static class Bucket extends InternalTerms.Bucket<Bucket> {
         long term;
 

@@ -35,12 +35,16 @@ package org.opensearch.ingest;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContent.Params;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Information about an ingest processor
+ *
+ * @opensearch.internal
+ */
 public class ProcessorInfo implements Writeable, ToXContentObject, Comparable<ProcessorInfo> {
 
     private final String type;

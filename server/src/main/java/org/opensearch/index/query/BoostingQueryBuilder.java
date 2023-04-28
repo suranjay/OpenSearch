@@ -34,12 +34,12 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
@@ -56,6 +56,8 @@ import java.util.Objects;
  * are simply used to lessen the scores. Documents that match the negativeQuery have their score
  * multiplied by the supplied "boost" parameter, so this should be less than 1 to achieve a
  * demoting effect
+ *
+ * @opensearch.internal
  */
 public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuilder> {
     public static final String NAME = "boosting";

@@ -32,7 +32,7 @@
 
 package org.opensearch.index.shard;
 
-import org.opensearch.Assertions;
+import org.opensearch.core.Assertions;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
@@ -43,7 +43,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.common.util.concurrent.ThreadContext.StoredContext;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -64,6 +64,8 @@ import java.util.stream.Collectors;
  * between terms) we immediately delay all operations to a queue, obtain all available permits, and wait for outstanding operations to drain
  * and return their permits. Delayed operations will acquire permits and be completed after the operation that blocked all operations has
  * completed.
+ *
+ * @opensearch.internal
  */
 final class IndexShardOperationPermits implements Closeable {
 
@@ -359,6 +361,11 @@ final class IndexShardOperationPermits implements Closeable {
             .collect(Collectors.toList());
     }
 
+    /**
+     * Represents a delayed operation
+     *
+     * @opensearch.internal
+     */
     private static class DelayedOperation {
         private final ActionListener<Releasable> listener;
         private final String debugInfo;

@@ -33,11 +33,11 @@
 package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.Level;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.Booleans;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -47,16 +47,17 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.MemorySizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.DeprecationHandler;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParserUtils;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.common.util.io.IOUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -91,6 +92,8 @@ import static org.opensearch.common.unit.TimeValue.parseTimeValue;
 
 /**
  * An immutable settings implementation.
+ *
+ * @opensearch.internal
  */
 public final class Settings implements ToXContentFragment {
 
@@ -338,6 +341,8 @@ public final class Settings implements ToXContentFragment {
      * We have to lazy initialize the deprecation logger as otherwise a static logger here would be constructed before logging is configured
      * leading to a runtime failure (see {@link LogConfigurator#checkErrorListener()} ). The premature construction would come from any
      * {@link Setting} object constructed in, for example, {@link org.opensearch.env.Environment}.
+     *
+     * @opensearch.internal
      */
     static class DeprecationLoggerHolder {
         static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Settings.class);
@@ -604,7 +609,7 @@ public final class Settings implements ToXContentFragment {
     /**
      * Parsers the generated xcontent from {@link Settings#toXContent(XContentBuilder, Params)} into a new Settings object.
      * Note this method requires the parser to either be positioned on a null token or on
-     * {@link org.opensearch.common.xcontent.XContentParser.Token#START_OBJECT}.
+     * {@link XContentParser.Token#START_OBJECT}.
      */
     public static Settings fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, true, false);
@@ -742,6 +747,8 @@ public final class Settings implements ToXContentFragment {
      * A builder allowing to put different settings and then {@link #build()} an immutable
      * settings implementation. Use {@link Settings#builder()} in order to
      * construct it.
+     *
+     * @opensearch.internal
      */
     public static class Builder {
 
@@ -1034,7 +1041,7 @@ public final class Settings implements ToXContentFragment {
         }
 
         private void processLegacyLists(Map<String, Object> map) {
-            String[] array = map.keySet().toArray(new String[map.size()]);
+            String[] array = map.keySet().toArray(new String[0]);
             for (String key : array) {
                 if (key.endsWith(".0")) { // let's only look at the head of the list and convert in order starting there.
                     int counter = 0;
@@ -1084,7 +1091,7 @@ public final class Settings implements ToXContentFragment {
         /**
          * Loads settings from the actual string content that represents them using {@link #fromXContent(XContentParser)}
          */
-        public Builder loadFromSource(String source, XContentType xContentType) {
+        public Builder loadFromSource(String source, MediaType xContentType) {
             try (
                 XContentParser parser = XContentFactory.xContent(xContentType)
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)
@@ -1357,6 +1364,11 @@ public final class Settings implements ToXContentFragment {
         }
     }
 
+    /**
+     * Prefixed secure settings
+     *
+     * @opensearch.internal
+     */
     private static class PrefixedSecureSettings implements SecureSettings {
         private final SecureSettings delegate;
         private final UnaryOperator<String> addPrefix;

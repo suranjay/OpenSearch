@@ -83,6 +83,11 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
+/**
+ * Service responsible for loading plugins and modules (internal and external)
+ *
+ * @opensearch.internal
+ */
 public class PluginsService implements ReportingService<PluginsAndModules> {
 
     private static final Logger logger = LogManager.getLogger(PluginsService.class);
@@ -300,6 +305,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     public void onIndexModule(IndexModule indexModule) {
+        logger.info("PluginService:onIndexModule index:" + indexModule.getIndex());
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
             plugin.v2().onIndexModule(indexModule);
         }

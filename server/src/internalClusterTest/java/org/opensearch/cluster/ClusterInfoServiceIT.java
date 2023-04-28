@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
@@ -47,7 +46,6 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexService;
@@ -69,6 +67,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -166,34 +165,34 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
         }
         ensureGreen(indexName);
         InternalTestCluster internalTestCluster = internalCluster();
-        // Get the cluster info service on the master node
+        // Get the cluster info service on the cluster-manager node
         final InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster.getInstance(
             ClusterInfoService.class,
-            internalTestCluster.getMasterName()
+            internalTestCluster.getClusterManagerName()
         );
         infoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
         ClusterInfo info = infoService.refresh();
         assertNotNull("info should not be null", info);
-        ImmutableOpenMap<String, DiskUsage> leastUsages = info.getNodeLeastAvailableDiskUsages();
-        ImmutableOpenMap<String, DiskUsage> mostUsages = info.getNodeMostAvailableDiskUsages();
-        ImmutableOpenMap<String, Long> shardSizes = info.shardSizes;
+        final Map<String, DiskUsage> leastUsages = info.getNodeLeastAvailableDiskUsages();
+        final Map<String, DiskUsage> mostUsages = info.getNodeMostAvailableDiskUsages();
+        final Map<String, Long> shardSizes = info.shardSizes;
         assertNotNull(leastUsages);
         assertNotNull(shardSizes);
         assertThat("some usages are populated", leastUsages.values().size(), Matchers.equalTo(2));
         assertThat("some shard sizes are populated", shardSizes.values().size(), greaterThan(0));
-        for (ObjectCursor<DiskUsage> usage : leastUsages.values()) {
-            logger.info("--> usage: {}", usage.value);
-            assertThat("usage has be retrieved", usage.value.getFreeBytes(), greaterThan(0L));
+        for (Map.Entry<String, DiskUsage> usage : leastUsages.entrySet()) {
+            logger.info("--> usage: {}", usage.getValue());
+            assertThat("usage has be retrieved", usage.getValue().getFreeBytes(), greaterThan(0L));
         }
-        for (ObjectCursor<DiskUsage> usage : mostUsages.values()) {
-            logger.info("--> usage: {}", usage.value);
-            assertThat("usage has be retrieved", usage.value.getFreeBytes(), greaterThan(0L));
+        for (DiskUsage usage : mostUsages.values()) {
+            logger.info("--> usage: {}", usage);
+            assertThat("usage has be retrieved", usage.getFreeBytes(), greaterThan(0L));
         }
-        for (ObjectCursor<Long> size : shardSizes.values()) {
-            logger.info("--> shard size: {}", size.value);
-            assertThat("shard size is greater than 0", size.value, greaterThanOrEqualTo(0L));
+        for (Long size : shardSizes.values()) {
+            logger.info("--> shard size: {}", size);
+            assertThat("shard size is greater than 0", size, greaterThanOrEqualTo(0L));
         }
-        ClusterService clusterService = internalTestCluster.getInstance(ClusterService.class, internalTestCluster.getMasterName());
+        ClusterService clusterService = internalTestCluster.getInstance(ClusterService.class, internalTestCluster.getClusterManagerName());
         ClusterState state = clusterService.state();
         for (ShardRouting shard : state.routingTable().allShards()) {
             String dataPath = info.getDataPath(shard);
@@ -221,7 +220,7 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
         InternalTestCluster internalTestCluster = internalCluster();
         InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster.getInstance(
             ClusterInfoService.class,
-            internalTestCluster.getMasterName()
+            internalTestCluster.getClusterManagerName()
         );
         // get one healthy sample
         ClusterInfo info = infoService.refresh();
@@ -231,7 +230,7 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
 
         MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
-            internalTestCluster.getMasterName()
+            internalTestCluster.getClusterManagerName()
         );
 
         final AtomicBoolean timeout = new AtomicBoolean(false);
@@ -272,7 +271,7 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
 
         // now we cause an exception
         timeout.set(false);
-        ActionFilters actionFilters = internalTestCluster.getInstance(ActionFilters.class, internalTestCluster.getMasterName());
+        ActionFilters actionFilters = internalTestCluster.getInstance(ActionFilters.class, internalTestCluster.getClusterManagerName());
         BlockingActionFilter blockingActionFilter = null;
         for (ActionFilter filter : actionFilters.filters()) {
             if (filter instanceof BlockingActionFilter) {

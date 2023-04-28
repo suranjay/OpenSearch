@@ -31,11 +31,12 @@
 
 package org.opensearch.search.aggregations;
 
-import org.opensearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.NamedWriteable;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.Rewriteable;
@@ -48,6 +49,8 @@ import java.util.Map;
 
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
+ *
+ * @opensearch.internal
  */
 public abstract class AggregationBuilder
     implements
@@ -164,6 +167,8 @@ public abstract class AggregationBuilder
      * <p>
      * Unlike {@link CardinalityUpperBound} which is <strong>total</strong>
      * instead of <strong>per parent bucket</strong>.
+     *
+     * @opensearch.internal
      */
     public enum BucketCardinality {
         NONE,
@@ -177,13 +182,17 @@ public abstract class AggregationBuilder
      */
     public abstract BucketCardinality bucketCardinality();
 
-    /** Common xcontent fields shared among aggregator builders */
+    /**
+     * Common xcontent fields shared among aggregator builders
+     *
+     * @opensearch.internal
+     */
     public static final class CommonFields extends ParseField.CommonFields {
         public static final ParseField VALUE_TYPE = new ParseField("value_type");
     }
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 }

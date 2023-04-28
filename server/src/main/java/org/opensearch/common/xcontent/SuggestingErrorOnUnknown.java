@@ -35,6 +35,7 @@ package org.opensearch.common.xcontent;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.core.xcontent.ErrorOnUnknown;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,6 +43,11 @@ import java.util.Locale;
 
 import static java.util.stream.Collectors.toList;
 
+/**
+ * Utility for suggesting source of errors.
+ *
+ * @opensearch.internal
+ */
 public class SuggestingErrorOnUnknown implements ErrorOnUnknown {
     @Override
     public String errorMessage(String parserName, String unknownField, Iterable<String> candidates) {

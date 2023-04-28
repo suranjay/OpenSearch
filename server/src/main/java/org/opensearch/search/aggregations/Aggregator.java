@@ -33,14 +33,14 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.xcontent.DeprecationHandler;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.aggregations.support.AggregationPath;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortOrder;
@@ -54,6 +54,8 @@ import java.util.function.BiConsumer;
  * <p>
  * Be <strong>careful</strong> when adding methods to this class. If possible
  * make sure they have sensible default implementations.
+ *
+ * @opensearch.internal
  */
 public abstract class Aggregator extends BucketCollector implements Releasable {
 
@@ -61,6 +63,8 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * Parses the aggregation request and creates the appropriate aggregator factory for it.
      *
      * @see AggregationBuilder
+     *
+     * @opensearch.internal
      */
     @FunctionalInterface
     public interface Parser {
@@ -155,6 +159,8 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
 
     /**
      * Compare two buckets by their ordinal.
+     *
+     * @opensearch.internal
      */
     @FunctionalInterface
     public interface BucketComparator {
@@ -202,7 +208,11 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      */
     public void collectDebugInfo(BiConsumer<String, Object> add) {}
 
-    /** Aggregation mode for sub aggregations. */
+    /**
+     * Aggregation mode for sub aggregations.
+     *
+     * @opensearch.internal
+     */
     public enum SubAggCollectionMode implements Writeable {
 
         /**

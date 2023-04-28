@@ -32,29 +32,42 @@
 package org.opensearch.cluster;
 
 /**
- * Enables listening to master changes events of the local node (when the local node becomes the master, and when the local
- * node cease being a master).
+ * Enables listening to cluster-manager changes events of the local node (when the local node becomes the cluster-manager, and when the local
+ * node cease being a cluster-manager).
+ *
+ * @opensearch.internal
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link LocalNodeClusterManagerListener}
  */
-public interface LocalNodeMasterListener extends ClusterStateListener {
+@Deprecated
+public interface LocalNodeMasterListener extends LocalNodeClusterManagerListener {
 
     /**
-     * Called when local node is elected to be the master
+     * Called when local node is elected to be the cluster-manager.
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #onClusterManager()}
      */
+    @Deprecated
     void onMaster();
 
     /**
-     * Called when the local node used to be the master, a new master was elected and it's no longer the local node.
+     * Called when the local node used to be the cluster-manager, a new cluster-manager was elected and it's no longer the local node.
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #offClusterManager()}
      */
+    @Deprecated
     void offMaster();
 
+    /**
+     * Called when local node is elected to be the cluster-manager.
+     */
     @Override
-    default void clusterChanged(ClusterChangedEvent event) {
-        final boolean wasMaster = event.previousState().nodes().isLocalNodeElectedMaster();
-        final boolean isMaster = event.localNodeMaster();
-        if (wasMaster == false && isMaster) {
-            onMaster();
-        } else if (wasMaster && isMaster == false) {
-            offMaster();
-        }
+    default void onClusterManager() {
+        onMaster();
+    }
+
+    /**
+     * Called when the local node used to be the cluster-manager, a new cluster-manager was elected and it's no longer the local node.
+     */
+    @Override
+    default void offClusterManager() {
+        offMaster();
     }
 }

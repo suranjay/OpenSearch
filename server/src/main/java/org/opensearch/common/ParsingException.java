@@ -35,9 +35,9 @@ package org.opensearch.common;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentLocation;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentLocation;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -46,6 +46,8 @@ import java.io.IOException;
  * Exception that can be used when parsing queries with a given {@link
  * XContentParser}.
  * Can contain information about location of the error.
+ *
+ * @opensearch.internal
  */
 public class ParsingException extends OpenSearchException {
 

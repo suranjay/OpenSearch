@@ -32,15 +32,15 @@
 
 package org.opensearch.script;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -51,7 +51,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * The allowable types, languages and their corresponding contexts.  When serialized there is a top level <code>types_allowed</code> list,
@@ -90,6 +90,8 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
  *   ]
  * }
  * </code>
+ *
+ * @opensearch.internal
  */
 public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
     private static final ParseField TYPES_ALLOWED = new ParseField("types_allowed");

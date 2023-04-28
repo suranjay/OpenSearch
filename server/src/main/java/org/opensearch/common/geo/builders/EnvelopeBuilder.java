@@ -40,11 +40,16 @@ import org.locationtech.jts.geom.Coordinate;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Builds an envelope geometry
+ *
+ * @opensearch.internal
+ */
 public class EnvelopeBuilder extends ShapeBuilder<Rectangle, org.opensearch.geometry.Rectangle, EnvelopeBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.ENVELOPE;

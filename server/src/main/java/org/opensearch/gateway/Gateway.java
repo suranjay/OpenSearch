@@ -33,7 +33,6 @@
 package org.opensearch.gateway;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.FailedNodeException;
@@ -47,6 +46,11 @@ import org.opensearch.index.Index;
 import java.util.Arrays;
 import java.util.function.Function;
 
+/**
+ * The Gateway
+ *
+ * @opensearch.internal
+ */
 public class Gateway {
 
     private static final Logger logger = LogManager.getLogger(Gateway.class);
@@ -65,7 +69,7 @@ public class Gateway {
     }
 
     public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
-        final String[] nodesIds = clusterService.state().nodes().getMasterNodes().keys().toArray(String.class);
+        final String[] nodesIds = clusterService.state().nodes().getClusterManagerNodes().keySet().toArray(new String[0]);
         logger.trace("performing state recovery from {}", Arrays.toString(nodesIds));
         final TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds, null).actionGet();
 
@@ -90,8 +94,8 @@ public class Gateway {
             } else if (nodeState.metadata().version() > electedGlobalState.version()) {
                 electedGlobalState = nodeState.metadata();
             }
-            for (final ObjectCursor<IndexMetadata> cursor : nodeState.metadata().indices().values()) {
-                indices.addTo(cursor.value.getIndex(), 1);
+            for (final IndexMetadata cursor : nodeState.metadata().indices().values()) {
+                indices.addTo(cursor.getIndex(), 1);
             }
         }
         if (found < requiredAllocation) {
@@ -139,6 +143,11 @@ public class Gateway {
         listener.onSuccess(recoveredState);
     }
 
+    /**
+     * The lister for state recovered.
+     *
+     * @opensearch.internal
+     */
     public interface GatewayStateRecoveredListener {
         void onSuccess(ClusterState build);
 

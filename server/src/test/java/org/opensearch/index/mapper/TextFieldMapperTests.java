@@ -65,9 +65,10 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Strings;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.CharFilterFactory;
@@ -102,7 +103,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void assertParseMaximalWarnings() {
-        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 3.0");
     }
 
     public final void testExistsQueryIndexDisabled() throws IOException {
@@ -229,20 +230,9 @@ public class TextFieldMapperTests extends MapperTestCase {
             )
         );
         return new IndexAnalyzers(
-            org.opensearch.common.collect.Map.of(
-                "default",
-                dflt,
-                "standard",
-                standard,
-                "keyword",
-                keyword,
-                "whitespace",
-                whitespace,
-                "my_stop_analyzer",
-                stop
-            ),
-            org.opensearch.common.collect.Map.of(),
-            org.opensearch.common.collect.Map.of()
+            Map.of("default", dflt, "standard", standard, "keyword", keyword, "whitespace", whitespace, "my_stop_analyzer", stop),
+            Map.of(),
+            Map.of()
         );
     }
 
@@ -280,11 +270,45 @@ public class TextFieldMapperTests extends MapperTestCase {
                 b.startObject("subfield").field("type", "long").endObject();
             }
             b.endObject();
+            b.field("store", true);
+            b.field("similarity", "BM25");
+            b.field("index_options", "offsets");
+            b.field("norms", false);
+            b.field("term_vector", "yes");
+            b.field("position_increment_gap", 0);
+            b.startObject("fielddata_frequency_filter");
+            {
+                b.field("min", 0.001);
+                b.field("max", 0.1);
+                b.field("min_segment_size", 500);
+            }
+            b.endObject();
+            b.field("eager_global_ordinals", true);
+            b.field("index_phrases", true);
+            b.startObject("index_prefixes");
+            {
+                b.field("min_chars", 1);
+                b.field("max_chars", 10);
+            }
+            b.endObject();
+            b.startObject("meta");
+            {
+                b.field("unit", "min");
+            }
+            b.endObject();
+            b.startArray("copy_to");
+            {
+                b.value("target");
+            }
+            b.endArray();
         }));
-
         assertEquals(
-            "{\"_doc\":{\"properties\":{\"field\":{\"type\":\"text\",\"fields\":{\"subfield\":{\"type\":\"long\"}},\"fielddata\":true}}}}",
-            Strings.toString(mapperService.documentMapper())
+            "{\"_doc\":{\"properties\":{\"field\":{\"type\":\"text\",\"store\":true,\"fields\":{\"subfield\":{\"type\":\"long\"}},"
+                + "\"copy_to\":[\"target\"],\"meta\":{\"unit\":\"min\"},\"index_options\":\"offsets\",\"term_vector\":\"yes\",\"norms\":false,"
+                + "\"similarity\":\"BM25\",\"eager_global_ordinals\":true,\"position_increment_gap\":0,"
+                + "\"fielddata\":true,\"fielddata_frequency_filter\":{\"min\":0.001,\"max\":0.1,\"min_segment_size\":500},"
+                + "\"index_prefixes\":{\"min_chars\":1,\"max_chars\":10},\"index_phrases\":true}}}}",
+            Strings.toString(XContentType.JSON, mapperService.documentMapper())
         );
     }
 
@@ -325,7 +349,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         mapping.endObject().endObject().endObject();
 
         DocumentMapper mapper = createDocumentMapper(mapping);
-        String serialized = Strings.toString(mapper);
+        String serialized = Strings.toString(XContentType.JSON, mapper);
         assertThat(serialized, containsString("\"offsets\":{\"type\":\"text\",\"index_options\":\"offsets\"}"));
         assertThat(serialized, containsString("\"freqs\":{\"type\":\"text\",\"index_options\":\"freqs\"}"));
         assertThat(serialized, containsString("\"docs\":{\"type\":\"text\",\"index_options\":\"docs\"}"));
@@ -511,10 +535,9 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     public void testFielddata() throws IOException {
         MapperService disabledMapper = createMapperService(fieldMapping(this::minimalMapping));
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> disabledMapper.fieldType("field").fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
-        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> disabledMapper.fieldType("field").fielddataBuilder("test", () -> {
+            throw new UnsupportedOperationException();
+        }));
         assertThat(e.getMessage(), containsString("Text fields are not optimised for operations that require per-document field data"));
 
         MapperService enabledMapper = createMapperService(fieldMapping(b -> b.field("type", "text").field("fielddata", true)));

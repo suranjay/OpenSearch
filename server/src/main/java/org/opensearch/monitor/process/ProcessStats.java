@@ -37,12 +37,16 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ToXContent.Params;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Holds stats for the process
+ *
+ * @opensearch.internal
+ */
 public class ProcessStats implements Writeable, ToXContentFragment {
 
     private final long timestamp;
@@ -133,6 +137,11 @@ public class ProcessStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Process memory information.
+     *
+     * @opensearch.internal
+     */
     public static class Mem implements Writeable {
 
         private final long totalVirtual;
@@ -155,6 +164,11 @@ public class ProcessStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Process CPU information.
+     *
+     * @opensearch.internal
+     */
     public static class Cpu implements Writeable {
 
         private final short percent;

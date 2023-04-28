@@ -34,7 +34,7 @@ package org.opensearch.action;
 
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.rest.RestStatus;
 
 import java.util.Objects;
@@ -42,6 +42,7 @@ import java.util.Objects;
 /**
  * An exception indicating that a failure occurred performing an operation on the shard.
  *
+ * @opensearch.internal
  */
 public abstract class ShardOperationFailedException implements Writeable, ToXContentObject {
 

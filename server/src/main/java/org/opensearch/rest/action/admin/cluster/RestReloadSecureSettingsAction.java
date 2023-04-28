@@ -36,11 +36,11 @@ import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettings
 import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequestBuilder;
 import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.SecureString;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
@@ -59,6 +59,11 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to reload secure settings
+ *
+ * @opensearch.api
+ */
 public final class RestReloadSecureSettingsAction extends BaseRestHandler implements RestRequestFilter {
 
     static final ObjectParser<NodesReloadSecureSettingsRequest, String> PARSER = new ObjectParser<>(

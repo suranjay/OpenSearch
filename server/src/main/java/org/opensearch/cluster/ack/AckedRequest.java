@@ -36,6 +36,8 @@ import org.opensearch.common.unit.TimeValue;
 
 /**
  * Identifies a cluster state update request with acknowledgement support
+ *
+ * @opensearch.internal
  */
 public interface AckedRequest {
 
@@ -45,7 +47,19 @@ public interface AckedRequest {
     TimeValue ackTimeout();
 
     /**
-     * Returns the timeout for the request to be completed on the master node
+     * Returns the timeout for the request to be completed on the cluster-manager node
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerNodeTimeout()}
      */
-    TimeValue masterNodeTimeout();
+    @Deprecated
+    default TimeValue masterNodeTimeout() {
+        throw new UnsupportedOperationException("Must be overridden");
+    }
+
+    /**
+     * Returns the timeout for the request to be completed on the cluster-manager node
+     */
+    // TODO: Remove default implementation after removing the deprecated masterNodeTimeout()
+    default TimeValue clusterManagerNodeTimeout() {
+        return masterNodeTimeout();
+    }
 }

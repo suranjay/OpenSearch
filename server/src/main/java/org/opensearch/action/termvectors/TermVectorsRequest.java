@@ -32,7 +32,6 @@
 
 package org.opensearch.action.termvectors;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
@@ -41,16 +40,17 @@ import org.opensearch.action.ValidateActions;
 import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.support.single.shard.SingleShardRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
@@ -73,6 +73,8 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
  * <p>
  * Note, the {@link #index()}, and {@link #id(String)} are
  * required.
+ *
+ * @opensearch.internal
  */
 public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements RealtimeRequest {
     private static final ParseField INDEX = new ParseField("_index");
@@ -113,6 +115,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
     private FilterSettings filterSettings;
 
+    /**
+     * Internal filter settings
+     *
+     * @opensearch.internal
+     */
     public static final class FilterSettings {
         public Integer maxNumTerms;
         public Integer minTermFreq;
@@ -182,10 +189,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             xContentType = in.readEnum(XContentType.class);
         }
         routing = in.readOptionalString();
-
-        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            in.readOptionalString(); // _parent
-        }
         preference = in.readOptionalString();
         long flags = in.readVLong();
 
@@ -295,7 +298,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
     /**
      * Sets an artificial document from which term vectors are requested for.
-     * @deprecated use {@link #doc(BytesReference, boolean, XContentType)} to avoid content auto detection
+     * @deprecated use {@link #doc(BytesReference, boolean, MediaType)} to avoid content auto detection
      */
     @Deprecated
     public TermVectorsRequest doc(BytesReference doc, boolean generateRandomId) {
@@ -305,13 +308,13 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     /**
      * Sets an artificial document from which term vectors are requested for.
      */
-    public TermVectorsRequest doc(BytesReference doc, boolean generateRandomId, XContentType xContentType) {
+    public TermVectorsRequest doc(BytesReference doc, boolean generateRandomId, MediaType xContentType) {
         // assign a random id to this artificial document, for routing
         if (generateRandomId) {
             this.id(String.valueOf(randomInt.getAndAdd(1)));
         }
         this.doc = doc;
-        this.xContentType = xContentType;
+        this.xContentType = XContentType.fromMediaType(xContentType);
         return this;
     }
 
@@ -534,9 +537,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             out.writeEnum(xContentType);
         }
         out.writeOptionalString(routing);
-        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            out.writeOptionalString(null); // _parent
-        }
         out.writeOptionalString(preference);
         long longFlags = 0;
         for (Flag flag : flagsEnum) {
@@ -561,6 +561,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         out.writeLong(version);
     }
 
+    /**
+     * The flags.
+     *
+     * @opensearch.internal
+     */
     public enum Flag {
         // Do not change the order of these flags we use
         // the ordinal for encoding! Only append to the end!

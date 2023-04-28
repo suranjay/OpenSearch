@@ -58,6 +58,11 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Transport action for retrieving indices stats
+ *
+ * @opensearch.internal
+ */
 public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<IndicesStatsRequest, IndicesStatsResponse, ShardStats> {
 
     private final IndicesService indicesService;
@@ -115,13 +120,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
         List<DefaultShardOperationFailedException> shardFailures,
         ClusterState clusterState
     ) {
-        return new IndicesStatsResponse(
-            responses.toArray(new ShardStats[responses.size()]),
-            totalShards,
-            successfulShards,
-            failedShards,
-            shardFailures
-        );
+        return new IndicesStatsResponse(responses.toArray(new ShardStats[0]), totalShards, successfulShards, failedShards, shardFailures);
     }
 
     @Override

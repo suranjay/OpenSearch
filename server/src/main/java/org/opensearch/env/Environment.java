@@ -55,6 +55,8 @@ import java.util.stream.Collectors;
 
 /**
  * The environment of where things exists.
+ *
+ * @opensearch.internal
  */
 @SuppressForbidden(reason = "configures paths for the system")
 // TODO: move PathUtils to be package-private here instead of
@@ -90,6 +92,8 @@ public class Environment {
     private final Path configDir;
 
     private final Path pluginsDir;
+
+    private final Path extensionsDir;
 
     private final Path modulesDir;
 
@@ -135,6 +139,7 @@ public class Environment {
         tmpDir = Objects.requireNonNull(tmpPath);
 
         pluginsDir = homeFile.resolve("plugins");
+        extensionsDir = homeFile.resolve("extensions");
 
         List<String> dataPaths = PATH_DATA_SETTING.get(settings);
         if (nodeLocalStorage) {
@@ -304,6 +309,10 @@ public class Environment {
 
     public Path pluginsDir() {
         return pluginsDir;
+    }
+
+    public Path extensionDir() {
+        return extensionsDir;
     }
 
     public Path binDir() {

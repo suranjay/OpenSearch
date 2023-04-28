@@ -36,14 +36,14 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.Explicit;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.geo.GeoJsonGeometryFormat;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.support.MapXContentParser;
+import org.opensearch.core.xcontent.MapXContentParser;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
@@ -62,14 +62,26 @@ import java.util.function.Function;
 
 /**
  * Base field mapper class for all spatial field types
+ *
+ * @opensearch.internal
  */
 public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends FieldMapper {
 
+    /**
+     * String parameter names for the base geometry field mapper
+     *
+     * @opensearch.internal
+     */
     public static class Names {
         public static final ParseField IGNORE_MALFORMED = new ParseField("ignore_malformed");
         public static final ParseField IGNORE_Z_VALUE = new ParseField("ignore_z_value");
     }
 
+    /**
+     * Default parameters for the base geometry field mapper
+     *
+     * @opensearch.internal
+     */
     public static class Defaults {
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
         public static final Explicit<Boolean> IGNORE_Z_VALUE = new Explicit<>(true, false);
@@ -84,6 +96,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
     /**
      * Interface representing an preprocessor in geometry indexing pipeline
+     *
+     * @opensearch.internal
      */
     public interface Indexer<Parsed, Processed> {
         Processed prepareForIndexing(Parsed geometry);
@@ -95,6 +109,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
     /**
      * Interface representing parser in geometry indexing pipeline.
+     *
+     * @opensearch.internal
      */
     public abstract static class Parser<Parsed> {
         /**
@@ -141,6 +157,11 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
+    /**
+     * Builder for the base geometry field mapper
+     *
+     * @opensearch.internal
+     */
     public abstract static class Builder<T extends Builder<T, FT>, FT extends AbstractGeometryFieldType> extends FieldMapper.Builder<T> {
         protected Boolean ignoreMalformed;
         protected Boolean ignoreZValue;
@@ -198,6 +219,11 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
+    /**
+     * Base type parser for geometry field mappers
+     *
+     * @opensearch.internal
+     */
     public abstract static class TypeParser<T extends Builder> implements Mapper.TypeParser {
         protected abstract T newBuilder(String name, Map<String, Object> params);
 
@@ -234,13 +260,23 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             return builder;
         }
 
+        /**
+         * Parse the node with the field name as name; using various parse methods for different attributes.
+         */
         @Override
         public T parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Map<String, Object> params = new HashMap<>();
-            return parse(name, node, params, parserContext);
+            final T builder = parse(name, node, new HashMap<>(), parserContext);
+            // parse the common attributes(like doc_values, boosts etc.) and set them in the builder.
+            TypeParsers.parseField(builder, name, node, parserContext);
+            return builder;
         }
     }
 
+    /**
+     * Base field type for all geometry fields
+     *
+     * @opensearch.internal
+     */
     public abstract static class AbstractGeometryFieldType<Parsed, Processed> extends MappedFieldType {
 
         protected Indexer<Parsed, Processed> geometryIndexer;

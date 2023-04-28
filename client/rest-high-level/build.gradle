@@ -103,4 +103,13 @@ testClusters.all {
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile nodeTrustStore.name, nodeTrustStore
   extraConfigFile pkiTrustCert.name, pkiTrustCert
+
+  // Enable APIs behind feature flags
+  setting 'opensearch.experimental.feature.search_pipeline.enabled', 'true'
 }
+
+thirdPartyAudit.ignoreMissingClasses(
+  'org.conscrypt.Conscrypt',
+  'org.slf4j.Logger',
+  'org.slf4j.LoggerFactory'
+)

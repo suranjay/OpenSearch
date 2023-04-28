@@ -32,12 +32,14 @@
 
 package org.opensearch.rest.action;
 
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestResponse;
 
 /**
  * A REST action listener that builds an {@link XContentBuilder} based response.
+ *
+ * @opensearch.api
  */
 public abstract class RestBuilderListener<Response> extends RestResponseListener<Response> {
 

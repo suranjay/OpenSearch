@@ -56,7 +56,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
@@ -83,6 +83,11 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Store for multiple indexes
+ *
+ * @opensearch.internal
+ */
 public class IndicesStore implements ClusterStateListener, Closeable {
 
     private static final Logger logger = LogManager.getLogger(IndicesStore.class);
@@ -447,6 +452,11 @@ public class IndicesStore implements ClusterStateListener, Closeable {
 
     }
 
+    /**
+     * A shard active request
+     *
+     * @opensearch.internal
+     */
     private static class ShardActiveRequest extends TransportRequest {
         protected TimeValue timeout = null;
         private ClusterName clusterName;
@@ -478,6 +488,11 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         }
     }
 
+    /**
+     * The shard active response
+     *
+     * @opensearch.internal
+     */
     private static class ShardActiveResponse extends TransportResponse {
 
         private final boolean shardActive;

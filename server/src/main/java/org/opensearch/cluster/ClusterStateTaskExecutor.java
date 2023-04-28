@@ -31,12 +31,18 @@
 
 package org.opensearch.cluster;
 
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.common.Nullable;
 
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Interface that updates the cluster state based on the task
+ *
+ * @opensearch.internal
+ */
 public interface ClusterStateTaskExecutor<T> {
     /**
      * Update the cluster state based on the current state and the given tasks. Return the *same instance* if no state
@@ -45,10 +51,20 @@ public interface ClusterStateTaskExecutor<T> {
     ClusterTasksResult<T> execute(ClusterState currentState, List<T> tasks) throws Exception;
 
     /**
-     * indicates whether this executor should only run if the current node is master
+     * indicates whether this executor should only run if the current node is cluster-manager
      */
-    default boolean runOnlyOnMaster() {
+    default boolean runOnlyOnClusterManager() {
         return true;
+    }
+
+    /**
+     * indicates whether this executor should only run if the current node is cluster-manager
+     *
+     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #runOnlyOnClusterManager()}
+     */
+    @Deprecated
+    default boolean runOnlyOnMaster() {
+        return runOnlyOnClusterManager();
     }
 
     /**
@@ -74,8 +90,20 @@ public interface ClusterStateTaskExecutor<T> {
     }
 
     /**
+     * Throttling key associated with the task, on which cluster manager node will do aggregation count
+     * and perform throttling based on configured threshold in cluster setting.
+     */
+    default ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+        // Default task is not registered with clusterService.registerClusterMangerTask,
+        // User can't configure throttling limit on it and will be bypassed while throttling on cluster manager
+        return ClusterManagerTaskThrottler.DEFAULT_THROTTLING_KEY;
+    }
+
+    /**
      * Represents the result of a batched execution of cluster state update tasks
      * @param <T> the type of the cluster state update task
+     *
+     * @opensearch.internal
      */
     class ClusterTasksResult<T> {
         @Nullable
@@ -96,6 +124,11 @@ public interface ClusterStateTaskExecutor<T> {
             return new Builder<>();
         }
 
+        /**
+         * Builder for cluster state task.
+         *
+         * @opensearch.internal
+         */
         public static class Builder<T> {
             private final Map<T, TaskResult> executionResults = new IdentityHashMap<>();
 
@@ -137,6 +170,11 @@ public interface ClusterStateTaskExecutor<T> {
         }
     }
 
+    /**
+     * The task result.
+     *
+     * @opensearch.internal
+     */
     final class TaskResult {
         private final Exception failure;
 

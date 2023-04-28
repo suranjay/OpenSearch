@@ -36,14 +36,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.opensearch.lucene.queries.MinDocQuery;
 import org.opensearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
@@ -53,7 +50,7 @@ import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.common.util.concurrent.QueueResizingOpenSearchThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.EWMATrackingThreadPoolExecutor;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchContextSourcePrinter;
 import org.opensearch.search.SearchService;
@@ -84,6 +81,8 @@ import static org.opensearch.search.query.TopDocsCollectorContext.createTopDocsC
 /**
  * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
  * (document ids and score or sort criteria) so that matches can be reduced on the coordinating node
+ *
+ * @opensearch.internal
  */
 public class QueryPhase {
     private static final Logger LOGGER = LogManager.getLogger(QueryPhase.class);
@@ -199,17 +198,7 @@ public class QueryPhase {
 
                 } else {
                     final ScoreDoc after = scrollContext.lastEmittedDoc;
-                    if (returnsDocsInOrder(query, searchContext.sort())) {
-                        // now this gets interesting: since we sort in index-order, we can directly
-                        // skip to the desired doc
-                        if (after != null) {
-                            query = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
-                                .add(new MinDocQuery(after.doc + 1), BooleanClause.Occur.FILTER)
-                                .build();
-                        }
-                        // ... and stop collecting after ${size} matches
-                        searchContext.terminateAfter(searchContext.size());
-                    } else if (canEarlyTerminate(reader, searchContext.sort())) {
+                    if (canEarlyTerminate(reader, searchContext.sort())) {
                         // now this gets interesting: since the search sort is a prefix of the index sort, we can directly
                         // skip to the desired doc
                         if (after != null) {
@@ -255,15 +244,7 @@ public class QueryPhase {
 
             final Runnable timeoutRunnable;
             if (timeoutSet) {
-                final long startTime = searchContext.getRelativeTimeInMillis();
-                final long timeout = searchContext.timeout().millis();
-                final long maxTime = startTime + timeout;
-                timeoutRunnable = searcher.addQueryCancellation(() -> {
-                    final long time = searchContext.getRelativeTimeInMillis();
-                    if (time > maxTime) {
-                        throw new TimeExceededException();
-                    }
-                });
+                timeoutRunnable = searcher.addQueryCancellation(createQueryTimeoutChecker(searchContext));
             } else {
                 timeoutRunnable = null;
             }
@@ -288,8 +269,8 @@ public class QueryPhase {
                 );
 
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-                if (executor instanceof QueueResizingOpenSearchThreadPoolExecutor) {
-                    QueueResizingOpenSearchThreadPoolExecutor rExecutor = (QueueResizingOpenSearchThreadPoolExecutor) executor;
+                if (executor instanceof EWMATrackingThreadPoolExecutor) {
+                    final EWMATrackingThreadPoolExecutor rExecutor = (EWMATrackingThreadPoolExecutor) executor;
                     queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
                     queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
                 }
@@ -305,6 +286,28 @@ public class QueryPhase {
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);
         }
+    }
+
+    /**
+     * Create runnable which throws {@link TimeExceededException} when the runnable is called after timeout + runnable creation time
+     * exceeds currentTime
+     * @param searchContext to extract timeout from and to get relative time from
+     * @return the created runnable
+     */
+    static Runnable createQueryTimeoutChecker(final SearchContext searchContext) {
+        /* for startTime, relative non-cached precise time must be used to prevent false positive timeouts.
+        * Using cached time for startTime will fail and produce false positive timeouts when maxTime = (startTime + timeout) falls in
+        * next time cache slot(s) AND time caching lifespan > passed timeout */
+        final long startTime = searchContext.getRelativeTimeInMillis(false);
+        final long maxTime = startTime + searchContext.timeout().millis();
+        return () -> {
+            /* As long as startTime is non cached time, using cached time here might only produce false negative timeouts within the time
+            * cache life span which is acceptable */
+            final long time = searchContext.getRelativeTimeInMillis();
+            if (time > maxTime) {
+                throw new TimeExceededException();
+            }
+        };
     }
 
     private static boolean searchWithCollector(
@@ -351,22 +354,6 @@ public class QueryPhase {
     }
 
     /**
-     * Returns true if the provided <code>query</code> returns docs in index order (internal doc ids).
-     * @param query The query to execute
-     * @param sf The query sort
-     */
-    private static boolean returnsDocsInOrder(Query query, SortAndFormats sf) {
-        if (sf == null || Sort.RELEVANCE.equals(sf.sort)) {
-            // sort by score
-            // queries that return constant scores will return docs in index
-            // order since Lucene tie-breaks on the doc id
-            return query.getClass() == ConstantScoreQuery.class || query.getClass() == MatchAllDocsQuery.class;
-        } else {
-            return Sort.INDEXORDER.equals(sf.sort);
-        }
-    }
-
-    /**
      * Returns whether collection within the provided <code>reader</code> can be early-terminated if it sorts
      * with <code>sortAndFormats</code>.
      **/
@@ -386,6 +373,8 @@ public class QueryPhase {
 
     /**
      * The exception being raised when search timeout is reached.
+     *
+     * @opensearch.internal
      */
     public static class TimeExceededException extends RuntimeException {
         private static final long serialVersionUID = 1L;
@@ -393,6 +382,8 @@ public class QueryPhase {
 
     /**
      * Default {@link QueryPhaseSearcher} implementation which delegates to the {@link QueryPhase}.
+     *
+     * @opensearch.internal
      */
     public static class DefaultQueryPhaseSearcher implements QueryPhaseSearcher {
         /**

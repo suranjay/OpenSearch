@@ -60,9 +60,16 @@ import java.util.List;
  * A frequency TermsEnum that returns frequencies derived from a collection of
  * cached leaf termEnums. It also allows to provide a filter to explicitly
  * compute frequencies only for docs that match the filter (heavier!).
+ *
+ * @opensearch.internal
  */
 public class FilterableTermsEnum extends TermsEnum {
 
+    /**
+     * Holds a terms enum, doc enum, and bitset
+     *
+     * @opensearch.internal
+     */
     static class Holder {
         final TermsEnum termsEnum;
         @Nullable
@@ -133,7 +140,7 @@ public class FilterableTermsEnum extends TermsEnum {
             }
             enums.add(new Holder(termsEnum, bits));
         }
-        this.enums = enums.toArray(new Holder[enums.size()]);
+        this.enums = enums.toArray(new Holder[0]);
     }
 
     @Override

@@ -32,7 +32,6 @@
 
 package org.opensearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -49,6 +48,11 @@ import java.util.Map;
 
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
+/**
+ * Updates cluster state
+ *
+ * @opensearch.internal
+ */
 public class ClusterStateUpdaters {
     private static final Logger logger = LogManager.getLogger(ClusterStateUpdaters.class);
 
@@ -115,8 +119,8 @@ public class ClusterStateUpdaters {
     static ClusterState updateRoutingTable(final ClusterState state) {
         // initialize all index routing tables as empty
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(state.routingTable());
-        for (final ObjectCursor<IndexMetadata> cursor : state.metadata().indices().values()) {
-            routingTableBuilder.addAsRecovery(cursor.value);
+        for (final IndexMetadata cursor : state.metadata().indices().values()) {
+            routingTableBuilder.addAsRecovery(cursor);
         }
         // start with 0 based versions for routing table
         routingTableBuilder.version(0);

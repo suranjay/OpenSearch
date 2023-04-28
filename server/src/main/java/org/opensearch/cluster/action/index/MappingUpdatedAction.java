@@ -32,12 +32,11 @@
 
 package org.opensearch.cluster.action.index;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.opensearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.client.Client;
 import org.opensearch.client.IndicesAdminClient;
 import org.opensearch.cluster.service.ClusterService;
@@ -58,6 +57,8 @@ import java.util.concurrent.Semaphore;
 /**
  * Called by shards in the cluster when their mapping was dynamically updated and it needs to be updated
  * in the cluster state meta data (and broadcast to all members).
+ *
+ * @opensearch.internal
  */
 public class MappingUpdatedAction {
 
@@ -104,12 +105,12 @@ public class MappingUpdatedAction {
     }
 
     /**
-     * Update mappings on the master node, waiting for the change to be committed,
+     * Update mappings on the cluster-manager node, waiting for the change to be committed,
      * but not for the mapping update to be applied on all nodes. The timeout specified by
-     * {@code timeout} is the master node timeout ({@link MasterNodeRequest#masterNodeTimeout()}),
-     * potentially waiting for a master node to be available.
+     * {@code timeout} is the cluster-manager node timeout ({@link ClusterManagerNodeRequest#clusterManagerNodeTimeout()}),
+     * potentially waiting for a cluster-manager node to be available.
      */
-    public void updateMappingOnMaster(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
+    public void updateMappingOnClusterManager(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
 
         final RunOnce release = new RunOnce(() -> semaphore.release());
         try {
@@ -130,6 +131,19 @@ public class MappingUpdatedAction {
         }
     }
 
+    /**
+     * Update mappings on the cluster-manager node, waiting for the change to be committed,
+     * but not for the mapping update to be applied on all nodes. The timeout specified by
+     * {@code timeout} is the cluster-manager node timeout ({@link ClusterManagerNodeRequest#clusterManagerNodeTimeout()}),
+     * potentially waiting for a cluster-manager node to be available.
+     *
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #updateMappingOnClusterManager(Index, Mapping, ActionListener)}
+     */
+    @Deprecated
+    public void updateMappingOnMaster(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
+        updateMappingOnClusterManager(index, mappingUpdate, listener);
+    }
+
     // used by tests
     int blockedThreads() {
         return semaphore.getQueueLength();
@@ -140,20 +154,13 @@ public class MappingUpdatedAction {
         PutMappingRequest putMappingRequest = new PutMappingRequest();
         putMappingRequest.setConcreteIndex(index);
         putMappingRequest.source(mappingUpdate.toString(), XContentType.JSON);
-        putMappingRequest.masterNodeTimeout(dynamicMappingUpdateTimeout);
+        putMappingRequest.clusterManagerNodeTimeout(dynamicMappingUpdateTimeout);
         putMappingRequest.timeout(TimeValue.ZERO);
-        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            client.execute(
-                AutoPutMappingAction.INSTANCE,
-                putMappingRequest,
-                ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)
-            );
-        } else {
-            client.putMapping(
-                putMappingRequest,
-                ActionListener.wrap(r -> listener.onResponse(null), e -> listener.onFailure(unwrapException(e)))
-            );
-        }
+        client.execute(
+            AutoPutMappingAction.INSTANCE,
+            putMappingRequest,
+            ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)
+        );
     }
 
     // todo: this explicit unwrap should not be necessary, but is until guessRootCause is fixed to allow wrapped non-es exception.
@@ -169,6 +176,11 @@ public class MappingUpdatedAction {
         return new UncategorizedExecutionException("Failed execution", root);
     }
 
+    /**
+     * An adjustable semaphore
+     *
+     * @opensearch.internal
+     */
     static class AdjustableSemaphore extends Semaphore {
 
         private final Object maxPermitsMutex = new Object();

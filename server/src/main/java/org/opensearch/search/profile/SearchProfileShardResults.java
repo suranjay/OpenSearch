@@ -35,9 +35,9 @@ package org.opensearch.search.profile;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.opensearch.search.profile.aggregation.AggregationProfiler;
@@ -57,6 +57,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
 /**
  * A container class to hold all the profile results across all shards.  Internally
  * holds a map of shard ID -&gt; Profiled results
+ *
+ * @opensearch.internal
  */
 public final class SearchProfileShardResults implements Writeable, ToXContentFragment {
     private static final String SEARCHES_FIELD = "searches";

@@ -49,12 +49,12 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lucene.store.IndexOutputOutputStream;
 import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -75,6 +75,8 @@ import java.util.stream.Collectors;
  * MetadataStateFormat is a base class to write checksummed
  * XContent based files to one or more directories in a standardized directory structure.
  * @param <T> the type of the XContent base data-structure
+ *
+ * @opensearch.internal
  */
 public abstract class MetadataStateFormat<T> {
     public static final XContentType FORMAT = XContentType.SMILE;

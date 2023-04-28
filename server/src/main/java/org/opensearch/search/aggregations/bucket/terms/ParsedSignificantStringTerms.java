@@ -33,13 +33,18 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.nio.CharBuffer;
 
+/**
+ * A significant string terms result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedSignificantStringTerms extends ParsedSignificantTerms {
 
     @Override
@@ -60,6 +65,11 @@ public class ParsedSignificantStringTerms extends ParsedSignificantTerms {
         return parseSignificantTermsXContent(() -> PARSER.parse(parser, null), name);
     }
 
+    /**
+     * Parsed bucket for significant string values
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedSignificantTerms.ParsedBucket {
 
         private BytesRef key;

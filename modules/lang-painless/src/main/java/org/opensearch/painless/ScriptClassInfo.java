@@ -88,7 +88,7 @@ public class ScriptClassInfo {
                             + "] has more than one."
                     );
                 }
-            } else if (m.getName().startsWith("needs") && m.getReturnType() == boolean.class && m.getParameterTypes().length == 0) {
+            } else if (m.getName().startsWith("needs") && m.getReturnType() == boolean.class && m.getParameterCount() == 0) {
                 needsMethods.add(new org.objectweb.asm.commons.Method(m.getName(), NEEDS_PARAMETER_METHOD_TYPE.toMethodDescriptorString()));
             } else if (m.getName().startsWith("get")
                 && m.getName().equals("getClass") == false
@@ -103,7 +103,7 @@ public class ScriptClassInfo {
                                 + "type ["
                                 + componentType.getName()
                                 + "]. Painless can only support getters with return types that are "
-                                + "whitelisted."
+                                + "allowlisted."
                         )
                     );
 
@@ -124,7 +124,7 @@ public class ScriptClassInfo {
         FunctionTable.LocalFunction defConverter = null;
         for (java.lang.reflect.Method m : baseClass.getMethods()) {
             if (m.getName().startsWith("convertFrom")
-                && m.getParameterTypes().length == 1
+                && m.getParameterCount() == 1
                 && m.getReturnType() == returnType
                 && Modifier.isStatic(m.getModifiers())) {
 
@@ -156,11 +156,11 @@ public class ScriptClassInfo {
         executeMethodReturnType = definitionTypeForClass(
             painlessLookup,
             executeMethod.getReturnType(),
-            componentType -> "Painless can only implement execute methods returning a whitelisted type but ["
+            componentType -> "Painless can only implement execute methods returning a allowlisted type but ["
                 + baseClass.getName()
                 + "#execute] returns ["
                 + componentType.getName()
-                + "] which isn't whitelisted."
+                + "] which isn't allowlisted."
         );
 
         // Look up the argument
@@ -261,7 +261,7 @@ public class ScriptClassInfo {
                 + argName
                 + "] is of unknown type ["
                 + componentType.getName()
-                + ". Painless interfaces can only accept arguments that are of whitelisted types."
+                + ". Painless interfaces can only accept arguments that are of allowlisted types."
         );
         return new MethodArgument(defClass, argName);
     }

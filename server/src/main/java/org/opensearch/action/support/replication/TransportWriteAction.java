@@ -52,6 +52,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MapperParsingException;
+import org.opensearch.index.shard.PrimaryShardClosedException;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
@@ -69,6 +70,8 @@ import java.util.function.Function;
 /**
  * Base class for transport actions that modify data in some shard like index, delete, and shardBulk.
  * Allows performing async actions (e.g. refresh) after performing write operations on primary and replica shards
+ *
+ * @opensearch.internal
  */
 public abstract class TransportWriteAction<
     Request extends ReplicatedWriteRequest<Request>,
@@ -265,6 +268,8 @@ public abstract class TransportWriteAction<
      * Result of taking the action on the primary.
      *
      * NOTE: public for testing
+     *
+     * @opensearch.internal
      */
     public static class WritePrimaryResult<
         ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>,
@@ -320,6 +325,8 @@ public abstract class TransportWriteAction<
 
     /**
      * Result of taking the action on the replica.
+     *
+     * @opensearch.internal
      */
     public static class WriteReplicaResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>> extends ReplicaResult {
         public final Location location;
@@ -392,6 +399,8 @@ public abstract class TransportWriteAction<
      * This class encapsulates post write actions like async waits for
      * translog syncs or waiting for a refresh to happen making the write operation
      * visible.
+     *
+     * @opensearch.internal
      */
     static final class AsyncAfterWriteAction {
         private final Location location;
@@ -490,8 +499,10 @@ public abstract class TransportWriteAction<
      *
      * This extends {@code TransportReplicationAction.ReplicasProxy} to do the
      * failing and stale-ing.
+     *
+     * @opensearch.internal
      */
-    class WriteActionReplicasProxy extends ReplicasProxy {
+    protected class WriteActionReplicasProxy extends ReplicasProxy {
 
         @Override
         public void failShardIfNeeded(
@@ -504,15 +515,20 @@ public abstract class TransportWriteAction<
             if (TransportActions.isShardNotAvailableException(exception) == false) {
                 logger.warn(new ParameterizedMessage("[{}] {}", replica.shardId(), message), exception);
             }
-            shardStateAction.remoteShardFailed(
-                replica.shardId(),
-                replica.allocationId().getId(),
-                primaryTerm,
-                true,
-                message,
-                exception,
-                listener
-            );
+            // If a write action fails due to the closure of the primary shard
+            // then the replicas should not be marked as failed since they are
+            // still up-to-date with the (now closed) primary shard
+            if (exception instanceof PrimaryShardClosedException == false) {
+                shardStateAction.remoteShardFailed(
+                    replica.shardId(),
+                    replica.allocationId().getId(),
+                    primaryTerm,
+                    true,
+                    message,
+                    exception,
+                    listener
+                );
+            }
         }
 
         @Override

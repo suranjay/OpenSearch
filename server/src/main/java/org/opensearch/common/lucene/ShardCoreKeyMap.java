@@ -34,7 +34,7 @@ package org.opensearch.common.lucene;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
-import org.opensearch.Assertions;
+import org.opensearch.core.Assertions;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardUtils;
 
@@ -57,6 +57,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * segments so that at any time it only tracks live segments.
  *
  * NOTE: This is heavy. Avoid using this class unless absolutely required.
+ *
+ * @opensearch.internal
  */
 public final class ShardCoreKeyMap {
 

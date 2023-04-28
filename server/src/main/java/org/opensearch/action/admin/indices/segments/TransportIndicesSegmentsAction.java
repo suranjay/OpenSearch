@@ -53,6 +53,11 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Transport response for retrieving indices segment information
+ *
+ * @opensearch.internal
+ */
 public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeAction<
     IndicesSegmentsRequest,
     IndicesSegmentResponse,
@@ -114,7 +119,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
         ClusterState clusterState
     ) {
         return new IndicesSegmentResponse(
-            results.toArray(new ShardSegments[results.size()]),
+            results.toArray(new ShardSegments[0]),
             totalShards,
             successfulShards,
             failedShards,

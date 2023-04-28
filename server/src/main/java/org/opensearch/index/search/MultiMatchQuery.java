@@ -58,6 +58,11 @@ import java.util.Objects;
 
 import static org.opensearch.common.lucene.search.Queries.newLenientFieldQuery;
 
+/**
+ * Foundation multi match query
+ *
+ * @opensearch.internal
+ */
 public class MultiMatchQuery extends MatchQuery {
 
     private Float groupTieBreaker = null;
@@ -213,10 +218,10 @@ public class MultiMatchQuery extends MatchQuery {
         }
 
         @Override
-        protected Query newSynonymQuery(TermAndBoost[] terms) {
+        protected Query newSynonymQuery(String field, TermAndBoost[] terms) {
             BytesRef[] values = new BytesRef[terms.length];
             for (int i = 0; i < terms.length; i++) {
-                values[i] = terms[i].term.bytes();
+                values[i] = terms[i].term;
             }
             return blendTerms(context, values, commonTermsCutoff, tieBreaker, lenient, blendedFields);
         }
@@ -340,6 +345,11 @@ public class MultiMatchQuery extends MatchQuery {
         }
     }
 
+    /**
+     * Holder for a field and it's boost value
+     *
+     * @opensearch.internal
+     */
     static final class FieldAndBoost {
         final MappedFieldType fieldType;
         final float boost;

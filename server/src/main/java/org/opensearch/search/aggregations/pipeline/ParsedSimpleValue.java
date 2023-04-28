@@ -32,13 +32,18 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.aggregations.metrics.ParsedSingleValueNumericMetricsAggregation;
 
 import java.io.IOException;
 
+/**
+ * A simple value agg result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedSimpleValue extends ParsedSingleValueNumericMetricsAggregation implements SimpleValue {
 
     @Override

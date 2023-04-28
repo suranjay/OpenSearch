@@ -31,13 +31,15 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.util.List;
 
 /**
  * A {@code histogram} aggregation. Defines multiple buckets, each representing an interval in a histogram.
+ *
+ * @opensearch.internal
  */
 public interface Histogram extends MultiBucketsAggregation {
 

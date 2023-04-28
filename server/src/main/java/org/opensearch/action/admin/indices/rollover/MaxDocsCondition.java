@@ -34,14 +34,16 @@ package org.opensearch.action.admin.indices.rollover;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 
 /**
  * Condition for maximum index docs. Evaluates to <code>true</code>
  * when the index has at least {@link #value} docs
+ *
+ * @opensearch.internal
  */
 public class MaxDocsCondition extends Condition<Long> {
     public static final String NAME = "max_docs";

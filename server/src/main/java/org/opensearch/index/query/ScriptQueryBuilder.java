@@ -49,8 +49,8 @@ import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.search.function.Functions;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.script.FilterScript;
 import org.opensearch.script.Script;
 
@@ -59,6 +59,11 @@ import java.util.Objects;
 
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
+/**
+ * Query builder for script queries
+ *
+ * @opensearch.internal
+ */
 public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder> {
     public static final String NAME = "script";
 
@@ -159,6 +164,11 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         return new ScriptQuery(script, filterScript, queryName);
     }
 
+    /**
+     * Internal script query
+     *
+     * @opensearch.internal
+     */
     static class ScriptQuery extends Query {
 
         final Script script;

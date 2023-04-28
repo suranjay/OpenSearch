@@ -32,10 +32,9 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
@@ -50,6 +49,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Implementation of percentiles pipeline
+ *
+ * @opensearch.internal
+ */
 public class InternalPercentilesBucket extends InternalNumericMetricsAggregation.MultiValue implements PercentilesBucket {
     private double[] percentiles;
     private double[] percents;
@@ -94,11 +98,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         format = in.readNamedWriteable(DocValueFormat.class);
         percentiles = in.readDoubleArray();
         percents = in.readDoubleArray();
-
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            keyed = in.readBoolean();
-        }
-
+        keyed = in.readBoolean();
         computeLookup();
     }
 
@@ -107,10 +107,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         out.writeNamedWriteable(format);
         out.writeDoubleArray(percentiles);
         out.writeDoubleArray(percents);
-
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            out.writeBoolean(keyed);
-        }
+        out.writeBoolean(keyed);
     }
 
     @Override
@@ -204,6 +201,11 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         return Objects.hash(super.hashCode(), Arrays.hashCode(percents), Arrays.hashCode(percentiles));
     }
 
+    /**
+     * Iterator for the percentiles agg
+     *
+     * @opensearch.internal
+     */
     public static class Iter implements Iterator<Percentile> {
 
         private final double[] percents;

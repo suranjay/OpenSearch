@@ -37,11 +37,16 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Stores stats about a merge process
+ *
+ * @opensearch.internal
+ */
 public class MergeStats implements Writeable, ToXContentFragment {
 
     private long total;
@@ -239,6 +244,11 @@ public class MergeStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Fields used for merge statistics
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String MERGES = "merges";
         static final String CURRENT = "current";

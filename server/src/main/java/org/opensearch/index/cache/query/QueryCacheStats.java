@@ -37,12 +37,17 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Stats for the query cache
+ *
+ * @opensearch.internal
+ */
 public class QueryCacheStats implements Writeable, ToXContentFragment {
 
     private long ramBytesUsed;
@@ -150,6 +155,11 @@ public class QueryCacheStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Fields used for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String QUERY_CACHE = "query_cache";
         static final String MEMORY_SIZE = "memory_size";

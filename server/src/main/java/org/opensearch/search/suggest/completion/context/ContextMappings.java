@@ -39,8 +39,8 @@ import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.CompletionFieldMapper;
 import org.opensearch.index.mapper.DocumentMapperParser;
 import org.opensearch.index.mapper.ParseContext;
@@ -65,6 +65,8 @@ import static org.opensearch.search.suggest.completion.context.ContextMapping.FI
  * ContextMappings indexes context-enabled suggestion fields
  * and creates context queries for defined {@link ContextMapping}s
  * for a {@link CompletionFieldMapper}
+ *
+ * @opensearch.internal
  */
 public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> {
 

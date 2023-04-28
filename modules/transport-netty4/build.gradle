@@ -31,12 +31,16 @@
 
 import org.opensearch.gradle.info.BuildParams
 import org.opensearch.gradle.test.RestIntegTestTask
+import org.opensearch.gradle.test.TestTask
 import org.opensearch.gradle.test.rest.JavaRestTestPlugin
 import org.opensearch.gradle.test.InternalClusterTestPlugin
 
 apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.java-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
+
+// The transport-netty4 plugin is published to maven
+apply plugin: 'opensearch.publish'
 
 /*
  TODOs:
@@ -46,7 +50,7 @@ apply plugin: 'opensearch.internal-cluster-test'
  */
 opensearchplugin {
   description 'Netty 4 based transport implementation'
-  classname 'org.opensearch.transport.Netty4Plugin'
+  classname 'org.opensearch.transport.Netty4ModulePlugin'
   hasClientJar = true
 }
 
@@ -55,10 +59,12 @@ dependencies {
   api "io.netty:netty-buffer:${versions.netty}"
   api "io.netty:netty-codec:${versions.netty}"
   api "io.netty:netty-codec-http:${versions.netty}"
+  api "io.netty:netty-codec-http2:${versions.netty}"
   api "io.netty:netty-common:${versions.netty}"
   api "io.netty:netty-handler:${versions.netty}"
   api "io.netty:netty-resolver:${versions.netty}"
   api "io.netty:netty-transport:${versions.netty}"
+  api "io.netty:netty-transport-native-unix-common:${versions.netty}"
 }
 
 restResources {
@@ -87,13 +93,13 @@ javaRestTest {
   systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
 }
 
-TaskProvider<Test> pooledTest = tasks.register("pooledTest", Test) {
+TaskProvider<Test> pooledTest = tasks.register("pooledTest", TestTask) {
   include '**/*Tests.class'
   systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
   systemProperty 'opensearch.use_unpooled_allocator', 'false'
 }
 
-TaskProvider<Test> pooledInternalClusterTest = tasks.register("pooledInternalClusterTest", Test) {
+TaskProvider<Test> pooledInternalClusterTest = tasks.register("pooledInternalClusterTest", TestTask) {
   include '**/*IT.class'
   systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
   systemProperty 'opensearch.use_unpooled_allocator', 'false'
@@ -120,16 +126,11 @@ thirdPartyAudit {
     'com.aayushatharva.brotli4j.Brotli4jLoader',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.BrotliEncoderChannel',
     'com.aayushatharva.brotli4j.encoder.Encoder',
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
     // classes are missing
-
-    // from io.netty.handler.codec.protobuf.ProtobufDecoder (netty)
-    'com.google.protobuf.ExtensionRegistry',
-    'com.google.protobuf.MessageLite$Builder',
-    'com.google.protobuf.MessageLite',
-    'com.google.protobuf.Parser',
 
     // from io.netty.logging.CommonsLoggerFactory (netty)
     'org.apache.commons.logging.Log',
@@ -141,6 +142,7 @@ thirdPartyAudit {
 
     // from io.netty.handler.ssl.OpenSslEngine (netty)
     'io.netty.internal.tcnative.Buffer',
+    'io.netty.internal.tcnative.CertificateCompressionAlgo',
     'io.netty.internal.tcnative.Library',
     'io.netty.internal.tcnative.SSL',
     'io.netty.internal.tcnative.SSLContext',
@@ -150,6 +152,12 @@ thirdPartyAudit {
     'org.bouncycastle.cert.X509v3CertificateBuilder',
     'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
     'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+    'org.bouncycastle.openssl.PEMEncryptedKeyPair',
+    'org.bouncycastle.openssl.PEMParser',
+    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
+    'org.bouncycastle.openssl.jcajce.JceOpenSSLPKCS8DecryptorProviderBuilder',
+    'org.bouncycastle.openssl.jcajce.JcePEMDecryptorProviderBuilder',
+    'org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo',
 
     // from io.netty.handler.ssl.JettyNpnSslEngine (netty)
     'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
@@ -178,8 +186,6 @@ thirdPartyAudit {
     'org.slf4j.spi.LocationAwareLogger',
 
     'com.github.luben.zstd.Zstd',
-    'com.google.protobuf.ExtensionRegistryLite',
-    'com.google.protobuf.MessageLiteOrBuilder',
     'com.google.protobuf.nano.CodedOutputByteBufferNano',
     'com.google.protobuf.nano.MessageNano',
     'com.jcraft.jzlib.Deflater',
@@ -227,7 +233,8 @@ thirdPartyAudit {
     'io.netty.util.internal.PlatformDependent0$1',
     'io.netty.util.internal.PlatformDependent0$2',
     'io.netty.util.internal.PlatformDependent0$3',
-    'io.netty.util.internal.PlatformDependent0$5',
+    'io.netty.util.internal.PlatformDependent0$4',
+    'io.netty.util.internal.PlatformDependent0$6',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
@@ -239,6 +246,11 @@ thirdPartyAudit {
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator'
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$1',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$2',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$3',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$4',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$5'
   )
 }

@@ -32,6 +32,7 @@
 
 package org.opensearch.index.mapper;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
@@ -43,8 +44,8 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParser.Token;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.fielddata.IndexFieldData;
@@ -392,7 +393,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         } else {
             try {
                 numericValue = parse(parser, coerce.value());
-            } catch (IllegalArgumentException e) {
+            } catch (IllegalArgumentException | JsonParseException e) {
                 if (ignoreMalformed.value()) {
                     return;
                 } else {

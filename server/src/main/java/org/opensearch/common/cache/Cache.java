@@ -79,6 +79,8 @@ import java.util.function.ToLongBiFunction;
  *
  * @param <K> The type of the keys
  * @param <V> The type of the values
+ *
+ * @opensearch.internal
  */
 public class Cache<K, V> {
 
@@ -173,6 +175,11 @@ public class Cache<K, V> {
         DELETED
     }
 
+    /**
+     * Entry in a cache
+     *
+     * @opensearch.internal
+     */
     static class Entry<K, V> {
         final K key;
         final V value;
@@ -196,6 +203,8 @@ public class Cache<K, V> {
      *
      * @param <K> the type of the keys
      * @param <V> the type of the values
+     *
+     * @opensearch.internal
      */
     private static class CacheSegment<K, V> {
         // read/write lock protecting mutations to the segment
@@ -329,6 +338,11 @@ public class Cache<K, V> {
             }
         }
 
+        /**
+         * Segment statistics
+         *
+         * @opensearch.internal
+         */
         private static class SegmentStats {
             private final LongAdder hits = new LongAdder();
             private final LongAdder misses = new LongAdder();
@@ -499,9 +513,7 @@ public class Cache<K, V> {
             promote(tuple.v1(), now);
         }
         if (replaced) {
-            removalListener.onRemoval(
-                new RemovalNotification<>(tuple.v2().key, tuple.v2().value, RemovalNotification.RemovalReason.REPLACED)
-            );
+            removalListener.onRemoval(new RemovalNotification<>(tuple.v2().key, tuple.v2().value, RemovalReason.REPLACED));
         }
     }
 
@@ -509,7 +521,7 @@ public class Cache<K, V> {
         try {
             Entry<K, V> entry = f.get();
             try (ReleasableLock ignored = lruLock.acquire()) {
-                delete(entry, RemovalNotification.RemovalReason.INVALIDATED);
+                delete(entry, RemovalReason.INVALIDATED);
             }
         } catch (ExecutionException e) {
             // ok
@@ -520,7 +532,7 @@ public class Cache<K, V> {
 
     /**
      * Invalidate the association for the specified key. A removal notification will be issued for invalidated
-     * entries with {@link org.opensearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
+     * entries with {@link RemovalReason} INVALIDATED.
      *
      * @param key the key whose mapping is to be invalidated from the cache
      */
@@ -532,7 +544,7 @@ public class Cache<K, V> {
     /**
      * Invalidate the entry for the specified key and value. If the value provided is not equal to the value in
      * the cache, no removal will occur. A removal notification will be issued for invalidated
-     * entries with {@link org.opensearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
+     * entries with {@link RemovalReason} INVALIDATED.
      *
      * @param key the key whose mapping is to be invalidated from the cache
      * @param value the expected value that should be associated with the key
@@ -544,7 +556,7 @@ public class Cache<K, V> {
 
     /**
      * Invalidate all cache entries. A removal notification will be issued for invalidated entries with
-     * {@link org.opensearch.common.cache.RemovalNotification.RemovalReason} INVALIDATED.
+     * {@link RemovalReason} INVALIDATED.
      */
     public void invalidateAll() {
         Entry<K, V> h;
@@ -575,7 +587,7 @@ public class Cache<K, V> {
             }
         }
         while (h != null) {
-            removalListener.onRemoval(new RemovalNotification<>(h.key, h.value, RemovalNotification.RemovalReason.INVALIDATED));
+            removalListener.onRemoval(new RemovalNotification<>(h.key, h.value, RemovalReason.INVALIDATED));
             h = h.after;
         }
     }
@@ -693,7 +705,7 @@ public class Cache<K, V> {
                 segment.remove(entry.key, entry.value, f -> {});
                 try (ReleasableLock ignored = lruLock.acquire()) {
                     current = null;
-                    delete(entry, RemovalNotification.RemovalReason.INVALIDATED);
+                    delete(entry, RemovalReason.INVALIDATED);
                 }
             }
         }
@@ -717,6 +729,11 @@ public class Cache<K, V> {
         return new CacheStats(hits, misses, evictions);
     }
 
+    /**
+     * Cache statistics
+     *
+     * @opensearch.internal
+     */
     public static class CacheStats {
         private long hits;
         private long misses;
@@ -777,10 +794,10 @@ public class Cache<K, V> {
         if (segment != null) {
             segment.remove(entry.key, entry.value, f -> {});
         }
-        delete(entry, RemovalNotification.RemovalReason.EVICTED);
+        delete(entry, RemovalReason.EVICTED);
     }
 
-    private void delete(Entry<K, V> entry, RemovalNotification.RemovalReason removalReason) {
+    private void delete(Entry<K, V> entry, RemovalReason removalReason) {
         assert lruLock.isHeldByCurrentThread();
 
         if (unlink(entry)) {

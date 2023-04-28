@@ -178,6 +178,26 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    public void testDotAsFieldName() throws Exception {
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject(".")
+                .field("type", "text")
+                .endObject()
+                .endObject()
+                .endObject()
+        );
+
+        try {
+            createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
+            fail("Expected MapperParsingException");
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), containsString("Invalid field name"));
+        }
+    }
+
     public void testFieldPropertiesArray() throws Exception {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
@@ -423,10 +443,9 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
         );
 
         // Empty name not allowed in index created after 5.0
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { createIndex("test").mapperService().documentMapperParser().parse("", new CompressedXContent(mapping)); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            createIndex("test").mapperService().documentMapperParser().parse("", new CompressedXContent(mapping));
+        });
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
 

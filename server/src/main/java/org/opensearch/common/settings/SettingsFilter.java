@@ -34,7 +34,7 @@ package org.opensearch.common.settings;
 
 import org.opensearch.common.Strings;
 import org.opensearch.common.regex.Regex;
-import org.opensearch.common.xcontent.ToXContent.Params;
+import org.opensearch.core.xcontent.ToXContent.Params;
 import org.opensearch.rest.RestRequest;
 
 import java.util.ArrayList;
@@ -47,6 +47,8 @@ import java.util.Set;
 /**
  * A class that allows to filter settings objects by simple regular expression patterns or full settings keys.
  * It's used for response filtering on the rest layer to for instance filter out sensitive information like access keys.
+ *
+ * @opensearch.internal
  */
 public final class SettingsFilter {
     /**
@@ -115,7 +117,7 @@ public final class SettingsFilter {
             }
         }
         if (!simpleMatchPatternList.isEmpty()) {
-            String[] simpleMatchPatterns = simpleMatchPatternList.toArray(new String[simpleMatchPatternList.size()]);
+            String[] simpleMatchPatterns = simpleMatchPatternList.toArray(new String[0]);
             builder.keys().removeIf(key -> Regex.simpleMatch(simpleMatchPatterns, key));
         }
         return builder.build();

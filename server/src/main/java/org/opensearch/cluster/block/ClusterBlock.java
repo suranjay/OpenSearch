@@ -36,8 +36,8 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -45,6 +45,11 @@ import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Objects;
 
+/**
+ * Blocks the cluster for concurrency
+ *
+ * @opensearch.internal
+ */
 public class ClusterBlock implements Writeable, ToXContentFragment {
 
     private final int id;

@@ -33,7 +33,7 @@ package org.opensearch.search.aggregations.bucket;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
@@ -51,6 +51,8 @@ import java.util.function.Function;
 
 /**
  * A base class for all the single bucket aggregations.
+ *
+ * @opensearch.internal
  */
 public abstract class InternalSingleBucketAggregation extends InternalAggregation implements SingleBucketAggregation {
 

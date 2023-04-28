@@ -32,18 +32,23 @@
 
 package org.opensearch.search.aggregations.bucket.terms.heuristic;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * NXY significance heuristic for significant terms agg
+ *
+ * @opensearch.internal
+ */
 public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
 
     protected static final ParseField BACKGROUND_IS_SUPERSET = new ParseField("background_is_superset");
@@ -101,6 +106,11 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
         return result;
     }
 
+    /**
+     * Frequencies for an NXY significance heuristic
+     *
+     * @opensearch.internal
+     */
     protected static class Frequencies {
         double N00, N01, N10, N11, N0_, N1_, N_0, N_1, N;
     }
@@ -189,6 +199,11 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
         };
     }
 
+    /**
+     * Builder for a NXY Significance heuristic
+     *
+     * @opensearch.internal
+     */
     protected abstract static class NXYBuilder implements SignificanceHeuristicBuilder {
         protected boolean includeNegatives = true;
         protected boolean backgroundIsSuperset = true;

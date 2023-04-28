@@ -37,15 +37,17 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.rest.action.admin.cluster.RestNodesUsageAction;
+import org.opensearch.tasks.Task;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,6 +69,8 @@ import java.util.stream.Collectors;
  * the transport requests executed by the associated client. While the context is fully copied over, not all the headers
  * are copied, but a selected few. It is possible to control what headers are copied over by returning them in
  * {@link ActionPlugin#getRestHeaders()}.
+ *
+ * @opensearch.api
  */
 public abstract class BaseRestHandler implements RestHandler {
 
@@ -124,7 +128,7 @@ public abstract class BaseRestHandler implements RestHandler {
         action.accept(channel);
     }
 
-    protected final String unrecognized(
+    public static String unrecognizedStrings(
         final RestRequest request,
         final Set<String> invalids,
         final Set<String> candidates,
@@ -167,6 +171,24 @@ public abstract class BaseRestHandler implements RestHandler {
         }
 
         return message.toString();
+    }
+
+    /**
+     * Returns a String message of the detail of any unrecognized error occurred. The string is intended for use in error messages to be returned to the user.
+     *
+     * @param request The request that caused the exception
+     * @param invalids Strings from the request which were unable to be understood.
+     * @param candidates A set of words that are most likely to be the valid strings determined invalid, to be suggested to the user.
+     * @param detail The parameter contains the details of the exception.
+     * @return a String that contains the message.
+     */
+    protected final String unrecognized(
+        final RestRequest request,
+        final Set<String> invalids,
+        final Set<String> candidates,
+        final String detail
+    ) {
+        return unrecognizedStrings(request, invalids, candidates, detail);
     }
 
     /**
@@ -213,13 +235,13 @@ public abstract class BaseRestHandler implements RestHandler {
      * @param logMsgKeyPrefix the key prefix of a deprecation message to avoid duplicate messages.
      */
     public static void parseDeprecatedMasterTimeoutParameter(
-        MasterNodeRequest mnr,
+        ClusterManagerNodeRequest mnr,
         RestRequest request,
         DeprecationLogger logger,
         String logMsgKeyPrefix
     ) {
         final String MASTER_TIMEOUT_DEPRECATED_MESSAGE =
-            "Deprecated parameter [master_timeout] used. To promote inclusive language, please use [cluster_manager_timeout] instead. It will be unsupported in a future major version.";
+            "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead.";
         final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
             "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
         if (request.hasParam("master_timeout")) {
@@ -227,10 +249,15 @@ public abstract class BaseRestHandler implements RestHandler {
             if (request.hasParam("cluster_manager_timeout")) {
                 throw new OpenSearchParseException(DUPLICATE_PARAMETER_ERROR_MESSAGE);
             }
-            mnr.masterNodeTimeout(request.paramAsTime("master_timeout", mnr.masterNodeTimeout()));
+            mnr.clusterManagerNodeTimeout(request.paramAsTime("master_timeout", mnr.clusterManagerNodeTimeout()));
         }
     }
 
+    /**
+     * A wrapper for the base handler.
+     *
+     * @opensearch.internal
+     */
     public static class Wrapper extends BaseRestHandler {
 
         protected final BaseRestHandler delegate;
@@ -288,5 +315,19 @@ public abstract class BaseRestHandler implements RestHandler {
         public boolean allowSystemIndexAccessByDefault() {
             return delegate.allowSystemIndexAccessByDefault();
         }
+    }
+
+    /**
+     * Return a task immediately when executing some long-running operations asynchronously, like reindex, resize, open, force merge
+     */
+    public RestChannelConsumer sendTask(String nodeId, Task task) {
+        return channel -> {
+            try (XContentBuilder builder = channel.newBuilder()) {
+                builder.startObject();
+                builder.field("task", nodeId + ":" + task.getId());
+                builder.endObject();
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+            }
+        };
     }
 }

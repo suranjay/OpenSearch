@@ -33,13 +33,11 @@
 package org.opensearch.indices.store;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
@@ -68,6 +66,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -77,6 +76,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Metadata for shard stores from a list of transport nodes
+ *
+ * @opensearch.internal
+ */
 public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
     TransportNodesListShardStoreMetadata.Request,
     TransportNodesListShardStoreMetadata.NodesStoreFilesMetadata,
@@ -203,8 +207,8 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                 return new StoreFilesMetadata(shardId, Store.MetadataSnapshot.EMPTY, Collections.emptyList());
             }
             // note that this may fail if it can't get access to the shard lock. Since we check above there is an active shard, this means:
-            // 1) a shard is being constructed, which means the master will not use a copy of this replica
-            // 2) A shard is shutting down and has not cleared it's content within lock timeout. In this case the master may not
+            // 1) a shard is being constructed, which means the cluster-manager will not use a copy of this replica
+            // 2) A shard is shutting down and has not cleared it's content within lock timeout. In this case the cluster-manager may not
             // reuse local resources.
             final Store.MetadataSnapshot metadataSnapshot = Store.readMetadataSnapshot(
                 shardPath.resolveIndex(),
@@ -225,6 +229,11 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         }
     }
 
+    /**
+     * Metadata for store files
+     *
+     * @opensearch.internal
+     */
     public static class StoreFilesMetadata implements Iterable<StoreFileMetadata>, Writeable {
         private final ShardId shardId;
         private final Store.MetadataSnapshot metadataSnapshot;
@@ -243,20 +252,14 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         public StoreFilesMetadata(StreamInput in) throws IOException {
             this.shardId = new ShardId(in);
             this.metadataSnapshot = new Store.MetadataSnapshot(in);
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_5_0)) {
-                this.peerRecoveryRetentionLeases = in.readList(RetentionLease::new);
-            } else {
-                this.peerRecoveryRetentionLeases = Collections.emptyList();
-            }
+            this.peerRecoveryRetentionLeases = in.readList(RetentionLease::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             shardId.writeTo(out);
             metadataSnapshot.writeTo(out);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_5_0)) {
-                out.writeList(peerRecoveryRetentionLeases);
-            }
+            out.writeList(peerRecoveryRetentionLeases);
         }
 
         public ShardId shardId() {
@@ -318,6 +321,11 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         }
     }
 
+    /**
+     * The request
+     *
+     * @opensearch.internal
+     */
     public static class Request extends BaseNodesRequest<Request> {
 
         private final ShardId shardId;
@@ -327,11 +335,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         public Request(StreamInput in) throws IOException {
             super(in);
             shardId = new ShardId(in);
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-                customDataPath = in.readString();
-            } else {
-                customDataPath = null;
-            }
+            customDataPath = in.readString();
         }
 
         public Request(ShardId shardId, String customDataPath, DiscoveryNode[] nodes) {
@@ -358,12 +362,15 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-                out.writeString(customDataPath);
-            }
+            out.writeString(customDataPath);
         }
     }
 
+    /**
+     * Metadata for the nodes store files
+     *
+     * @opensearch.internal
+     */
     public static class NodesStoreFilesMetadata extends BaseNodesResponse<NodeStoreFilesMetadata> {
 
         public NodesStoreFilesMetadata(StreamInput in) throws IOException {
@@ -385,7 +392,12 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         }
     }
 
-    public static class NodeRequest extends BaseNodeRequest {
+    /**
+     * The node request
+     *
+     * @opensearch.internal
+     */
+    public static class NodeRequest extends TransportRequest {
 
         private final ShardId shardId;
         @Nullable
@@ -394,11 +406,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
             shardId = new ShardId(in);
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-                customDataPath = in.readString();
-            } else {
-                customDataPath = null;
-            }
+            customDataPath = in.readString();
         }
 
         public NodeRequest(Request request) {
@@ -410,10 +418,8 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-                assert customDataPath != null;
-                out.writeString(customDataPath);
-            }
+            assert customDataPath != null;
+            out.writeString(customDataPath);
         }
 
         public ShardId getShardId() {
@@ -431,6 +437,11 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         }
     }
 
+    /**
+     * The metadata for the node store files
+     *
+     * @opensearch.internal
+     */
     public static class NodeStoreFilesMetadata extends BaseNodeResponse {
 
         private StoreFilesMetadata storeFilesMetadata;

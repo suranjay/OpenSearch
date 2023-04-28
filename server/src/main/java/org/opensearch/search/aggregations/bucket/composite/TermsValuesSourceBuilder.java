@@ -37,9 +37,9 @@ import org.apache.lucene.index.IndexReader;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.script.Script;
 import org.opensearch.search.DocValueFormat;
@@ -52,15 +52,22 @@ import org.opensearch.search.aggregations.support.ValuesSourceType;
 import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.function.LongConsumer;
 import java.util.function.LongUnaryOperator;
 
 /**
  * A {@link CompositeValuesSourceBuilder} that builds a {@link ValuesSource} from a {@link Script} or
  * a field name.
+ *
+ * @opensearch.internal
  */
 public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<TermsValuesSourceBuilder> {
-
+    /**
+     * Composite supplier for terms
+     *
+     * @opensearch.internal
+     */
     @FunctionalInterface
     public interface TermsCompositeSupplier {
         CompositeValuesSourceConfig apply(
@@ -112,7 +119,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
     static void register(ValuesSourceRegistry.Builder builder) {
         builder.register(
             REGISTRY_KEY,
-            org.opensearch.common.collect.List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
+            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
             (valuesSourceConfig, name, hasScript, format, missingBucket, missingOrder, order) -> {
                 final DocValueFormat docValueFormat;
                 if (format == null && valuesSourceConfig.valueSourceType() == CoreValuesSourceType.DATE) {
@@ -174,7 +181,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
 
         builder.register(
             REGISTRY_KEY,
-            org.opensearch.common.collect.List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
+            List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
             (valuesSourceConfig, name, hasScript, format, missingBucket, missingOrder, order) -> new CompositeValuesSourceConfig(
                 name,
                 valuesSourceConfig.fieldType(),

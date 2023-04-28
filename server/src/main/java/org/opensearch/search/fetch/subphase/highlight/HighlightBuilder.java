@@ -34,14 +34,14 @@ package org.opensearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.ObjectParser.NamedObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ObjectParser.NamedObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
@@ -60,13 +60,15 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 
-import static org.opensearch.common.xcontent.ObjectParser.fromList;
+import static org.opensearch.core.xcontent.ObjectParser.fromList;
 
 /**
  * A builder for search highlighting. Settings can control how large fields
  * are summarized to show only selected snippets ("fragments") containing search terms.
  *
  * @see org.opensearch.search.builder.SearchSourceBuilder#highlight()
+ *
+ * @opensearch.internal
  */
 public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilder> {
     /** default for whether to highlight fields based on the source even if stored separately */
@@ -397,6 +399,10 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         if (highlighterBuilder.highlightQuery != null) {
             targetOptionsBuilder.highlightQuery(highlighterBuilder.highlightQuery.toQuery(context));
         }
+        if (highlighterBuilder.maxAnalyzerOffset != null) {
+            targetOptionsBuilder.maxAnalyzerOffset(highlighterBuilder.maxAnalyzerOffset);
+        }
+
     }
 
     static Character[] convertCharArray(char[] array) {
@@ -467,6 +473,11 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
 
     }
 
+    /**
+     * Field for highlight builder
+     *
+     * @opensearch.internal
+     */
     public static class Field extends AbstractHighlighterBuilder<Field> {
         static final NamedObjectParser<Field, Void> PARSER;
         static {
@@ -570,6 +581,11 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         }
     }
 
+    /**
+     * Order for highlight builder
+     *
+     * @opensearch.internal
+     */
     public enum Order implements Writeable {
         NONE,
         SCORE;
@@ -596,6 +612,11 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         }
     }
 
+    /**
+     * Boundary scanner type
+     *
+     * @opensearch.internal
+     */
     public enum BoundaryScannerType implements Writeable {
         CHARS,
         WORD,

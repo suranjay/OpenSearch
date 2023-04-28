@@ -38,9 +38,9 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParser.Token;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.ParseContext.Document;
@@ -61,6 +61,8 @@ import java.util.stream.Collectors;
  * category (string) value.
  * {@link CategoryQueryContext} defines options for constructing
  * a unit of query context for this context type
+ *
+ * @opensearch.internal
  */
 public class CategoryContextMapping extends ContextMapping<CategoryQueryContext> {
 
@@ -217,6 +219,8 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
 
     /**
      * Builder for {@link CategoryContextMapping}
+     *
+     * @opensearch.internal
      */
     public static class Builder extends ContextBuilder<CategoryContextMapping> {
 

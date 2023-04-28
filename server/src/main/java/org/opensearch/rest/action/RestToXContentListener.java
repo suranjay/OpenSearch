@@ -32,9 +32,9 @@
 
 package org.opensearch.rest.action;
 
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestResponse;
@@ -43,6 +43,8 @@ import org.opensearch.rest.RestStatus;
 /**
  * A REST based action listener that assumes the response is of type {@link ToXContent} and automatically
  * builds an XContent based response (wrapping the toXContent in startObject/endObject).
+ *
+ * @opensearch.api
  */
 public class RestToXContentListener<Response extends ToXContentObject> extends RestResponseListener<Response> {
 

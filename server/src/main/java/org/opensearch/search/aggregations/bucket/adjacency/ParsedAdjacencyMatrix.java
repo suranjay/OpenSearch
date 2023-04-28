@@ -32,8 +32,8 @@
 
 package org.opensearch.search.aggregations.bucket.adjacency;
 
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.io.IOException;
@@ -41,6 +41,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Internal class used to hold a parsed adjacency matrix as a collection of buckets
+ *
+ * @opensearch.internal
+ */
 public class ParsedAdjacencyMatrix extends ParsedMultiBucketAggregation<ParsedAdjacencyMatrix.ParsedBucket> implements AdjacencyMatrix {
 
     private Map<String, ParsedBucket> bucketMap;
@@ -85,6 +90,11 @@ public class ParsedAdjacencyMatrix extends ParsedMultiBucketAggregation<ParsedAd
         return aggregation;
     }
 
+    /**
+     * A parsed bucket
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements AdjacencyMatrix.Bucket {
 
         private String key;

@@ -36,12 +36,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.info.TransportClusterInfoAction;
+import org.opensearch.action.support.clustermanager.info.TransportClusterInfoAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.indices.IndicesService;
@@ -49,7 +48,13 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Map;
 
+/**
+ * Transport action to get field mappings.
+ *
+ * @opensearch.internal
+ */
 public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMappingsRequest, GetMappingsResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportGetMappingsAction.class);
@@ -83,7 +88,7 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
     }
 
     @Override
-    protected void doMasterOperation(
+    protected void doClusterManagerOperation(
         final GetMappingsRequest request,
         String[] concreteIndices,
         final ClusterState state,
@@ -91,8 +96,7 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
     ) {
         logger.trace("serving getMapping request based on version {}", state.version());
         try {
-            ImmutableOpenMap<String, MappingMetadata> result = state.metadata()
-                .findMappings(concreteIndices, indicesService.getFieldFilter());
+            final Map<String, MappingMetadata> result = state.metadata().findMappings(concreteIndices, indicesService.getFieldFilter());
             listener.onResponse(new GetMappingsResponse(result));
         } catch (IOException e) {
             listener.onFailure(e);

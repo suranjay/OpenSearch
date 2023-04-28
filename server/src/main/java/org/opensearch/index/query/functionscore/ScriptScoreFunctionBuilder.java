@@ -38,8 +38,8 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.search.function.ScoreFunction;
 import org.opensearch.common.lucene.search.function.ScriptScoreFunction;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
 import org.opensearch.script.ScoreScript;
@@ -51,6 +51,8 @@ import java.util.Objects;
 /**
  * A function that uses a script to compute or influence the score of documents
  * that match with the inner query or filter.
+ *
+ * @opensearch.internal
  */
 public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScoreFunctionBuilder> {
     public static final String NAME = "script_score";

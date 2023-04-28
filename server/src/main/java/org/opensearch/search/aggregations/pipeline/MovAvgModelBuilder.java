@@ -32,11 +32,13 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.ToXContentFragment;
 
 /**
  * Represents the common interface that all moving average models share. Moving
  * average models are used by the MovAvg aggregation
+ *
+ * @opensearch.internal
  */
 public interface MovAvgModelBuilder extends ToXContentFragment {
 

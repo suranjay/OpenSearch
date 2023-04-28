@@ -32,13 +32,13 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentLocation;
+import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 import org.opensearch.search.aggregations.InvalidAggregationPathException;
@@ -54,6 +54,8 @@ import java.util.List;
 /**
  * A set of static helpers to simplify working with aggregation buckets, in
  * particular providing utilities that help pipeline aggregations.
+ *
+ * @opensearch.internal
  */
 public class BucketHelpers {
 
@@ -65,6 +67,8 @@ public class BucketHelpers {
      *
      * "insert_zeros": empty buckets will be filled with zeros for all metrics
      * "skip": empty buckets will simply be ignored
+     *
+     * @opensearch.internal
      */
     public enum GapPolicy implements Writeable {
         INSERT_ZEROS((byte) 0, "insert_zeros"),

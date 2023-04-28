@@ -37,14 +37,16 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
  * Encapsulation class used to represent the amount of disk used on a node.
+ *
+ * @opensearch.internal
  */
 public class DiskUsage implements ToXContentFragment, Writeable {
     final String nodeId;

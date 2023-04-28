@@ -33,8 +33,8 @@ package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.action.admin.indices.analyze.AnalyzeAction;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -47,8 +47,18 @@ import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
+/**
+ * Transport action to analyze an action
+ *
+ * @opensearch.api
+ */
 public class RestAnalyzeAction extends BaseRestHandler {
 
+    /**
+     * Fields for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     public static class Fields {
         public static final ParseField ANALYZER = new ParseField("analyzer");
         public static final ParseField TEXT = new ParseField("text");

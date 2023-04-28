@@ -53,10 +53,10 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParser.Token;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -1110,7 +1110,7 @@ public final class ClusterAllocationExplainIT extends OpenSearchIntegTestCase {
 
     public void testCannotAllocateStaleReplicaExplanation() throws Exception {
         logger.info("--> starting 3 nodes");
-        final String masterNode = internalCluster().startNode();
+        final String clusterManagerNode = internalCluster().startNode();
         // start replica node first, so it's path will be used first when we start a node after
         // stopping all of them at end of test.
         final String replicaNode = internalCluster().startNode();
@@ -1123,7 +1123,7 @@ public final class ClusterAllocationExplainIT extends OpenSearchIntegTestCase {
             1,
             Settings.builder()
                 .put("index.routing.allocation.include._name", primaryNode)
-                .put("index.routing.allocation.exclude._name", masterNode)
+                .put("index.routing.allocation.exclude._name", clusterManagerNode)
                 .build(),
             ActiveShardCount.ONE
         );
@@ -1165,7 +1165,7 @@ public final class ClusterAllocationExplainIT extends OpenSearchIntegTestCase {
 
         logger.info("--> restart the node with the stale replica");
         String restartedNode = internalCluster().startDataOnlyNode(replicaDataPathSettings);
-        ensureClusterSizeConsistency(); // wait for the master to finish processing join.
+        ensureClusterSizeConsistency(); // wait for the cluster-manager to finish processing join.
 
         // wait until the system has fetched shard data and we know there is no valid shard copy
         assertBusy(() -> {

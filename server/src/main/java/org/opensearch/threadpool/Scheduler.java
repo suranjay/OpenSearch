@@ -39,7 +39,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.OpenSearchAbortPolicy;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 
 import java.util.concurrent.Delayed;
 import java.util.concurrent.Future;
@@ -53,6 +53,8 @@ import java.util.function.Consumer;
 
 /**
  * Scheduler that allows to schedule one-shot and periodic commands.
+ *
+ * @opensearch.internal
  */
 public interface Scheduler {
 

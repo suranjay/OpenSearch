@@ -43,17 +43,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.ParseFieldRegistry;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
+/**
+ * Aggregation Builder for moving_avg
+ *
+ * @opensearch.internal
+ */
 public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<MovAvgPipelineAggregationBuilder> {
     public static final String NAME = "moving_avg";
 
@@ -381,7 +386,7 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
                         String path = parser.text();
                         paths.add(path);
                     }
-                    bucketsPaths = paths.toArray(new String[paths.size()]);
+                    bucketsPaths = paths.toArray(new String[0]);
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),

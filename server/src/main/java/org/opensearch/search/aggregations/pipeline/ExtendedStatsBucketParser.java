@@ -32,12 +32,17 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Parses extended stats values
+ *
+ * @opensearch.internal
+ */
 public class ExtendedStatsBucketParser extends BucketMetricsParser {
     static final ParseField SIGMA = new ParseField("sigma");
 

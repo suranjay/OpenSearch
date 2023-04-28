@@ -50,7 +50,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.Queries;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.fieldvisitor.FieldsVisitor;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
@@ -64,6 +64,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A {@link Translog.Snapshot} from changes in a Lucene index
+ *
+ * @opensearch.internal
  */
 final class LuceneChangesSnapshot implements Translog.Snapshot {
     static final int DEFAULT_BATCH_SIZE = 1024;
@@ -348,6 +350,11 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         return ndv.longValue() == 1;
     }
 
+    /**
+     * Parallel array to hold translog operations
+     *
+     * @opensearch.internal
+     */
     private static final class ParallelArray {
         final LeafReaderContext[] leafReaderContexts;
         final long[] version;

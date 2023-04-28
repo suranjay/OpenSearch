@@ -34,13 +34,14 @@ package org.opensearch.common.settings;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
 /**
  * A generic failure to handle settings.
  *
- *
+ * @opensearch.internal
  */
 public class SettingsException extends OpenSearchException {
 
@@ -58,5 +59,10 @@ public class SettingsException extends OpenSearchException {
 
     public SettingsException(String msg, Object... args) {
         super(msg, args);
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

@@ -33,10 +33,16 @@
 package org.opensearch.common.util.concurrent;
 
 import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 
+/**
+ * OpenSearch abortion policies.
+ *
+ * @opensearch.internal
+ */
 public class OpenSearchAbortPolicy implements XRejectedExecutionHandler {
     private final CounterMetric rejected = new CounterMetric();
 

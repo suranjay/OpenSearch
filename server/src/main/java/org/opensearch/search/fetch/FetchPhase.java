@@ -90,6 +90,8 @@ import static java.util.Collections.emptyMap;
 /**
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
  * after reducing all of the matches returned by the query phase
+ *
+ * @opensearch.internal
  */
 public class FetchPhase {
     private static final Logger LOGGER = LogManager.getLogger(FetchPhase.class);
@@ -155,7 +157,7 @@ public class FetchPhase {
                         // So we do a little hack here and pretend we're going to do merges in order to
                         // get better sequential access.
                         SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) currentReaderContext.reader();
-                        fieldReader = lf.getSequentialStoredFieldsReader()::visitDocument;
+                        fieldReader = lf.getSequentialStoredFieldsReader()::document;
                     } else {
                         fieldReader = currentReaderContext.reader()::document;
                     }

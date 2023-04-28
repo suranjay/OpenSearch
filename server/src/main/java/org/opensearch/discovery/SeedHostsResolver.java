@@ -34,7 +34,7 @@ package org.opensearch.discovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.SetOnce;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -65,6 +65,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+/**
+ * Resolves seed hosts listed in the config
+ *
+ * @opensearch.internal
+ */
 public class SeedHostsResolver extends AbstractLifecycleComponent implements ConfiguredHostsResolver {
     public static final Setting<Integer> LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING = Setting.intSetting(
         "discovery.zen.ping.unicast.concurrent_connects",

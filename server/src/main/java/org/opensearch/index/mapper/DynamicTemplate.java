@@ -33,8 +33,8 @@
 package org.opensearch.index.mapper;
 
 import org.opensearch.common.regex.Regex;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,8 +44,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+/**
+ * A template that is dynamic based on field types
+ *
+ * @opensearch.internal
+ */
 public class DynamicTemplate implements ToXContentObject {
 
+    /**
+     * Match type of the template
+     *
+     * @opensearch.internal
+     */
     public enum MatchType {
         SIMPLE {
             @Override
@@ -83,7 +93,11 @@ public class DynamicTemplate implements ToXContentObject {
         public abstract boolean matches(String regex, String value);
     }
 
-    /** The type of a field as detected while parsing a json document. */
+    /**
+     * The type of a field as detected while parsing a json document.
+     *
+     * @opensearch.internal
+     */
     public enum XContentFieldType {
         OBJECT {
             @Override

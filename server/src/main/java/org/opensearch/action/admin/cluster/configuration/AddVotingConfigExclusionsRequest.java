@@ -31,9 +31,8 @@
 
 package org.opensearch.action.admin.cluster.configuration;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.support.master.MasterNodeRequest;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -56,8 +55,10 @@ import java.util.stream.StreamSupport;
 /**
  * A request to add voting config exclusions for certain cluster-manager-eligible nodes, and wait for these nodes to be removed from the voting
  * configuration.
+ *
+ * @opensearch.internal
  */
-public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotingConfigExclusionsRequest> {
+public class AddVotingConfigExclusionsRequest extends ClusterManagerNodeRequest<AddVotingConfigExclusionsRequest> {
     public static final String DEPRECATION_MESSAGE = "nodeDescription is deprecated and will be removed, use nodeIds or nodeNames instead";
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(AddVotingConfigExclusionsRequest.class);
     private final String[] nodeDescriptions;
@@ -108,13 +109,8 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
     public AddVotingConfigExclusionsRequest(StreamInput in) throws IOException {
         super(in);
         nodeDescriptions = in.readStringArray();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
-            nodeIds = in.readStringArray();
-            nodeNames = in.readStringArray();
-        } else {
-            nodeIds = Strings.EMPTY_ARRAY;
-            nodeNames = Strings.EMPTY_ARRAY;
-        }
+        nodeIds = in.readStringArray();
+        nodeNames = in.readStringArray();
         timeout = in.readTimeValue();
 
         if (nodeDescriptions.length > 0) {
@@ -130,7 +126,7 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
         if (nodeDescriptions.length >= 1) {
             newVotingConfigExclusions = Arrays.stream(allNodes.resolveNodes(nodeDescriptions))
                 .map(allNodes::get)
-                .filter(DiscoveryNode::isMasterNode)
+                .filter(DiscoveryNode::isClusterManagerNode)
                 .map(VotingConfigExclusion::new)
                 .collect(Collectors.toSet());
 
@@ -145,7 +141,7 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
             for (String nodeId : nodeIds) {
                 if (allNodes.nodeExists(nodeId)) {
                     DiscoveryNode discoveryNode = allNodes.get(nodeId);
-                    if (discoveryNode.isMasterNode()) {
+                    if (discoveryNode.isClusterManagerNode()) {
                         newVotingConfigExclusions.add(new VotingConfigExclusion(discoveryNode));
                     }
                 } else {
@@ -160,7 +156,7 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
             for (String nodeName : nodeNames) {
                 if (existingNodes.containsKey(nodeName)) {
                     DiscoveryNode discoveryNode = existingNodes.get(nodeName);
-                    if (discoveryNode.isMasterNode()) {
+                    if (discoveryNode.isClusterManagerNode()) {
                         newVotingConfigExclusions.add(new VotingConfigExclusion(discoveryNode));
                     }
                 } else {
@@ -247,10 +243,8 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(nodeDescriptions);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
-            out.writeStringArray(nodeIds);
-            out.writeStringArray(nodeNames);
-        }
+        out.writeStringArray(nodeIds);
+        out.writeStringArray(nodeNames);
         out.writeTimeValue(timeout);
     }
 

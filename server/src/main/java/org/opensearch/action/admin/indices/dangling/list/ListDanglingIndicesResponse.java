@@ -39,8 +39,8 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.StatusToXContentObject;
-import org.opensearch.common.xcontent.XContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -57,6 +57,8 @@ import java.util.Objects;
  * cluster and aggregates their responses. When the aggregated response is converted to {@link XContent},
  * information for each dangling index is presented under the "dangling_indices" key. If any nodes
  * in the cluster failed to answer, the details are presented under the "_nodes.failures" key.
+ *
+ * @opensearch.internal
  */
 public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDanglingIndicesResponse> implements StatusToXContentObject {
 
@@ -126,7 +128,13 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDangl
         out.writeList(nodes);
     }
 
-    // visible for testing
+    /**
+     * Aggregates dangling index information
+     *
+     * NOTE: visible for testing
+     *
+     * @opensearch.internal
+     */
     static class AggregatedDanglingIndexInfo {
         private final String indexUUID;
         private final String indexName;

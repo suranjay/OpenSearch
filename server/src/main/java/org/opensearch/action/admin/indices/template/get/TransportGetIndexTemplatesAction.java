@@ -31,10 +31,9 @@
 
 package org.opensearch.action.admin.indices.template.get;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeReadAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -51,8 +50,16 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
-public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
+/**
+ * Transport action to retrieve one or more Index templates
+ *
+ * @opensearch.internal
+ */
+public class TransportGetIndexTemplatesAction extends TransportClusterManagerNodeReadAction<
+    GetIndexTemplatesRequest,
+    GetIndexTemplatesResponse> {
 
     @Inject
     public TransportGetIndexTemplatesAction(
@@ -89,7 +96,7 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAct
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         GetIndexTemplatesRequest request,
         ClusterState state,
         ActionListener<GetIndexTemplatesResponse> listener
@@ -98,16 +105,16 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAct
 
         // If we did not ask for a specific name, then we return all templates
         if (request.names().length == 0) {
-            results = Arrays.asList(state.metadata().templates().values().toArray(IndexTemplateMetadata.class));
+            results = Arrays.asList(state.metadata().templates().values().toArray(new IndexTemplateMetadata[0]));
         } else {
             results = new ArrayList<>();
         }
 
         for (String name : request.names()) {
             if (Regex.isSimpleMatchPattern(name)) {
-                for (ObjectObjectCursor<String, IndexTemplateMetadata> entry : state.metadata().templates()) {
-                    if (Regex.simpleMatch(name, entry.key)) {
-                        results.add(entry.value);
+                for (final Map.Entry<String, IndexTemplateMetadata> entry : state.metadata().templates().entrySet()) {
+                    if (Regex.simpleMatch(name, entry.getKey())) {
+                        results.add(entry.getValue());
                     }
                 }
             } else if (state.metadata().templates().containsKey(name)) {

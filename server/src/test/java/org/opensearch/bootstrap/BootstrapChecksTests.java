@@ -36,23 +36,28 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.opensearch.cluster.coordination.ClusterBootstrapService;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.discovery.SettingsBasedSeedHostsProvider;
+import org.opensearch.env.Environment;
 import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.node.NodeValidationException;
 import org.opensearch.test.AbstractBootstrapCheckTestCase;
 import org.hamcrest.Matcher;
 
+import java.lang.Runtime.Version;
 import java.net.InetAddress;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -654,81 +659,6 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
     }
 
-    public void testG1GCCheck() throws NodeValidationException {
-        final AtomicBoolean isG1GCEnabled = new AtomicBoolean(true);
-        final AtomicBoolean isJava8 = new AtomicBoolean(true);
-        final AtomicReference<String> jvmVersion = new AtomicReference<>(
-            String.format(Locale.ROOT, "25.%d-b%d", randomIntBetween(0, 39), randomIntBetween(1, 128))
-        );
-        final BootstrapChecks.G1GCCheck g1GCCheck = new BootstrapChecks.G1GCCheck() {
-
-            @Override
-            String jvmVendor() {
-                return "Oracle Corporation";
-            }
-
-            @Override
-            boolean isG1GCEnabled() {
-                return isG1GCEnabled.get();
-            }
-
-            @Override
-            String jvmVersion() {
-                return jvmVersion.get();
-            }
-
-            @Override
-            boolean isJava8() {
-                return isJava8.get();
-            }
-
-        };
-
-        final NodeValidationException e = expectThrows(
-            NodeValidationException.class,
-            () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(g1GCCheck))
-        );
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "JVM version [" + jvmVersion.get() + "] can cause data corruption when used with G1GC; upgrade to at least Java 8u40"
-            )
-        );
-
-        // if G1GC is disabled, nothing should happen
-        isG1GCEnabled.set(false);
-        BootstrapChecks.check(emptyContext, true, Collections.singletonList(g1GCCheck));
-
-        // if on or after update 40, nothing should happen independent of whether or not G1GC is enabled
-        isG1GCEnabled.set(randomBoolean());
-        jvmVersion.set(String.format(Locale.ROOT, "25.%d-b%d", randomIntBetween(40, 112), randomIntBetween(1, 128)));
-        BootstrapChecks.check(emptyContext, true, Collections.singletonList(g1GCCheck));
-
-        final BootstrapChecks.G1GCCheck nonOracleCheck = new BootstrapChecks.G1GCCheck() {
-
-            @Override
-            String jvmVendor() {
-                return randomAlphaOfLength(8);
-            }
-
-        };
-
-        // if not on an Oracle JVM, nothing should happen
-        BootstrapChecks.check(emptyContext, true, Collections.singletonList(nonOracleCheck));
-
-        final BootstrapChecks.G1GCCheck nonJava8Check = new BootstrapChecks.G1GCCheck() {
-
-            @Override
-            boolean isJava8() {
-                return false;
-            }
-
-        };
-
-        // if not Java 8, nothing should happen
-        BootstrapChecks.check(emptyContext, true, Collections.singletonList(nonJava8Check));
-    }
-
     public void testAllPermissionCheck() throws NodeValidationException {
         final AtomicBoolean isAllPermissionGranted = new AtomicBoolean(true);
         final BootstrapChecks.AllPermissionCheck allPermissionCheck = new BootstrapChecks.AllPermissionCheck() {
@@ -820,5 +750,70 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         ensureChecksPass.accept(Settings.builder().putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey()));
         // Validate the deprecated setting is still valid during the node bootstrap.
         ensureChecksPass.accept(Settings.builder().putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey()));
+    }
+
+    public void testJvmVersionCheck() throws NodeValidationException {
+        final AtomicReference<Version> version = new AtomicReference<>(Version.parse("11.0.13+8"));
+        final BootstrapCheck check = new BootstrapChecks.JavaVersionCheck() {
+            @Override
+            Version getVersion() {
+                return version.get();
+            }
+        };
+
+        final NodeValidationException e = expectThrows(
+            NodeValidationException.class,
+            () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(check))
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "The current JVM version 11.0.13+8 is not recommended for use: "
+                    + "for more details, please check https://github.com/opensearch-project/OpenSearch/issues/2791 and https://bugs.openjdk.java.net/browse/JDK-8259541"
+            )
+        );
+
+        version.set(Version.parse("11.0.14"));
+        BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
+
+        version.set(Runtime.version());
+        BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
+    }
+
+    public void testMultipleDataPathsForSearchNodeCheck() {
+        Path path = PathUtils.get(createTempDir().toString());
+        String[] paths = new String[] { path.resolve("a").toString(), path.resolve("b").toString() };
+
+        final NodeValidationException e = expectThrows(
+            NodeValidationException.class,
+            () -> performDataPathsCheck(paths, DiscoveryNodeRole.SEARCH_ROLE.roleName())
+        );
+        assertThat(e.getMessage(), containsString("Multiple data paths are not allowed for search nodes"));
+    }
+
+    public void testMultipleDataPathsForDataNodeCheck() throws NodeValidationException {
+        Path path = PathUtils.get(createTempDir().toString());
+        String[] paths = new String[] { path.resolve("a").toString(), path.resolve("b").toString() };
+
+        performDataPathsCheck(paths, DiscoveryNodeRole.DATA_ROLE.roleName());
+    }
+
+    public void testSingleDataPathForSearchNodeCheck() throws NodeValidationException {
+        Path path = PathUtils.get(createTempDir().toString());
+        String[] paths = new String[] { path.resolve("a").toString() };
+
+        performDataPathsCheck(paths, DiscoveryNodeRole.SEARCH_ROLE.roleName());
+    }
+
+    private void performDataPathsCheck(String[] paths, String roleName) throws NodeValidationException {
+        final BootstrapContext context = createTestContext(
+            Settings.builder()
+                .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), Collections.singletonList(roleName))
+                .putList(Environment.PATH_DATA_SETTING.getKey(), paths)
+                .build(),
+            Metadata.EMPTY_METADATA
+        );
+        final List<BootstrapCheck> checks = Collections.singletonList(new BootstrapChecks.MultipleDataPathCheck());
+        BootstrapChecks.check(context, true, checks);
     }
 }

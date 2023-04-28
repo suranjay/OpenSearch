@@ -32,13 +32,13 @@
 package org.opensearch.common.geo;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.Rectangle;
 import org.opensearch.geometry.ShapeType;
@@ -52,6 +52,8 @@ import java.util.Objects;
 /**
  * A class representing a Geo-Bounding-Box for use by Geo queries and aggregations
  * that deal with extents/rectangles representing rectangular areas of interest.
+ *
+ * @opensearch.internal
  */
 public class GeoBoundingBox implements ToXContentObject, Writeable {
     private static final WellKnownText WKT_PARSER = new WellKnownText(true, new StandardValidator(true));

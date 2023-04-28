@@ -32,14 +32,13 @@
 
 package org.opensearch.monitor.jvm;
 
-import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.lang.management.BufferPoolMXBean;
@@ -58,6 +57,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Holds JVM statistics
+ *
+ * @opensearch.internal
+ */
 public class JvmStats implements Writeable, ToXContentFragment {
 
     private static final RuntimeMXBean runtimeMXBean;
@@ -366,6 +370,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
         static final String TOTAL_UNLOADED_COUNT = "total_unloaded_count";
     }
 
+    /**
+     * Garbage collector references.
+     *
+     * @opensearch.internal
+     */
     public static class GarbageCollectors implements Writeable, Iterable<GarbageCollector> {
 
         private final GarbageCollector[] collectors;
@@ -393,6 +402,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * The garbage collector.
+     *
+     * @opensearch.internal
+     */
     public static class GarbageCollector implements Writeable {
 
         private final String name;
@@ -431,6 +445,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Thread information.
+     *
+     * @opensearch.internal
+     */
     public static class Threads implements Writeable {
 
         private final int count;
@@ -465,6 +484,8 @@ public class JvmStats implements Writeable, ToXContentFragment {
      * Stores the memory usage after the Java virtual machine
      * most recently expended effort in recycling unused objects
      * in particular memory pool.
+     *
+     * @opensearch.internal
      */
     public static class MemoryPoolGcStats implements Writeable {
 
@@ -503,6 +524,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * A memory pool.
+     *
+     * @opensearch.internal
+     */
     public static class MemoryPool implements Writeable {
 
         private final String name;
@@ -527,11 +553,7 @@ public class JvmStats implements Writeable, ToXContentFragment {
             max = in.readVLong();
             peakUsed = in.readVLong();
             peakMax = in.readVLong();
-            if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-                lastGcStats = new MemoryPoolGcStats(in);
-            } else {
-                lastGcStats = new MemoryPoolGcStats(0, 0);
-            }
+            lastGcStats = new MemoryPoolGcStats(in);
         }
 
         @Override
@@ -541,9 +563,7 @@ public class JvmStats implements Writeable, ToXContentFragment {
             out.writeVLong(max);
             out.writeVLong(peakUsed);
             out.writeVLong(peakMax);
-            if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-                lastGcStats.writeTo(out);
-            }
+            lastGcStats.writeTo(out);
         }
 
         public String getName() {
@@ -574,6 +594,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Memory data.
+     *
+     * @opensearch.internal
+     */
     public static class Mem implements Writeable, Iterable<MemoryPool> {
 
         private final long heapCommitted;
@@ -650,6 +675,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * A buffer pool.
+     *
+     * @opensearch.internal
+     */
     public static class BufferPool implements Writeable {
 
         private final String name;
@@ -696,6 +726,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Class information.
+     *
+     * @opensearch.internal
+     */
     public static class Classes implements Writeable {
 
         private final long loadedClassCount;

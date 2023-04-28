@@ -40,8 +40,9 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.util.CollectionUtils;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.Index;
 
 import java.io.IOException;
@@ -50,6 +51,11 @@ import java.util.Objects;
 
 import static java.util.Collections.unmodifiableList;
 
+/**
+ * Transport response to open an index.
+ *
+ * @opensearch.internal
+ */
 public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
 
     private final List<AddBlockResult> indices;
@@ -87,9 +93,14 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
+    /**
+     * Result for adding a block
+     *
+     * @opensearch.internal
+     */
     public static class AddBlockResult implements Writeable, ToXContentFragment {
 
         private final Index index;
@@ -181,10 +192,15 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
 
         @Override
         public String toString() {
-            return Strings.toString(this);
+            return Strings.toString(XContentType.JSON, this);
         }
     }
 
+    /**
+     * Per shard result for adding a block
+     *
+     * @opensearch.internal
+     */
     public static class AddBlockShardResult implements Writeable, ToXContentFragment {
 
         private final int id;
@@ -236,9 +252,14 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
 
         @Override
         public String toString() {
-            return Strings.toString(this);
+            return Strings.toString(XContentType.JSON, this);
         }
 
+        /**
+         * Contains failure information
+         *
+         * @opensearch.internal
+         */
         public static class Failure extends DefaultShardOperationFailedException {
 
             private @Nullable String nodeId;
@@ -277,7 +298,7 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
 
             @Override
             public String toString() {
-                return Strings.toString(this);
+                return Strings.toString(XContentType.JSON, this);
             }
 
             static Failure readFailure(final StreamInput in) throws IOException {

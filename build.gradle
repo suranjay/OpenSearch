@@ -28,6 +28,9 @@
  * under the License.
  */
 
+import java.nio.charset.StandardCharsets;
+import java.io.ByteArrayOutputStream;
+
 import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
@@ -37,19 +40,23 @@ import org.opensearch.gradle.Version
 import org.opensearch.gradle.VersionProperties
 import org.opensearch.gradle.info.BuildParams
 import org.opensearch.gradle.plugin.PluginBuildPlugin
+import org.opensearch.gradle.tar.SymbolicLinkPreservingTar
 import org.gradle.plugins.ide.eclipse.model.AccessRule
 import org.gradle.plugins.ide.eclipse.model.EclipseJdt
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
-import org.gradle.util.DistributionLocator
-import org.gradle.util.GradleVersion
+import org.gradle.api.Project;
+import org.gradle.process.ExecResult;
+
 import static org.opensearch.gradle.util.GradleUtils.maybeConfigure
 
 plugins {
   id 'lifecycle-base'
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
-  id "com.diffplug.spotless" version "6.4.1" apply false
-  id "org.gradle.test-retry" version "1.3.1" apply false
+  id "com.diffplug.spotless" version "6.18.0" apply false
+  id "org.gradle.test-retry" version "1.5.2" apply false
+  id "test-report-aggregation"
+  id 'jacoco-report-aggregation'
 }
 
 apply from: 'gradle/build-complete.gradle'
@@ -148,6 +155,30 @@ Map<String, String> buildMetadataMap = buildMetadataValue.tokenize(';').collectE
   return [key, value]
 }
 
+    /**
+     * Using 'git' command line (if available), tries to fetch the commit date of the current revision
+     * @return commit date of the current revision or 0 if it is not available
+     */
+long gitRevisionDate = {
+  // Try to get last commit date as Unix timestamp
+  try (ByteArrayOutputStream stdout = new ByteArrayOutputStream()) {
+     ExecResult result = project.exec(spec -> {
+        spec.setIgnoreExitValue(true);
+        spec.setStandardOutput(stdout);
+        spec.commandLine("git", "log", "-1", "--format=%ct");
+     });
+
+    if (result.getExitValue() == 0) {
+      return Long.parseLong(stdout.toString(StandardCharsets.UTF_8).replaceAll("\\s", "")) * 1000; /* seconds to millis */
+    }
+  } catch (IOException | GradleException | NumberFormatException ex) {
+    /* fall back to default Unix epoch timestamp */
+  }
+
+  return 0;
+}()
+
+
 // injecting groovy property variables into all projects
 allprojects {
   project.ext {
@@ -194,8 +225,16 @@ tasks.register("verifyVersions") {
  */
 
 boolean bwc_tests_enabled = true
+
 /* place an issue link here when committing bwc changes */
-final String bwc_tests_disabled_issue = ""
+String bwc_tests_disabled_issue = ""
+
+/* there's no existing MacOS release, therefore disable bcw tests */
+if (Os.isFamily(Os.FAMILY_MAC)) {
+  bwc_tests_enabled = false
+  bwc_tests_disabled_issue = "https://github.com/opensearch-project/OpenSearch/issues/4173"
+}
+
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
@@ -231,6 +270,12 @@ tasks.register("branchConsistency") {
 allprojects {
   // configure compiler options
   tasks.withType(JavaCompile).configureEach { JavaCompile compile ->
+    options.fork = true
+
+    configure(options.forkOptions) {
+      memoryMaximumSize = project.property('options.forkOptions.memoryMaximumSize')
+    }
+
     // See please https://bugs.openjdk.java.net/browse/JDK-8209058
     if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_11) {
       compile.options.compilerArgs << '-Werror'
@@ -276,14 +321,24 @@ allprojects {
     // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
     javadoc.options.encoding = 'UTF8'
     javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
+    boolean failOnJavadocWarning = project.ext.has('failOnJavadocWarning') ? project.ext.get('failOnJavadocWarning') : true
+    if (failOnJavadocWarning) {
+      javadoc.options.addStringOption('Xwerror', '-quiet')
+    }
+    javadoc.options.tags = ["opensearch.internal", "opensearch.api", "opensearch.experimental"]
+    javadoc.options.addStringOption("-release", targetCompatibility.majorVersion)
   }
 
   // support for reproducible builds
-  tasks.withType(AbstractArchiveTask).configureEach {
+  tasks.withType(AbstractArchiveTask).configureEach { task ->
     // ignore file timestamps
     // be consistent in archive file order
-    preserveFileTimestamps = false
-    reproducibleFileOrder = true
+    task.preserveFileTimestamps = false
+    task.reproducibleFileOrder = true
+    if (task instanceof SymbolicLinkPreservingTar) {
+      // Replace file timestamps with latest Git revision date (if available)
+      task.lastModifiedTimestamp = gitRevisionDate
+    }
   }
 
   project.afterEvaluate {
@@ -321,7 +376,8 @@ allprojects {
           project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
           String externalLinkName = upstreamProject.archivesBaseName
           String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + externalLinkName.replaceAll('\\.', '/') + '/' + dep.version
-          project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${upstreamProject.buildDir}/docs/javadoc/"
+          String projectRelativePath = project.relativePath(upstreamProject.buildDir)
+          project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${projectRelativePath}/docs/javadoc/"
         }
       }
       boolean hasShadow = project.plugins.hasPlugin(ShadowPlugin)
@@ -350,6 +406,10 @@ allprojects {
 // the dependency is added.
 gradle.projectsEvaluated {
   allprojects {
+    project.tasks.withType(JavaForkOptions) {
+      maxHeapSize project.property('options.forkOptions.memoryMaximumSize')
+    }
+
     if (project.path == ':test:framework') {
       // :test:framework:test cannot run before and after :server:test
       return
@@ -385,6 +445,15 @@ gradle.projectsEvaluated {
       }
     }
   }
+
+  dependencies {
+    subprojects.findAll { it.pluginManager.hasPlugin('java') }.forEach {
+      testReportAggregation it
+    }
+    subprojects.findAll { it.pluginManager.hasPlugin('jacoco') }.forEach {
+     jacocoAggregation it
+    }
+  }
 }
 
 // test retry configuration
@@ -392,9 +461,11 @@ subprojects {
   apply plugin: "org.gradle.test-retry"
   tasks.withType(Test).configureEach {
     retry {
+      if (BuildParams.isCi()) {
+        maxRetries = 3
+        maxFailures = 10
+      }
       failOnPassedAfterRetry = false
-      maxRetries = 3
-      maxFailures = 10
     }
   }
 }
@@ -402,6 +473,7 @@ subprojects {
 // eclipse configuration
 allprojects {
   apply plugin: 'eclipse'
+
   // Name all the non-root projects after their path so that paths get grouped together when imported into eclipse.
   if (path != ':') {
     eclipse.project.name = path
@@ -467,16 +539,12 @@ allprojects {
 wrapper {
   distributionType = 'ALL'
   doLast {
-    final DistributionLocator locator = new DistributionLocator()
-    final GradleVersion version = GradleVersion.version(wrapper.gradleVersion)
-    final URI distributionUri = locator.getDistributionFor(version, wrapper.distributionType.name().toLowerCase(Locale.ENGLISH))
-    final URI sha256Uri = new URI(distributionUri.toString() + ".sha256")
-    final String sha256Sum = new String(sha256Uri.toURL().bytes)
-    wrapper.getPropertiesFile() << "distributionSha256Sum=${sha256Sum}\n"
+    def sha256Sum = new String(new URL(getDistributionUrl() + ".sha256").bytes)
+    propertiesFile << "distributionSha256Sum=${sha256Sum}\n"
     println "Added checksum to wrapper properties"
     // Update build-tools to reflect the Gradle upgrade
     // TODO: we can remove this once we have tests to make sure older versions work.
-    project(':build-tools').file('src/main/resources/minimumGradleVersion').text = gradleVersion
+    project(':build-tools').file('src/main/resources/minimumGradleVersion').text = gradleVersion + "\n"
     println "Updated minimum Gradle Version"
   }
 }
@@ -557,4 +625,21 @@ subprojects {
       project.tasks.named(taskname).configure { onlyIf { false } }
     }
   }
+}
+
+reporting {
+  reports {
+    testAggregateTestReport(AggregateTestReport) {
+      testType = TestSuiteType.UNIT_TEST
+    }
+  }
+}
+
+// Enable XML test reports for Jenkins integration
+tasks.withType(TestTaskReports).configureEach {
+  junitXml.enabled = true
+}
+
+tasks.named(JavaBasePlugin.CHECK_TASK_NAME) {
+  dependsOn tasks.named('testAggregateTestReport', TestReport)
 }

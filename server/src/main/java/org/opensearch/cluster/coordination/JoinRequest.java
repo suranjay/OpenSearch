@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster.coordination;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -41,6 +40,11 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * Request for a node to join the cluster
+ *
+ * @opensearch.internal
+ */
 public class JoinRequest extends TransportRequest {
 
     /**
@@ -50,15 +54,15 @@ public class JoinRequest extends TransportRequest {
 
     /**
      * The minimum term for which the joining node will accept any cluster state publications. If the joining node is in a strictly greater
-     * term than the master it wants to join then the master must enter a new term and hold another election. Doesn't necessarily match
-     * {@link JoinRequest#optionalJoin} and may be zero in join requests sent prior to {@link LegacyESVersion#V_7_7_0}.
+     * term than the cluster-manager it wants to join then the cluster-manager must enter a new term and hold another election. Doesn't necessarily match
+     * {@link JoinRequest#optionalJoin} and may be zero in join requests sent prior to {@code LegacyESVersion#V_7_7_0}.
      */
     private final long minimumTerm;
 
     /**
-     * A vote for the receiving node. This vote is optional since the sending node may have voted for a different master in this term.
-     * That's ok, the sender likely discovered that the master we voted for lost the election and now we're trying to join the winner. Once
-     * the sender has successfully joined the master, the lack of a vote in its term causes another election (see
+     * A vote for the receiving node. This vote is optional since the sending node may have voted for a different cluster-manager in this term.
+     * That's ok, the sender likely discovered that the cluster-manager we voted for lost the election and now we're trying to join the winner. Once
+     * the sender has successfully joined the cluster-manager, the lack of a vote in its term causes another election (see
      * {@link Publication#onMissingJoin(DiscoveryNode)}).
      */
     private final Optional<Join> optionalJoin;
@@ -73,11 +77,7 @@ public class JoinRequest extends TransportRequest {
     public JoinRequest(StreamInput in) throws IOException {
         super(in);
         sourceNode = new DiscoveryNode(in);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            minimumTerm = in.readLong();
-        } else {
-            minimumTerm = 0L;
-        }
+        minimumTerm = in.readLong();
         optionalJoin = Optional.ofNullable(in.readOptionalWriteable(Join::new));
     }
 
@@ -85,9 +85,7 @@ public class JoinRequest extends TransportRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         sourceNode.writeTo(out);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            out.writeLong(minimumTerm);
-        }
+        out.writeLong(minimumTerm);
         out.writeOptionalWriteable(optionalJoin.orElse(null));
     }
 

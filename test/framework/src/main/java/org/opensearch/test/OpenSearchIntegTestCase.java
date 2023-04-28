@@ -36,7 +36,8 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.apache.http.HttpHost;
+
+import org.apache.hc.core5.http.HttpHost;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
@@ -49,6 +50,7 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -70,7 +72,6 @@ import org.opensearch.action.search.ClearScrollResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.bootstrap.JavaVersion;
 import org.opensearch.client.AdminClient;
 import org.opensearch.client.Client;
 import org.opensearch.client.ClusterAdminClient;
@@ -79,20 +80,17 @@ import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientBuilder;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.RestoreInProgress;
-import org.opensearch.cluster.SnapshotDeletionsInProgress;
-import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.coordination.OpenSearchNodeCommand;
 import org.opensearch.cluster.health.ClusterHealthStatus;
-import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
+import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
@@ -104,6 +102,7 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.common.settings.FeatureFlagSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -111,16 +110,16 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.smile.SmileXContent;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.http.HttpInfo;
@@ -138,7 +137,6 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.indices.store.IndicesStore;
-import org.opensearch.ingest.IngestMetadata;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.node.NodeMocksPlugin;
 import org.opensearch.plugins.NetworkPlugin;
@@ -146,7 +144,6 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.opensearch.script.MockScriptService;
-import org.opensearch.script.ScriptMetadata;
 import org.opensearch.search.MockSearchService;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchService;
@@ -166,6 +163,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.lang.Runtime.Version;
 import java.lang.annotation.Annotation;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Inherited;
@@ -411,7 +409,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * Creates a randomized index template. This template is used to pass in randomized settings on a
      * per index basis. Allows to enable/disable the randomization for number of shards and replicas
      */
-    private void randomIndexTemplate() {
+    protected void randomIndexTemplate() {
 
         // TODO move settings for random directory etc here into the index based randomized settings.
         if (cluster().size() > 0) {
@@ -707,17 +705,19 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * Creates a disruption that isolates the current master node from all other nodes in the cluster.
+     * Creates a disruption that isolates the current cluster-manager node from all other nodes in the cluster.
      *
      * @param disruptionType type of disruption to create
      * @return disruption
      */
-    protected static NetworkDisruption isolateMasterDisruption(NetworkDisruption.NetworkLinkDisruptionType disruptionType) {
-        final String masterNode = internalCluster().getMasterName();
+    protected static NetworkDisruption isolateClusterManagerDisruption(NetworkDisruption.NetworkLinkDisruptionType disruptionType) {
+        final String clusterManagerNode = internalCluster().getClusterManagerName();
         return new NetworkDisruption(
             new NetworkDisruption.TwoPartitions(
-                Collections.singleton(masterNode),
-                Arrays.stream(internalCluster().getNodeNames()).filter(name -> name.equals(masterNode) == false).collect(Collectors.toSet())
+                Collections.singleton(clusterManagerNode),
+                Arrays.stream(internalCluster().getNodeNames())
+                    .filter(name -> name.equals(clusterManagerNode) == false)
+                    .collect(Collectors.toSet())
             ),
             disruptionType
         );
@@ -761,7 +761,22 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 ).getStringRep()
             );
         }
+
         return builder.build();
+    }
+
+    /**
+     * Setting all feature flag settings at base IT, which can be overridden later by individual
+     * IT classes.
+     *
+     * @return Feature flag settings.
+     */
+    protected Settings featureFlagSettings() {
+        Settings.Builder featureSettings = Settings.builder();
+        for (Setting builtInFlag : FeatureFlagSettings.BUILT_IN_FEATURE_FLAGS) {
+            featureSettings.put(builtInFlag.getKey(), builtInFlag.getDefaultRaw(Settings.EMPTY));
+        }
+        return featureSettings.build();
     }
 
     /**
@@ -779,7 +794,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 success = true;
             } finally {
                 if (!success && !created.isEmpty()) {
-                    cluster().wipeIndices(created.toArray(new String[created.size()]));
+                    cluster().wipeIndices(created.toArray(new String[0]));
                 }
             }
         }
@@ -926,6 +941,13 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     /**
+     * Ensures the cluster has a red state via the cluster health API.
+     */
+    public ClusterHealthStatus ensureRed(String... indices) {
+        return ensureColor(ClusterHealthStatus.RED, TimeValue.timeValueSeconds(30), false, indices);
+    }
+
+    /**
      * Ensures the cluster has a yellow state via the cluster health API and ensures the that cluster has no initializing shards
      * for the given indices
      */
@@ -949,12 +971,13 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .waitForNoRelocatingShards(true)
             .waitForNoInitializingShards(waitForNoInitializingShards)
             // We currently often use ensureGreen or ensureYellow to check whether the cluster is back in a good state after shutting down
-            // a node. If the node that is stopped is the master node, another node will become master and publish a cluster state where it
-            // is master but where the node that was stopped hasn't been removed yet from the cluster state. It will only subsequently
-            // publish a second state where the old master is removed. If the ensureGreen/ensureYellow is timed just right, it will get to
-            // execute before the second cluster state update removes the old master and the condition ensureGreen / ensureYellow will
-            // trivially hold if it held before the node was shut down. The following "waitForNodes" condition ensures that the node has
-            // been removed by the master so that the health check applies to the set of nodes we expect to be part of the cluster.
+            // a node. If the node that is stopped is the cluster-manager node, another node will become cluster-manager and publish a
+            // cluster state where it is cluster-manager but where the node that was stopped hasn't been removed yet from the cluster state.
+            // It will only subsequently publish a second state where the old cluster-manager is removed.
+            // If the ensureGreen/ensureYellow is timed just right, it will get to execute before the second cluster state update removes
+            // the old cluster-manager and the condition ensureGreen / ensureYellow will trivially hold if it held before the node was
+            // shut down. The following "waitForNodes" condition ensures that the node has been removed by the cluster-manager
+            // so that the health check applies to the set of nodes we expect to be part of the cluster.
             .waitForNodes(Integer.toString(cluster().size()));
 
         ClusterHealthResponse actionGet = client().admin().cluster().health(healthRequest).actionGet();
@@ -1085,19 +1108,19 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * Verifies that all nodes that have the same version of the cluster state as master have same cluster state
+     * Verifies that all nodes that have the same version of the cluster state as cluster-manager have same cluster state
      */
     protected void ensureClusterStateConsistency() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
             final NamedWriteableRegistry namedWriteableRegistry = cluster().getNamedWriteableRegistry();
-            final Client masterClient = client();
-            ClusterState masterClusterState = masterClient.admin().cluster().prepareState().all().get().getState();
-            byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
+            final Client clusterManagerClient = client();
+            ClusterState clusterManagerClusterState = clusterManagerClient.admin().cluster().prepareState().all().get().getState();
+            byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(clusterManagerClusterState);
             // remove local node reference
-            masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null, namedWriteableRegistry);
-            Map<String, Object> masterStateMap = convertToMap(masterClusterState);
-            int masterClusterStateSize = masterClusterState.toString().length();
-            String masterId = masterClusterState.nodes().getMasterNodeId();
+            clusterManagerClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null, namedWriteableRegistry);
+            Map<String, Object> clusterManagerStateMap = convertToMap(clusterManagerClusterState);
+            int clusterManagerClusterStateSize = clusterManagerClusterState.toString().length();
+            String clusterManagerId = clusterManagerClusterState.nodes().getClusterManagerNodeId();
             for (Client client : cluster().getClients()) {
                 ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
                 byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
@@ -1105,27 +1128,32 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null, namedWriteableRegistry);
                 final Map<String, Object> localStateMap = convertToMap(localClusterState);
                 final int localClusterStateSize = localClusterState.toString().length();
-                // Check that the non-master node has the same version of the cluster state as the master and
-                // that the master node matches the master (otherwise there is no requirement for the cluster state to match)
-                if (masterClusterState.version() == localClusterState.version()
-                    && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
+                // Check that the non-cluster-manager node has the same version of the cluster state as the cluster-manager and
+                // that the cluster-manager node matches the cluster-manager (otherwise there is no requirement for the cluster state to
+                // match)
+                if (clusterManagerClusterState.version() == localClusterState.version()
+                    && clusterManagerId.equals(localClusterState.nodes().getClusterManagerNodeId())) {
                     try {
-                        assertEquals("cluster state UUID does not match", masterClusterState.stateUUID(), localClusterState.stateUUID());
+                        assertEquals(
+                            "cluster state UUID does not match",
+                            clusterManagerClusterState.stateUUID(),
+                            localClusterState.stateUUID()
+                        );
                         // We cannot compare serialization bytes since serialization order of maps is not guaranteed
                         // We also cannot compare byte array size because CompressedXContent's DeflateCompressor uses
                         // a synced flush that can affect the size of the compressed byte array
                         // (see: DeflateCompressedXContentTests#testDifferentCompressedRepresentation for an example)
                         // instead we compare the string length of cluster state - they should be the same
-                        assertEquals("cluster state size does not match", masterClusterStateSize, localClusterStateSize);
+                        assertEquals("cluster state size does not match", clusterManagerClusterStateSize, localClusterStateSize);
                         // Compare JSON serialization
                         assertNull(
                             "cluster state JSON serialization does not match",
-                            differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap)
+                            differenceBetweenMapsIgnoringArrayOrder(clusterManagerStateMap, localStateMap)
                         );
                     } catch (final AssertionError error) {
                         logger.error(
-                            "Cluster state from master:\n{}\nLocal cluster state:\n{}",
-                            masterClusterState.toString(),
+                            "Cluster state from cluster-manager:\n{}\nLocal cluster state:\n{}",
+                            clusterManagerClusterState.toString(),
                             localClusterState.toString()
                         );
                         throw error;
@@ -1138,8 +1166,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     protected void ensureClusterStateCanBeReadByNodeTool() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
-            final Client masterClient = client();
-            Metadata metadata = masterClient.admin().cluster().prepareState().all().get().getState().metadata();
+            final Client clusterManagerClient = client();
+            Metadata metadata = clusterManagerClient.admin().cluster().prepareState().all().get().getState().metadata();
             final Map<String, String> serializationParams = new HashMap<>(2);
             serializationParams.put("binary", "true");
             serializationParams.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
@@ -1236,37 +1264,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         }
     }
 
-    private static final Set<String> SAFE_METADATA_CUSTOMS = Collections.unmodifiableSet(
-        new HashSet<>(Arrays.asList(IndexGraveyard.TYPE, IngestMetadata.TYPE, RepositoriesMetadata.TYPE, ScriptMetadata.TYPE))
-    );
-
-    private static final Set<String> SAFE_CUSTOMS = Collections.unmodifiableSet(
-        new HashSet<>(Arrays.asList(RestoreInProgress.TYPE, SnapshotDeletionsInProgress.TYPE, SnapshotsInProgress.TYPE))
-    );
-
-    /**
-     * Remove any customs except for customs that we know all clients understand.
-     *
-     * @param clusterState the cluster state to remove possibly-unknown customs from
-     * @return the cluster state with possibly-unknown customs removed
-     */
-    private ClusterState removePluginCustoms(final ClusterState clusterState) {
-        final ClusterState.Builder builder = ClusterState.builder(clusterState);
-        clusterState.customs().keysIt().forEachRemaining(key -> {
-            if (SAFE_CUSTOMS.contains(key) == false) {
-                builder.removeCustom(key);
-            }
-        });
-        final Metadata.Builder mdBuilder = Metadata.builder(clusterState.metadata());
-        clusterState.metadata().customs().keysIt().forEachRemaining(key -> {
-            if (SAFE_METADATA_CUSTOMS.contains(key) == false) {
-                mdBuilder.removeCustom(key);
-            }
-        });
-        builder.metadata(mdBuilder);
-        return builder.build();
-    }
-
     /**
      * Ensures the cluster is in a searchable state for the given indices. This means a searchable copy of each
      * shard is available on the cluster.
@@ -1320,7 +1317,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     /**
      * Ensures that all nodes in the cluster are connected to each other.
      *
-     * Some network disruptions may leave nodes that are not the master disconnected from each other.
+     * Some network disruptions may leave nodes that are not the cluster-manager disconnected from each other.
      * {@link org.opensearch.cluster.NodeConnectionsService} will eventually reconnect but it's
      * handy to be able to ensure this happens faster
      */
@@ -1738,9 +1735,9 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         int maxNumDataNodes() default -1;
 
         /**
-         * Indicates whether the cluster can have dedicated master nodes. If {@code false} means data nodes will serve as master nodes
-         * and there will be no dedicated master (and data) nodes. Default is {@code false} which means
-         * dedicated master nodes will be randomly used.
+         * Indicates whether the cluster can have dedicated cluster-manager nodes. If {@code false} means data nodes will serve as cluster-manager nodes
+         * and there will be no dedicated cluster-manager (and data) nodes. Default is {@code false} which means
+         * dedicated cluster-manager nodes will be randomly used.
          */
         boolean supportsDedicatedMasters() default true;
 
@@ -1829,12 +1826,12 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return annotation == null ? Scope.SUITE : annotation.scope();
     }
 
-    private boolean getSupportsDedicatedMasters() {
+    private boolean getSupportsDedicatedClusterManagers() {
         ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null ? true : annotation.supportsDedicatedMasters();
     }
 
-    private boolean getAutoManageMasterNodes() {
+    private boolean getAutoManageClusterManagerNodes() {
         ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null ? true : annotation.autoManageMasterNodes();
     }
@@ -1886,13 +1883,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             // randomly enable low-level search cancellation to make sure it does not alter results
             .put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), randomBoolean())
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
-            .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file");
-        if (rarely()) {
-            // Sometimes adjust the minimum search thread pool size, causing
-            // QueueResizingOpenSearchThreadPoolExecutor to be used instead of a regular
-            // fixed thread pool
-            builder.put("thread_pool.search.min_queue_size", 100);
-        }
+            .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
+            .put(featureFlagSettings());
         return builder.build();
     }
 
@@ -1959,7 +1951,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 throw new OpenSearchException("Scope not supported: " + scope);
         }
 
-        boolean supportsDedicatedMasters = getSupportsDedicatedMasters();
+        boolean supportsDedicatedClusterManagers = getSupportsDedicatedClusterManagers();
         int numDataNodes = getNumDataNodes();
         int minNumDataNodes;
         int maxNumDataNodes;
@@ -1983,8 +1975,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return new InternalTestCluster(
             seed,
             createTempDir(),
-            supportsDedicatedMasters,
-            getAutoManageMasterNodes(),
+            supportsDedicatedClusterManagers,
+            getAutoManageClusterManagerNodes(),
             minNumDataNodes,
             maxNumDataNodes,
             InternalTestCluster.clusterName(scope.name(), seed) + "-cluster",
@@ -2092,6 +2084,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         if (addMockGeoShapeFieldMapper()) {
             mocks.add(TestGeoShapeFieldMapperPlugin.class);
         }
+
         return Collections.unmodifiableList(mocks);
     }
 
@@ -2227,7 +2220,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         // need to check that there are no more in-flight search contexts before
         // we remove indices
         if (isInternalCluster()) {
-            internalCluster().setBootstrapMasterNodeIndex(-1);
+            internalCluster().setBootstrapClusterManagerNodeIndex(-1);
         }
         super.ensureAllSearchContextsReleased();
         if (runTestScopeLifecycle()) {
@@ -2338,10 +2331,10 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             if (node.getInfo(HttpInfo.class) != null) {
                 TransportAddress publishAddress = node.getInfo(HttpInfo.class).address().publishAddress();
                 InetSocketAddress address = publishAddress.address();
-                hosts.add(new HttpHost(NetworkAddress.format(address.getAddress()), address.getPort(), protocol));
+                hosts.add(new HttpHost(protocol, NetworkAddress.format(address.getAddress()), address.getPort()));
             }
         }
-        RestClientBuilder builder = RestClient.builder(hosts.toArray(new HttpHost[hosts.size()]));
+        RestClientBuilder builder = RestClient.builder(hosts.toArray(new HttpHost[0]));
         if (httpClientConfigCallback != null) {
             builder.setHttpClientConfigCallback(httpClientConfigCallback);
         }
@@ -2403,7 +2396,65 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         final boolean anyDebian8Nodes = response.getNodes()
             .stream()
             .anyMatch(ni -> ni.getInfo(OsInfo.class).getPrettyName().equals("Debian GNU/Linux 8 (jessie)"));
-        boolean java15Plus = JavaVersion.current().compareTo(JavaVersion.parse("15")) >= 0;
+        boolean java15Plus = Runtime.version().compareTo(Version.parse("15")) >= 0;
         return anyDebian8Nodes && java15Plus == false;
     }
+
+    public void manageReplicaBalanceSetting(boolean apply) {
+        Settings settings;
+        if (apply) {
+            settings = Settings.builder()
+                .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+                .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values", "a, b")
+                .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), true)
+                .build();
+        } else {
+            settings = Settings.builder()
+                .putNull(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey())
+                .putNull(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values")
+                .putNull(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey())
+                .build();
+        }
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(settings);
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+    }
+
+    public void manageReplicaSettingForDefaultReplica(boolean apply) {
+        Settings settings;
+        if (apply) {
+            settings = Settings.builder()
+                .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+                .put(
+                    AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values",
+                    "a, b, c"
+                )
+                .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), true)
+                .put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 2)
+                .build();
+        } else {
+            settings = Settings.builder()
+                .putNull(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey())
+                .putNull(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values")
+                .putNull(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey())
+                .putNull(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey())
+                .build();
+        }
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(settings);
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+    }
+
+    protected String primaryNodeName(String indexName) {
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        String nodeId = clusterState.getRoutingTable().index(indexName).shard(0).primaryShard().currentNodeId();
+        return clusterState.getRoutingNodes().node(nodeId).node().getName();
+    }
+
+    protected String replicaNodeName(String indexName) {
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        String nodeId = clusterState.getRoutingTable().index(indexName).shard(0).replicaShards().get(0).currentNodeId();
+        return clusterState.getRoutingNodes().node(nodeId).node().getName();
+    }
+
 }

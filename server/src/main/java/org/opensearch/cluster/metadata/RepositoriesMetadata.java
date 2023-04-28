@@ -42,9 +42,10 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.repositories.RepositoryData;
 
 import java.io.IOException;
@@ -55,6 +56,8 @@ import java.util.List;
 
 /**
  * Contains metadata about registered snapshot repositories
+ *
+ * @opensearch.internal
  */
 public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implements Custom {
 
@@ -289,6 +292,6 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 }

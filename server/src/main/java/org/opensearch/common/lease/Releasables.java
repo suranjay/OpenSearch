@@ -33,14 +33,18 @@
 package org.opensearch.common.lease;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** Utility methods to work with {@link Releasable}s. */
+/**
+ * Utility methods to work with {@link Releasable}s.
+ *
+ * @opensearch.internal
+ */
 public enum Releasables {
     ;
 

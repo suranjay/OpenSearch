@@ -35,13 +35,13 @@ package org.opensearch.discovery;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.test.OpenSearchTestCase;
@@ -137,7 +137,7 @@ public class HandshakingTransportAddressConnectorTests extends OpenSearchTestCas
         terminate(threadPool);
     }
 
-    public void testConnectsToMasterNode() throws InterruptedException {
+    public void testConnectsToClustreManagerNode() throws InterruptedException {
         final CountDownLatch completionLatch = new CountDownLatch(1);
         final SetOnce<DiscoveryNode> receivedNode = new SetOnce<>();
 
@@ -190,7 +190,7 @@ public class HandshakingTransportAddressConnectorTests extends OpenSearchTestCas
         }
     }
 
-    public void testDoesNotConnectToNonMasterNode() throws InterruptedException {
+    public void testDoesNotConnectToNonClusterManagerNode() throws InterruptedException {
         remoteNode = new DiscoveryNode("remote-node", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         discoveryAddress = getDiscoveryAddress();
         remoteClusterName = "local-cluster";

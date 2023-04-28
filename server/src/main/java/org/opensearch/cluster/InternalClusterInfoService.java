@@ -51,19 +51,19 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ReceiveTimeoutTransportException;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -83,6 +83,8 @@ import java.util.function.Consumer;
  *
  * Every time the timer runs, gathers information about the disk usage and
  * shard sizes across the cluster.
+ *
+ * @opensearch.internal
  */
 public class InternalClusterInfoService implements ClusterInfoService, ClusterStateListener {
 
@@ -106,8 +108,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     private volatile TimeValue updateFrequency;
 
-    private volatile ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsages;
-    private volatile ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsages;
+    private volatile Map<String, DiskUsage> leastAvailableSpaceUsages;
+    private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
     private volatile IndicesStatsSummary indicesStatsSummary;
     // null if this node is not currently the cluster-manager
     private final AtomicReference<RefreshAndRescheduleRunnable> refreshAndRescheduleRunnable = new AtomicReference<>();
@@ -118,8 +120,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private final List<Consumer<ClusterInfo>> listeners = new CopyOnWriteArrayList<>();
 
     public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, Client client) {
-        this.leastAvailableSpaceUsages = ImmutableOpenMap.of();
-        this.mostAvailableSpaceUsages = ImmutableOpenMap.of();
+        this.leastAvailableSpaceUsages = Map.of();
+        this.mostAvailableSpaceUsages = Map.of();
         this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
         this.threadPool = threadPool;
         this.client = client;
@@ -149,14 +151,14 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.localNodeMaster() && refreshAndRescheduleRunnable.get() == null) {
+        if (event.localNodeClusterManager() && refreshAndRescheduleRunnable.get() == null) {
             logger.trace("elected as cluster-manager, scheduling cluster info update tasks");
             executeRefresh(event.state(), "became cluster-manager");
 
             final RefreshAndRescheduleRunnable newRunnable = new RefreshAndRescheduleRunnable();
             refreshAndRescheduleRunnable.set(newRunnable);
             threadPool.scheduleUnlessShuttingDown(updateFrequency, REFRESH_EXECUTOR, newRunnable);
-        } else if (event.localNodeMaster() == false) {
+        } else if (event.localNodeClusterManager() == false) {
             refreshAndRescheduleRunnable.set(null);
             return;
         }
@@ -178,14 +180,14 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             if (removedNode.isDataNode()) {
                 logger.trace("Removing node from cluster info: {}", removedNode.getId());
                 if (leastAvailableSpaceUsages.containsKey(removedNode.getId())) {
-                    ImmutableOpenMap.Builder<String, DiskUsage> newMaxUsages = ImmutableOpenMap.builder(leastAvailableSpaceUsages);
+                    Map<String, DiskUsage> newMaxUsages = new HashMap<>(leastAvailableSpaceUsages);
                     newMaxUsages.remove(removedNode.getId());
-                    leastAvailableSpaceUsages = newMaxUsages.build();
+                    leastAvailableSpaceUsages = Collections.unmodifiableMap(newMaxUsages);
                 }
                 if (mostAvailableSpaceUsages.containsKey(removedNode.getId())) {
-                    ImmutableOpenMap.Builder<String, DiskUsage> newMinUsages = ImmutableOpenMap.builder(mostAvailableSpaceUsages);
+                    Map<String, DiskUsage> newMinUsages = new HashMap<>(mostAvailableSpaceUsages);
                     newMinUsages.remove(removedNode.getId());
-                    mostAvailableSpaceUsages = newMinUsages.build();
+                    mostAvailableSpaceUsages = Collections.unmodifiableMap(newMinUsages);
                 }
             }
         }
@@ -252,16 +254,16 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         final CountDownLatch nodeLatch = updateNodeStats(new ActionListener<NodesStatsResponse>() {
             @Override
             public void onResponse(NodesStatsResponse nodesStatsResponse) {
-                ImmutableOpenMap.Builder<String, DiskUsage> leastAvailableUsagesBuilder = ImmutableOpenMap.builder();
-                ImmutableOpenMap.Builder<String, DiskUsage> mostAvailableUsagesBuilder = ImmutableOpenMap.builder();
+                final Map<String, DiskUsage> leastAvailableUsagesBuilder = new HashMap<>();
+                final Map<String, DiskUsage> mostAvailableUsagesBuilder = new HashMap<>();
                 fillDiskUsagePerNode(
                     logger,
                     adjustNodesStats(nodesStatsResponse.getNodes()),
                     leastAvailableUsagesBuilder,
                     mostAvailableUsagesBuilder
                 );
-                leastAvailableSpaceUsages = leastAvailableUsagesBuilder.build();
-                mostAvailableSpaceUsages = mostAvailableUsagesBuilder.build();
+                leastAvailableSpaceUsages = Collections.unmodifiableMap(leastAvailableUsagesBuilder);
+                mostAvailableSpaceUsages = Collections.unmodifiableMap(mostAvailableUsagesBuilder);
             }
 
             @Override
@@ -277,29 +279,25 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                         logger.warn("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
                     }
                     // we empty the usages list, to be safe - we don't know what's going on.
-                    leastAvailableSpaceUsages = ImmutableOpenMap.of();
-                    mostAvailableSpaceUsages = ImmutableOpenMap.of();
+                    leastAvailableSpaceUsages = Map.of();
+                    mostAvailableSpaceUsages = Map.of();
                 }
             }
         });
 
-        final CountDownLatch indicesLatch = updateIndicesStats(new ActionListener<IndicesStatsResponse>() {
+        final CountDownLatch indicesLatch = updateIndicesStats(new ActionListener<>() {
             @Override
             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                 final ShardStats[] stats = indicesStatsResponse.getShards();
-                final ImmutableOpenMap.Builder<String, Long> shardSizeByIdentifierBuilder = ImmutableOpenMap.builder();
-                final ImmutableOpenMap.Builder<ShardRouting, String> dataPathByShardRoutingBuilder = ImmutableOpenMap.builder();
+                final Map<String, Long> shardSizeByIdentifierBuilder = new HashMap<>();
+                final Map<ShardRouting, String> dataPathByShardRoutingBuilder = new HashMap<>();
                 final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceBuilders = new HashMap<>();
                 buildShardLevelInfo(logger, stats, shardSizeByIdentifierBuilder, dataPathByShardRoutingBuilder, reservedSpaceBuilders);
 
-                final ImmutableOpenMap.Builder<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> rsrvdSpace = ImmutableOpenMap.builder();
+                final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> rsrvdSpace = new HashMap<>();
                 reservedSpaceBuilders.forEach((nodeAndPath, builder) -> rsrvdSpace.put(nodeAndPath, builder.build()));
 
-                indicesStatsSummary = new IndicesStatsSummary(
-                    shardSizeByIdentifierBuilder.build(),
-                    dataPathByShardRoutingBuilder.build(),
-                    rsrvdSpace.build()
-                );
+                indicesStatsSummary = new IndicesStatsSummary(shardSizeByIdentifierBuilder, dataPathByShardRoutingBuilder, rsrvdSpace);
             }
 
             @Override
@@ -358,9 +356,9 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     static void buildShardLevelInfo(
         Logger logger,
         ShardStats[] stats,
-        ImmutableOpenMap.Builder<String, Long> shardSizes,
-        ImmutableOpenMap.Builder<ShardRouting, String> newShardRoutingToDataPath,
-        Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceByShard
+        final Map<String, Long> shardSizes,
+        final Map<ShardRouting, String> newShardRoutingToDataPath,
+        final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceByShard
     ) {
         for (ShardStats s : stats) {
             final ShardRouting shardRouting = s.getShardRouting();
@@ -390,8 +388,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     static void fillDiskUsagePerNode(
         Logger logger,
         List<NodeStats> nodeStatsArray,
-        ImmutableOpenMap.Builder<String, DiskUsage> newLeastAvailableUsages,
-        ImmutableOpenMap.Builder<String, DiskUsage> newMostAvailableUsages
+        final Map<String, DiskUsage> newLeastAvailableUsages,
+        final Map<String, DiskUsage> newMostAvailableUsages
     ) {
         for (NodeStats nodeStats : nodeStatsArray) {
             if (nodeStats.getFs() == null) {
@@ -467,21 +465,22 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
     }
 
+    /**
+     * Indices statistics summary.
+     *
+     * @opensearch.internal
+     */
     private static class IndicesStatsSummary {
-        static final IndicesStatsSummary EMPTY = new IndicesStatsSummary(
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
-        );
+        static final IndicesStatsSummary EMPTY = new IndicesStatsSummary(Map.of(), Map.of(), Map.of());
 
-        final ImmutableOpenMap<String, Long> shardSizes;
-        final ImmutableOpenMap<ShardRouting, String> shardRoutingToDataPath;
-        final ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace;
+        final Map<String, Long> shardSizes;
+        final Map<ShardRouting, String> shardRoutingToDataPath;
+        final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace;
 
         IndicesStatsSummary(
-            ImmutableOpenMap<String, Long> shardSizes,
-            ImmutableOpenMap<ShardRouting, String> shardRoutingToDataPath,
-            ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace
+            final Map<String, Long> shardSizes,
+            final Map<ShardRouting, String> shardRoutingToDataPath,
+            final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace
         ) {
             this.shardSizes = shardSizes;
             this.shardRoutingToDataPath = shardRoutingToDataPath;
@@ -491,6 +490,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     /**
      * Runs {@link InternalClusterInfoService#refresh()}, logging failures/rejections appropriately.
+     *
+     * @opensearch.internal
      */
     private class RefreshRunnable extends AbstractRunnable {
         private final String reason;
@@ -524,6 +525,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     /**
      * Runs {@link InternalClusterInfoService#refresh()}, logging failures/rejections appropriately, and reschedules itself on completion.
+     *
+     * @opensearch.internal
      */
     private class RefreshAndRescheduleRunnable extends RefreshRunnable {
         RefreshAndRescheduleRunnable() {

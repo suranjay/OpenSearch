@@ -32,13 +32,13 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.gateway.MetadataStateFormat;
 import org.opensearch.index.Index;
 
@@ -55,6 +55,8 @@ import java.util.stream.Collectors;
  * When new version of metadata is written it's assigned some generation long value.
  * Global metadata generation could be obtained by calling {@link #getGlobalGeneration()}.
  * Index metadata generation could be obtained by calling {@link #getIndexGenerations()}.
+ *
+ * @opensearch.internal
  */
 public class Manifest implements ToXContentFragment {
     // TODO revisit missing and unknown constants once Zen2 BWC is ready
@@ -231,6 +233,11 @@ public class Manifest implements ToXContentFragment {
         return globalGeneration == MISSING_GLOBAL_GENERATION;
     }
 
+    /**
+     * An index entry.
+     *
+     * @opensearch.internal
+     */
     private static final class IndexEntry implements ToXContentFragment {
         private static final ParseField INDEX_GENERATION_PARSE_FIELD = new ParseField("generation");
         private static final ParseField INDEX_PARSE_FIELD = new ParseField("index");

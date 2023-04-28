@@ -41,7 +41,7 @@ import org.opensearch.action.ValidateActions;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,6 +51,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * A single multi get request.
+ *
+ * @opensearch.internal
+ */
 public class MultiTermVectorsRequest extends ActionRequest
     implements
         Iterable<TermVectorsRequest>,

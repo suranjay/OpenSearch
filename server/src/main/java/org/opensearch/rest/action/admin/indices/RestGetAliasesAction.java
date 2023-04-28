@@ -32,7 +32,6 @@
 
 package org.opensearch.rest.action.admin.indices;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.opensearch.action.support.IndicesOptions;
@@ -40,10 +39,9 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.regex.Regex;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
@@ -55,6 +53,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -66,6 +65,8 @@ import static org.opensearch.rest.RestRequest.Method.HEAD;
 
 /**
  * The REST handler for get alias and head alias APIs.
+ *
+ * @opensearch.api
  */
 public class RestGetAliasesAction extends BaseRestHandler {
 
@@ -93,16 +94,16 @@ public class RestGetAliasesAction extends BaseRestHandler {
     static RestResponse buildRestResponse(
         boolean aliasesExplicitlyRequested,
         String[] requestedAliases,
-        ImmutableOpenMap<String, List<AliasMetadata>> responseAliasMap,
+        final Map<String, List<AliasMetadata>> responseAliasMap,
         XContentBuilder builder
     ) throws Exception {
         final Set<String> indicesToDisplay = new HashSet<>();
         final Set<String> returnedAliasNames = new HashSet<>();
-        for (final ObjectObjectCursor<String, List<AliasMetadata>> cursor : responseAliasMap) {
-            for (final AliasMetadata aliasMetadata : cursor.value) {
+        for (final Map.Entry<String, List<AliasMetadata>> cursor : responseAliasMap.entrySet()) {
+            for (final AliasMetadata aliasMetadata : cursor.getValue()) {
                 if (aliasesExplicitlyRequested) {
                     // only display indices that have aliases
-                    indicesToDisplay.add(cursor.key);
+                    indicesToDisplay.add(cursor.getKey());
                 }
                 returnedAliasNames.add(aliasMetadata.alias());
             }
@@ -163,13 +164,13 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 builder.field("status", status.getStatus());
             }
 
-            for (final ObjectObjectCursor<String, List<AliasMetadata>> entry : responseAliasMap) {
-                if (aliasesExplicitlyRequested == false || (aliasesExplicitlyRequested && indicesToDisplay.contains(entry.key))) {
-                    builder.startObject(entry.key);
+            for (final Map.Entry<String, List<AliasMetadata>> entry : responseAliasMap.entrySet()) {
+                if (aliasesExplicitlyRequested == false || (aliasesExplicitlyRequested && indicesToDisplay.contains(entry.getKey()))) {
+                    builder.startObject(entry.getKey());
                     {
                         builder.startObject("aliases");
                         {
-                            for (final AliasMetadata alias : entry.value) {
+                            for (final AliasMetadata alias : entry.getValue()) {
                                 AliasMetadata.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
                             }
                         }
@@ -187,7 +188,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         // The TransportGetAliasesAction was improved do the same post processing as is happening here.
         // We can't remove this logic yet to support mixed clusters. We should be able to remove this logic here
-        // in when 8.0 becomes the new version in the master branch.
+        // in when 8.0 becomes the new version in the main branch.
 
         final boolean namesProvided = request.hasParam("name");
         final String[] aliases = request.paramAsStringArrayOrEmptyIfAll("name");

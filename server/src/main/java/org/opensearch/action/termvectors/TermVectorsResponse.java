@@ -48,8 +48,8 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -58,8 +58,19 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Set;
 
+/**
+ * Response returning the term vector (doc frequency, positions, offsets) for a
+ * document.
+ *
+ * @opensearch.internal
+ */
 public class TermVectorsResponse extends ActionResponse implements ToXContentObject {
 
+    /**
+     * Fields used for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     private static class FieldStrings {
         // term statistics strings
         public static final String TTF = "ttf";

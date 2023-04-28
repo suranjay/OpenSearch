@@ -41,14 +41,16 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.List;
 
 /**
  * The response for the reload secure settings action
+ *
+ * @opensearch.internal
  */
 public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesReloadSecureSettingsResponse.NodeResponse>
     implements
@@ -103,6 +105,11 @@ public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesRe
         }
     }
 
+    /**
+     * Inner Node Response
+     *
+     * @opensearch.internal
+     */
     public static class NodeResponse extends BaseNodeResponse {
 
         private Exception reloadException = null;

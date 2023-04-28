@@ -37,7 +37,8 @@ import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.index.IndexSettings;
 
 import java.util.ArrayList;
@@ -49,9 +50,18 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Holds the context at parse time
+ *
+ * @opensearch.internal
+ */
 public abstract class ParseContext implements Iterable<ParseContext.Document> {
 
-    /** Fork of {@link org.apache.lucene.document.Document} with additional functionality. */
+    /**
+     * Fork of {@link org.apache.lucene.document.Document} with additional functionality.
+     *
+     * @opensearch.internal
+     */
     public static class Document implements Iterable<IndexableField> {
 
         private final Document parent;
@@ -134,7 +144,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
                     f.add(field);
                 }
             }
-            return f.toArray(new IndexableField[f.size()]);
+            return f.toArray(new IndexableField[0]);
         }
 
         public IndexableField getField(String name) {
@@ -166,6 +176,11 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
 
     }
 
+    /**
+     * Filter parse context.
+     *
+     * @opensearch.internal
+     */
     private static class FilterParseContext extends ParseContext {
 
         private final ParseContext in;
@@ -298,8 +313,43 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         public Collection<String> getIgnoredFields() {
             return in.getIgnoredFields();
         }
+
+        @Override
+        public void incrementFieldCurrentDepth() {
+            in.incrementFieldCurrentDepth();
+        }
+
+        @Override
+        public void decrementFieldCurrentDepth() {
+            in.decrementFieldCurrentDepth();
+        }
+
+        @Override
+        public void checkFieldDepthLimit() {
+            in.checkFieldDepthLimit();
+        }
+
+        @Override
+        public void incrementFieldArrayDepth() {
+            in.incrementFieldArrayDepth();
+        }
+
+        @Override
+        public void decrementFieldArrayDepth() {
+            in.decrementFieldArrayDepth();
+        }
+
+        @Override
+        public void checkFieldArrayDepthLimit() {
+            in.checkFieldArrayDepthLimit();
+        }
     }
 
+    /**
+     * An internal parse context
+     *
+     * @opensearch.internal
+     */
     public static class InternalParseContext extends ParseContext {
 
         private final DocumentMapper docMapper;
@@ -325,6 +375,14 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         private final long maxAllowedNumNestedDocs;
 
         private long numNestedDocs;
+
+        private long currentFieldDepth;
+
+        private final long maxAllowedFieldDepth;
+
+        private long currentArrayDepth;
+
+        private final long maxAllowedArrayDepth;
 
         private final List<Mapper> dynamicMappers;
 
@@ -352,6 +410,10 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
             this.dynamicMappers = new ArrayList<>();
             this.maxAllowedNumNestedDocs = indexSettings.getMappingNestedDocsLimit();
             this.numNestedDocs = 0L;
+            this.currentFieldDepth = 0L;
+            this.currentArrayDepth = 0L;
+            this.maxAllowedFieldDepth = indexSettings.getMappingDepthLimit();
+            this.maxAllowedArrayDepth = indexSettings.getMappingDepthLimit();
         }
 
         @Override
@@ -502,6 +564,60 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         @Override
         public Collection<String> getIgnoredFields() {
             return Collections.unmodifiableCollection(ignoredFields);
+        }
+
+        @Override
+        public void incrementFieldCurrentDepth() {
+            this.currentFieldDepth++;
+        }
+
+        @Override
+        public void decrementFieldCurrentDepth() {
+            if (this.currentFieldDepth > 0) {
+                this.currentFieldDepth--;
+            }
+        }
+
+        @Override
+        public void checkFieldDepthLimit() {
+            if (this.currentFieldDepth > maxAllowedFieldDepth) {
+                this.currentFieldDepth = 0;
+                throw new OpenSearchParseException(
+                    "The depth of the field has exceeded the allowed limit of ["
+                        + maxAllowedFieldDepth
+                        + "]."
+                        + " This limit can be set by changing the ["
+                        + MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey()
+                        + "] index level setting."
+                );
+            }
+        }
+
+        @Override
+        public void incrementFieldArrayDepth() {
+            this.currentArrayDepth++;
+        }
+
+        @Override
+        public void decrementFieldArrayDepth() {
+            if (this.currentArrayDepth > 0) {
+                this.currentArrayDepth--;
+            }
+        }
+
+        @Override
+        public void checkFieldArrayDepthLimit() {
+            if (this.currentArrayDepth > maxAllowedArrayDepth) {
+                this.currentArrayDepth = 0;
+                throw new OpenSearchParseException(
+                    "The depth of the nested array field has exceeded the allowed limit of ["
+                        + maxAllowedArrayDepth
+                        + "]."
+                        + " This limit can be set by changing the ["
+                        + MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey()
+                        + "] index level setting."
+                );
+            }
         }
     }
 
@@ -668,4 +784,17 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
      * Get dynamic mappers created while parsing.
      */
     public abstract List<Mapper> getDynamicMappers();
+
+    public abstract void incrementFieldCurrentDepth();
+
+    public abstract void decrementFieldCurrentDepth();
+
+    public abstract void checkFieldDepthLimit();
+
+    public abstract void incrementFieldArrayDepth();
+
+    public abstract void decrementFieldArrayDepth();
+
+    public abstract void checkFieldArrayDepthLimit();
+
 }

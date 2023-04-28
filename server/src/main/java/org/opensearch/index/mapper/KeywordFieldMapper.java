@@ -38,9 +38,12 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.fielddata.IndexFieldData;
@@ -61,11 +64,18 @@ import java.util.function.Supplier;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
+ *
+ * @opensearch.internal
  */
 public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "keyword";
 
+    /**
+     * Default parameters
+     *
+     * @opensearch.internal
+     */
     public static class Defaults {
         public static final FieldType FIELD_TYPE = new FieldType();
 
@@ -77,6 +87,11 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * The keyword field for the field mapper
+     *
+     * @opensearch.internal
+     */
     public static class KeywordField extends Field {
 
         public KeywordField(String field, BytesRef term, FieldType ft) {
@@ -89,6 +104,11 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         return (KeywordFieldMapper) in;
     }
 
+    /**
+     * The builder for the field mapper
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
@@ -223,6 +243,11 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
 
+    /**
+     * Field type for keyword fields
+     *
+     * @opensearch.internal
+     */
     public static final class KeywordFieldType extends StringFieldType {
 
         private final int ignoreAbove;
@@ -345,6 +370,18 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 value = ((BytesRef) value).utf8ToString();
             }
             return getTextSearchInfo().getSearchAnalyzer().normalize(name(), value.toString());
+        }
+
+        @Override
+        public Query wildcardQuery(
+            String value,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitve,
+            QueryShardContext context
+        ) {
+            // keyword field types are always normalized, so ignore case sensitivity and force normalize the wildcard
+            // query text
+            return super.wildcardQuery(value, method, caseInsensitve, true, context);
         }
     }
 

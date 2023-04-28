@@ -33,7 +33,6 @@ package org.opensearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.action.ActionListener;
@@ -45,12 +44,14 @@ import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateRequest;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ObjectPath;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ObjectPath;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MetadataFieldMapper;
 import org.opensearch.rest.RestStatus;
@@ -62,6 +63,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Creates a data stream of metadata
+ *
+ * @opensearch.internal
+ */
 public class MetadataCreateDataStreamService {
 
     private static final Logger logger = LogManager.getLogger(MetadataCreateDataStreamService.class);
@@ -69,6 +75,7 @@ public class MetadataCreateDataStreamService {
     private final ClusterService clusterService;
     private final ActiveShardsObserver activeShardsObserver;
     private final MetadataCreateIndexService metadataCreateIndexService;
+    private final ClusterManagerTaskThrottler.ThrottlingKey createDataStreamTaskKey;
 
     public MetadataCreateDataStreamService(
         ThreadPool threadPool,
@@ -78,6 +85,8 @@ public class MetadataCreateDataStreamService {
         this.clusterService = clusterService;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.metadataCreateIndexService = metadataCreateIndexService;
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        createDataStreamTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_DATA_STREAM_KEY, true);
     }
 
     public void createDataStream(CreateDataStreamClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> finalListener) {
@@ -90,7 +99,9 @@ public class MetadataCreateDataStreamService {
                     new String[] { firstBackingIndexName },
                     ActiveShardCount.DEFAULT,
                     request.masterNodeTimeout(),
-                    shardsAcked -> { finalListener.onResponse(new AcknowledgedResponse(true)); },
+                    shardsAcked -> {
+                        finalListener.onResponse(new AcknowledgedResponse(true));
+                    },
                     finalListener::onFailure
                 );
             } else {
@@ -109,6 +120,11 @@ public class MetadataCreateDataStreamService {
                 }
 
                 @Override
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                    return createDataStreamTaskKey;
+                }
+
+                @Override
                 protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                     return new ClusterStateUpdateResponse(acknowledged);
                 }
@@ -120,6 +136,11 @@ public class MetadataCreateDataStreamService {
         return createDataStream(metadataCreateIndexService, current, request);
     }
 
+    /**
+     * A request to create a data stream cluster state update
+     *
+     * @opensearch.internal
+     */
     public static final class CreateDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest {
 
         private final String name;
@@ -136,9 +157,6 @@ public class MetadataCreateDataStreamService {
         ClusterState currentState,
         CreateDataStreamClusterStateUpdateRequest request
     ) throws Exception {
-        if (currentState.nodes().getMinNodeVersion().before(LegacyESVersion.V_7_9_0)) {
-            throw new IllegalStateException("data streams require minimum node version of " + LegacyESVersion.V_7_9_0);
-        }
 
         if (currentState.metadata().dataStreams().containsKey(request.name)) {
             throw new ResourceAlreadyExistsException("data_stream [" + request.name + "] already exists");

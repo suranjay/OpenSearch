@@ -74,6 +74,8 @@ import java.util.stream.Stream;
  * (see {@link org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator}),
  * nor does it allocate primaries when a primary shard failed and there is a valid replica
  * copy that can immediately be promoted to primary, as this takes place in {@link RoutingNodes#failShard}.
+ *
+ * @opensearch.internal
  */
 public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     /**
@@ -311,6 +313,11 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         NodeGatewayStartedShards::primary
     ).reversed();
 
+    private static final Comparator<NodeGatewayStartedShards> HIGHEST_REPLICATION_CHECKPOINT_FIRST_COMPARATOR = Comparator.comparing(
+        NodeGatewayStartedShards::replicationCheckpoint,
+        Comparator.nullsLast(Comparator.naturalOrder())
+    );
+
     /**
      * Builds a list of nodes. If matchAnyShard is set to false, only nodes that have an allocation id matching
      * inSyncAllocationIds are added to the list. Otherwise, any node that has a shard is added to the list, but
@@ -379,6 +386,12 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             }
         }
 
+        /**
+         * Orders the active shards copies based on below comparators
+         * 1. No store exception i.e. shard copy is readable
+         * 2. Prefer previous primary shard
+         * 3. Prefer shard copy with the highest replication checkpoint. It is NO-OP for doc rep enabled indices.
+         */
         final Comparator<NodeGatewayStartedShards> comparator; // allocation preference
         if (matchAnyShard) {
             // prefer shards with matching allocation ids
@@ -386,9 +399,11 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 (NodeGatewayStartedShards state) -> inSyncAllocationIds.contains(state.allocationId())
             ).reversed();
             comparator = matchingAllocationsFirst.thenComparing(NO_STORE_EXCEPTION_FIRST_COMPARATOR)
-                .thenComparing(PRIMARY_FIRST_COMPARATOR);
+                .thenComparing(PRIMARY_FIRST_COMPARATOR)
+                .thenComparing(HIGHEST_REPLICATION_CHECKPOINT_FIRST_COMPARATOR);
         } else {
-            comparator = NO_STORE_EXCEPTION_FIRST_COMPARATOR.thenComparing(PRIMARY_FIRST_COMPARATOR);
+            comparator = NO_STORE_EXCEPTION_FIRST_COMPARATOR.thenComparing(PRIMARY_FIRST_COMPARATOR)
+                .thenComparing(HIGHEST_REPLICATION_CHECKPOINT_FIRST_COMPARATOR);
         }
 
         nodeShardStates.sort(comparator);

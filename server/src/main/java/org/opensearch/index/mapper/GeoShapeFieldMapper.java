@@ -31,20 +31,28 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.geo.GeometryParser;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.geometry.Geometry;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.plain.AbstractGeoShapeIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.VectorGeoShapeQueryProcessor;
+import org.opensearch.search.aggregations.support.CoreValuesSourceType;
+import org.opensearch.search.lookup.SearchLookup;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * FieldMapper for indexing {@link LatLonShape}s.
@@ -65,6 +73,8 @@ import java.util.Map;
  * or:
  * <p>
  * "field" : "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0))
+ *
+ * @opensearch.internal
  */
 public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry, Geometry> {
     public static final String CONTENT_TYPE = "geo_shape";
@@ -76,11 +86,17 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         FIELD_TYPE.freeze();
     }
 
+    /**
+     * Concrete builder for geo_shape types
+     *
+     * @opensearch.internal
+     */
     public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<Builder, GeoShapeFieldType> {
 
         public Builder(String name) {
             super(name, FIELD_TYPE);
-            this.hasDocValues = false;
+            this.hasDocValues = true;
+            builder = this;
         }
 
         private GeoShapeFieldType buildFieldType(BuilderContext context) {
@@ -108,6 +124,11 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         }
     }
 
+    /**
+     * Concrete field type for geo_shape fields
+     *
+     * @opensearch.internal
+     */
     public static class GeoShapeFieldType extends AbstractShapeGeometryFieldType<Geometry, Geometry> implements GeoShapeQueryable {
 
         private final VectorGeoShapeQueryProcessor queryProcessor;
@@ -115,6 +136,10 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         public GeoShapeFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues, Map<String, String> meta) {
             super(name, indexed, stored, hasDocValues, false, meta);
             this.queryProcessor = new VectorGeoShapeQueryProcessor();
+        }
+
+        public GeoShapeFieldType(String name) {
+            this(name, true, false, true, Collections.emptyMap());
         }
 
         @Override
@@ -126,8 +151,19 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
             return queryProcessor.geoShapeQuery(shape, fieldName, relation, context);
         }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues();
+            return new AbstractGeoShapeIndexFieldData.Builder(name(), CoreValuesSourceType.GEO_SHAPE);
+        }
     }
 
+    /**
+     * The type parser
+     *
+     * @opensearch.internal
+     */
     public static final class TypeParser extends AbstractShapeGeometryFieldMapper.TypeParser {
 
         @Override
@@ -163,9 +199,15 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     }
 
     @Override
-    @SuppressWarnings("rawtypes")
-    protected void addDocValuesFields(String name, Geometry geometry, List fields, ParseContext context) {
-        // we will throw a mapping exception before we get here
+    protected void addDocValuesFields(
+        final String name,
+        final Geometry geometry,
+        final List<IndexableField> indexableFields,
+        final ParseContext context
+    ) {
+        Field[] fieldsArray = new Field[indexableFields.size()];
+        fieldsArray = indexableFields.toArray(fieldsArray);
+        context.doc().add(LatLonShape.createDocValueField(name, fieldsArray));
     }
 
     @Override
@@ -201,10 +243,5 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    protected boolean docValuesByDefault() {
-        return false;
     }
 }

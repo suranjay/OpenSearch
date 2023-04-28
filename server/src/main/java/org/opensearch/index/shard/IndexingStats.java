@@ -37,16 +37,26 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Tracks indexing statistics
+ *
+ * @opensearch.internal
+ */
 public class IndexingStats implements Writeable, ToXContentFragment {
 
+    /**
+     * Internal statistics for indexing
+     *
+     * @opensearch.internal
+     */
     public static class Stats implements Writeable, ToXContentFragment {
 
         private long indexCount;
@@ -264,6 +274,11 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Fields for indexing statistics
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String INDEXING = "indexing";
         static final String INDEX_TOTAL = "index_total";

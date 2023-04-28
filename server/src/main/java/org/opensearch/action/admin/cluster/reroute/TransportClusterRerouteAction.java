@@ -42,7 +42,7 @@ import org.opensearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.opensearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.opensearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -54,11 +54,12 @@ import org.opensearch.cluster.routing.allocation.RoutingExplanations;
 import org.opensearch.cluster.routing.allocation.command.AbstractAllocateAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
 import org.opensearch.common.collect.ImmutableOpenIntMap;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.threadpool.ThreadPool;
@@ -70,11 +71,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class TransportClusterRerouteAction extends TransportMasterNodeAction<ClusterRerouteRequest, ClusterRerouteResponse> {
+/**
+ * Transport action for rerouting cluster allocation commands
+ *
+ * @opensearch.internal
+ */
+public class TransportClusterRerouteAction extends TransportClusterManagerNodeAction<ClusterRerouteRequest, ClusterRerouteResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportClusterRerouteAction.class);
 
     private final AllocationService allocationService;
+    private static ClusterManagerTaskThrottler.ThrottlingKey clusterRerouteTaskKey;
 
     @Inject
     public TransportClusterRerouteAction(
@@ -95,6 +102,8 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
             indexNameExpressionResolver
         );
         this.allocationService = allocationService;
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        clusterRerouteTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CLUSTER_REROUTE_API_KEY, true);
     }
 
     @Override
@@ -114,7 +123,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final ClusterRerouteRequest request,
         final ClusterState state,
         final ActionListener<ClusterRerouteResponse> listener
@@ -143,8 +152,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
             IndicesShardStoresAction.NAME,
             new IndicesShardStoresRequest().indices(stalePrimaryAllocations.keySet().toArray(Strings.EMPTY_ARRAY)),
             new ActionListenerResponseHandler<>(ActionListener.wrap(response -> {
-                ImmutableOpenMap<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>> status = response
-                    .getStoreStatuses();
+                final Map<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>> status = response.getStoreStatuses();
                 Exception e = null;
                 for (Map.Entry<String, List<AbstractAllocateAllocationCommand>> entry : stalePrimaryAllocations.entrySet()) {
                     final String index = entry.getKey();
@@ -209,6 +217,11 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         );
     }
 
+    /**
+     * Inner Reroute Response Acknowledged the Cluster State Update
+     *
+     * @opensearch.internal
+     */
     static class ClusterRerouteResponseAckedClusterStateUpdateTask extends AckedClusterStateUpdateTask<ClusterRerouteResponse> {
 
         private final ClusterRerouteRequest request;
@@ -229,6 +242,11 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
             this.listener = listener;
             this.logger = logger;
             this.allocationService = allocationService;
+        }
+
+        @Override
+        public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+            return clusterRerouteTaskKey;
         }
 
         @Override

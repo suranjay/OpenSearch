@@ -32,7 +32,8 @@
 
 package org.opensearch.node;
 
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.cluster.routing.WeightedRoutingStats;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.Build;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
@@ -46,6 +47,7 @@ import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.ingest.IngestService;
@@ -53,6 +55,8 @@ import org.opensearch.monitor.MonitorService;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
+import org.opensearch.search.backpressure.SearchBackpressureService;
+import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -60,6 +64,11 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Services exposed to nodes
+ *
+ * @opensearch.internal
+ */
 public class NodeService implements Closeable {
     private final Settings settings;
     private final ThreadPool threadPool;
@@ -76,8 +85,11 @@ public class NodeService implements Closeable {
     private final SearchTransportService searchTransportService;
     private final IndexingPressureService indexingPressureService;
     private final AggregationUsageService aggregationUsageService;
-
+    private final SearchBackpressureService searchBackpressureService;
+    private final SearchPipelineService searchPipelineService;
+    private final ClusterService clusterService;
     private final Discovery discovery;
+    private final FileCache fileCache;
 
     NodeService(
         Settings settings,
@@ -96,7 +108,10 @@ public class NodeService implements Closeable {
         ResponseCollectorService responseCollectorService,
         SearchTransportService searchTransportService,
         IndexingPressureService indexingPressureService,
-        AggregationUsageService aggregationUsageService
+        AggregationUsageService aggregationUsageService,
+        SearchBackpressureService searchBackpressureService,
+        SearchPipelineService searchPipelineService,
+        FileCache fileCache
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -114,7 +129,12 @@ public class NodeService implements Closeable {
         this.searchTransportService = searchTransportService;
         this.indexingPressureService = indexingPressureService;
         this.aggregationUsageService = aggregationUsageService;
+        this.searchBackpressureService = searchBackpressureService;
+        this.searchPipelineService = searchPipelineService;
+        this.clusterService = clusterService;
+        this.fileCache = fileCache;
         clusterService.addStateApplier(ingestService);
+        clusterService.addStateApplier(searchPipelineService);
     }
 
     public NodeInfo info(
@@ -128,24 +148,47 @@ public class NodeService implements Closeable {
         boolean plugin,
         boolean ingest,
         boolean aggs,
-        boolean indices
+        boolean indices,
+        boolean searchPipeline
     ) {
-        return new NodeInfo(
-            Version.CURRENT,
-            Build.CURRENT,
-            transportService.getLocalNode(),
-            settings ? settingsFilter.filter(this.settings) : null,
-            os ? monitorService.osService().info() : null,
-            process ? monitorService.processService().info() : null,
-            jvm ? monitorService.jvmService().info() : null,
-            threadPool ? this.threadPool.info() : null,
-            transport ? transportService.info() : null,
-            http ? (httpServerTransport == null ? null : httpServerTransport.info()) : null,
-            plugin ? (pluginService == null ? null : pluginService.info()) : null,
-            ingest ? (ingestService == null ? null : ingestService.info()) : null,
-            aggs ? (aggregationUsageService == null ? null : aggregationUsageService.info()) : null,
-            indices ? indicesService.getTotalIndexingBufferBytes() : null
-        );
+        NodeInfo.Builder builder = NodeInfo.builder(Version.CURRENT, Build.CURRENT, transportService.getLocalNode());
+        if (settings) {
+            builder.setSettings(settingsFilter.filter(this.settings));
+        }
+        if (os) {
+            builder.setOs(monitorService.osService().info());
+        }
+        if (process) {
+            builder.setProcess(monitorService.processService().info());
+        }
+        if (jvm) {
+            builder.setJvm(monitorService.jvmService().info());
+        }
+        if (threadPool) {
+            builder.setThreadPool(this.threadPool.info());
+        }
+        if (transport) {
+            builder.setTransport(transportService.info());
+        }
+        if (http && httpServerTransport != null) {
+            builder.setHttp(httpServerTransport.info());
+        }
+        if (plugin && pluginService != null) {
+            builder.setPlugins(pluginService.info());
+        }
+        if (ingest && ingestService != null) {
+            builder.setIngest(ingestService.info());
+        }
+        if (aggs && aggregationUsageService != null) {
+            builder.setAggsInfo(aggregationUsageService.info());
+        }
+        if (indices) {
+            builder.setTotalIndexingBuffer(indicesService.getTotalIndexingBufferBytes());
+        }
+        if (searchPipeline && searchPipelineService != null) {
+            builder.setSearchPipelineInfo(searchPipelineService.info());
+        }
+        return builder.build();
     }
 
     public NodeStats stats(
@@ -164,7 +207,11 @@ public class NodeService implements Closeable {
         boolean adaptiveSelection,
         boolean scriptCache,
         boolean indexingPressure,
-        boolean shardIndexingPressure
+        boolean shardIndexingPressure,
+        boolean searchBackpressure,
+        boolean clusterManagerThrottling,
+        boolean weightedRoutingStats,
+        boolean fileCacheStats
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
@@ -186,7 +233,11 @@ public class NodeService implements Closeable {
             adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
             scriptCache ? scriptService.cacheStats() : null,
             indexingPressure ? this.indexingPressureService.nodeStats() : null,
-            shardIndexingPressure ? this.indexingPressureService.shardStats(indices) : null
+            shardIndexingPressure ? this.indexingPressureService.shardStats(indices) : null,
+            searchBackpressure ? this.searchBackpressureService.nodeStats() : null,
+            clusterManagerThrottling ? this.clusterService.getClusterManagerService().getThrottlingStats() : null,
+            weightedRoutingStats ? WeightedRoutingStats.getInstance() : null,
+            fileCacheStats && fileCache != null ? fileCache.fileCacheStats() : null
         );
     }
 
@@ -196,6 +247,10 @@ public class NodeService implements Closeable {
 
     public MonitorService getMonitorService() {
         return monitorService;
+    }
+
+    public SearchBackpressureService getSearchBackpressureService() {
+        return searchBackpressureService;
     }
 
     @Override

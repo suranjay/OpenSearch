@@ -45,7 +45,7 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.text.Text;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.ParsedQuery;
 import org.opensearch.index.query.QueryBuilder;
@@ -64,6 +64,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Phrase suggestion implementation
+ *
+ * @opensearch.internal
+ */
 public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     private final BytesRef SEPARATOR = new BytesRef(" ");
     private static final String SUGGESTION_TEMPLATE_VAR_NAME = "suggestion";
@@ -128,7 +133,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             try (TokenStream stream = tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare, suggestion.getField())) {
                 checkerResult = checker.getCorrections(
                     stream,
-                    new MultiCandidateGeneratorWrapper(suggestion.getShardSize(), gens.toArray(new CandidateGenerator[gens.size()])),
+                    new MultiCandidateGeneratorWrapper(suggestion.getShardSize(), gens.toArray(new CandidateGenerator[0])),
                     suggestion.maxErrors(),
                     suggestion.getShardSize(),
                     wordScorer,

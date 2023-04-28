@@ -38,8 +38,8 @@ import org.opensearch.common.io.Streams;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
@@ -54,6 +54,8 @@ import java.util.zip.CheckedOutputStream;
  * data using a compressed representation in order to require less permanent
  * memory. Note that the compressed string might still sometimes need to be
  * decompressed in order to perform equality checks or to compute hash codes.
+ *
+ * @opensearch.internal
  */
 public final class CompressedXContent {
 

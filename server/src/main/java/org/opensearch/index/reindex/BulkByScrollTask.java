@@ -34,20 +34,21 @@ package org.opensearch.index.reindex;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParseException;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParser.Token;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParseException;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
@@ -67,8 +68,8 @@ import java.util.concurrent.TimeUnit;
 import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
 import static org.opensearch.common.unit.TimeValue.timeValueNanos;
-import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Task storing information about a currently running BulkByScroll request.
@@ -82,6 +83,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
  * We don't always know if this task will be a leader or worker task when it's created, because if slices is set to "auto" it may
  * be either depending on the number of shards in the source indices. We figure that out when the request is handled and set it on this
  * class with {@link #setWorkerCount(int)} or {@link #setWorker(float, Integer)}.
+ *
+ * @opensearch.internal
  */
 public class BulkByScrollTask extends CancellableTask {
 
@@ -220,6 +223,8 @@ public class BulkByScrollTask extends CancellableTask {
      * This class acts as a builder for {@link Status}. Once the {@link Status} object is built by calling
      * {@link #buildStatus()} it is immutable. Used by an instance of {@link ObjectParser} when parsing from
      * XContent.
+     *
+     * @opensearch.internal
      */
     public static class StatusBuilder {
         private Integer sliceId = null;
@@ -353,6 +358,8 @@ public class BulkByScrollTask extends CancellableTask {
      * implementations, this one has become defacto standardized because Kibana
      * parses it. As such, we should be very careful about removing things from
      * this.
+     *
+     * @opensearch.internal
      */
     public static class Status implements Task.Status, SuccessfullyProcessed {
         public static final String NAME = "bulk-by-scroll";
@@ -925,6 +932,8 @@ public class BulkByScrollTask extends CancellableTask {
     /**
      * The status of a slice of the request. Successful requests store the {@link StatusOrException#status} while failing requests store a
      * {@link StatusOrException#exception}.
+     *
+     * @opensearch.internal
      */
     public static class StatusOrException implements Writeable, ToXContentObject {
         private final Status status;
@@ -1039,9 +1048,9 @@ public class BulkByScrollTask extends CancellableTask {
         @Override
         public String toString() {
             if (exception != null) {
-                return "BulkByScrollTask{error=" + Strings.toString(this) + "}";
+                return "BulkByScrollTask{error=" + Strings.toString(XContentType.JSON, this) + "}";
             } else {
-                return "BulkByScrollTask{status=" + Strings.toString(this) + "}";
+                return "BulkByScrollTask{status=" + Strings.toString(XContentType.JSON, this) + "}";
             }
         }
 

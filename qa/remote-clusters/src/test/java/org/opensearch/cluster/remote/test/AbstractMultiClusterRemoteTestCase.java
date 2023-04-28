@@ -31,7 +31,7 @@
 
 package org.opensearch.cluster.remote.test;
 
-import org.apache.http.HttpHost;
+import org.apache.hc.core5.http.HttpHost;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -39,7 +39,7 @@ import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 
 import java.io.IOException;
@@ -104,8 +104,8 @@ public abstract class AbstractMultiClusterRemoteTestCase extends OpenSearchRestT
 
     private RestHighLevelClient buildClient(final String url) throws IOException {
         int portSeparator = url.lastIndexOf(':');
-        HttpHost httpHost = new HttpHost(url.substring(0, portSeparator),
-            Integer.parseInt(url.substring(portSeparator + 1)), getProtocol());
+        HttpHost httpHost = new HttpHost(getProtocol(), url.substring(0, portSeparator),
+            Integer.parseInt(url.substring(portSeparator + 1)));
         return new HighLevelClient(buildClient(restAdminSettings(), new HttpHost[]{httpHost}));
     }
 

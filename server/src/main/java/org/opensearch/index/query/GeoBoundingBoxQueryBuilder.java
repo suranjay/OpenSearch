@@ -36,7 +36,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Numbers;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.geo.GeoBoundingBox;
 import org.opensearch.common.geo.GeoPoint;
@@ -45,8 +45,8 @@ import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.geo.SpatialStrategy;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.geometry.Rectangle;
 import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.index.mapper.GeoPointFieldMapper;
@@ -63,6 +63,8 @@ import java.util.Objects;
  *
  * This query can only operate on fields of type geo_point that have latitude and longitude
  * enabled.
+ *
+ * @opensearch.internal
  * */
 public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBoundingBoxQueryBuilder> {
     public static final String NAME = "geo_bounding_box";

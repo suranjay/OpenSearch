@@ -47,6 +47,7 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.FailAwareWeightedRouting;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.service.ClusterService;
@@ -71,6 +72,8 @@ import static org.opensearch.action.support.TransportActions.isShardNotAvailable
  * A base class for operations that need to perform a read operation on a single shard copy. If the operation fails,
  * the read operation can be performed on other shard copies. Concrete implementations can provide their own list
  * of candidate shards to try the read operation on.
+ *
+ * @opensearch.internal
  */
 public abstract class TransportSingleShardAction<Request extends SingleShardRequest<Request>, Response extends ActionResponse> extends
     TransportAction<Request, Response> {
@@ -151,6 +154,11 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     @Nullable
     protected abstract ShardsIterator shards(ClusterState state, InternalRequest request);
 
+    /**
+     * Asynchronous single action
+     *
+     * @opensearch.internal
+     */
     class AsyncSingleAction {
 
         private final ActionListener<Response> listener;
@@ -237,7 +245,9 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 lastFailure = currentFailure;
                 this.lastFailure = currentFailure;
             }
-            final ShardRouting shardRouting = shardIt.nextOrNull();
+            ShardRouting shardRouting = FailAwareWeightedRouting.getInstance()
+                .findNext(shardIt, clusterService.state(), currentFailure, () -> {});
+
             if (shardRouting == null) {
                 Exception failure = lastFailure;
                 if (failure == null || isShardNotAvailableException(failure)) {
@@ -266,6 +276,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                     );
                 }
                 final Writeable.Reader<Response> reader = getResponseReader();
+                ShardRouting finalShardRouting = shardRouting;
                 transportService.sendRequest(
                     node,
                     transportShardAction,
@@ -289,7 +300,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
                         @Override
                         public void handleException(TransportException exp) {
-                            onFailure(shardRouting, exp);
+                            onFailure(finalShardRouting, exp);
                         }
                     }
                 );
@@ -297,6 +308,11 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         }
     }
 
+    /**
+     * Internal transport handler
+     *
+     * @opensearch.internal
+     */
     private class TransportHandler implements TransportRequestHandler<Request> {
 
         @Override
@@ -306,6 +322,11 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         }
     }
 
+    /**
+     * Shard level transport handler
+     *
+     * @opensearch.internal
+     */
     private class ShardTransportHandler implements TransportRequestHandler<Request> {
 
         @Override
@@ -319,6 +340,8 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
     /**
      * Internal request class that gets built on each node. Holds the original request plus additional info.
+     *
+     * @opensearch.internal
      */
     protected class InternalRequest {
         final Request request;

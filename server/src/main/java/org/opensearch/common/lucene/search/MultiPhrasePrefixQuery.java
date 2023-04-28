@@ -55,6 +55,11 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Objects;
 
+/**
+ * A multi phrase prefix query.
+ *
+ * @opensearch.internal
+ */
 public class MultiPhrasePrefixQuery extends Query {
 
     private final String field;
@@ -318,12 +323,22 @@ public class MultiPhrasePrefixQuery extends Query {
         return true;
     }
 
-    public String getField() {
-        return field;
-    }
-
     @Override
     public void visit(QueryVisitor visitor) {
-        visitor.visitLeaf(this);
+        if (visitor.acceptField(field)) {
+            // set by the subvisitor because the default returns, *this*, unless MUST_NOT is used which returns
+            // an ideal EMPTY_VISITOR
+            visitor = visitor.getSubVisitor(BooleanClause.Occur.MUST, this);
+            for (int i = 0; i < termArrays.size() - 1; ++i) {
+                if (termArrays.get(i).length == 1) {
+                    visitor.consumeTerms(this, termArrays.get(i)[0]); // use a must if we only have a single phrase
+                } else {
+                    // if more than one sub-phrase
+                    // we should match at least one
+                    QueryVisitor subVisitor = visitor.getSubVisitor(BooleanClause.Occur.SHOULD, this);
+                    subVisitor.consumeTerms(this, termArrays.get(i));
+                }
+            }
+        }
     }
 }

@@ -40,7 +40,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
-import org.opensearch.Assertions;
+import org.opensearch.core.Assertions;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -57,8 +57,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLock;
 import org.opensearch.env.ShardLockObtainFailedException;
@@ -89,11 +89,13 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
@@ -112,6 +114,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -122,6 +125,11 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.collect.MapBuilder.newMapBuilder;
 
+/**
+ * The main OpenSearch index service
+ *
+ * @opensearch.internal
+ */
 public class IndexService extends AbstractIndexComponent implements IndicesClusterStateService.AllocatedIndex<IndexShard> {
 
     private final IndexEventListener eventListener;
@@ -130,6 +138,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final NodeEnvironment nodeEnv;
     private final ShardStoreDeleter shardStoreDeleter;
     private final IndexStorePlugin.DirectoryFactory directoryFactory;
+    private final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory;
     private final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory;
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
     private final IndexCache indexCache;
@@ -165,6 +174,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexNameExpressionResolver expressionResolver;
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
+    private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -184,6 +194,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Client client,
         QueryCache queryCache,
         IndexStorePlugin.DirectoryFactory directoryFactory,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         IndexEventListener eventListener,
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> wrapperFactory,
         MapperRegistry mapperRegistry,
@@ -195,7 +206,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         BooleanSupplier allowExpensiveQueries,
         IndexNameExpressionResolver expressionResolver,
         ValuesSourceRegistry valuesSourceRegistry,
-        IndexStorePlugin.RecoveryStateFactory recoveryStateFactory
+        IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -254,6 +266,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.eventListener = eventListener;
         this.nodeEnv = nodeEnv;
         this.directoryFactory = directoryFactory;
+        this.remoteDirectoryFactory = remoteDirectoryFactory;
         this.recoveryStateFactory = recoveryStateFactory;
         this.engineFactory = Objects.requireNonNull(engineFactory);
         this.engineConfigFactory = Objects.requireNonNull(engineConfigFactory);
@@ -266,6 +279,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.trimTranslogTask = new AsyncTrimTranslogTask(this);
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
         this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
+        this.translogFactorySupplier = translogFactorySupplier;
         updateFsyncTaskIfNecessary();
     }
 
@@ -274,6 +288,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             && indexCreationContext == IndexCreationContext.CREATE_INDEX); // metadata verification needs a mapper service
     }
 
+    /**
+     * Context for index creation
+     *
+     * @opensearch.internal
+     */
     public enum IndexCreationContext {
         CREATE_INDEX,
         METADATA_VERIFICATION
@@ -418,7 +437,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     public synchronized IndexShard createShard(
         final ShardRouting routing,
         final Consumer<ShardId> globalCheckpointSyncer,
-        final RetentionLeaseSyncer retentionLeaseSyncer
+        final RetentionLeaseSyncer retentionLeaseSyncer,
+        final SegmentReplicationCheckpointPublisher checkpointPublisher
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
@@ -438,7 +458,83 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         try {
             lock = nodeEnv.shardLock(shardId, "starting shard", TimeUnit.SECONDS.toMillis(5));
             eventListener.beforeIndexShardCreated(shardId, indexSettings);
-            ShardPath path;
+            ShardPath path = getShardPath(routing, shardId, lock);
+            logger.debug("creating shard_id {}", shardId);
+            // if we are on a shared FS we only own the shard (i.e. we can safely delete it) if we are the primary.
+            final Engine.Warmer engineWarmer = (reader) -> {
+                IndexShard shard = getShardOrNull(shardId.getId());
+                if (shard != null) {
+                    warmer.warm(reader, shard, IndexService.this.indexSettings);
+                }
+            };
+
+            Store remoteStore = null;
+            if (this.indexSettings.isRemoteStoreEnabled()) {
+                Directory remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
+                remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY);
+            }
+
+            Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
+            store = new Store(
+                shardId,
+                this.indexSettings,
+                directory,
+                lock,
+                new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId))
+            );
+            eventListener.onStoreCreated(shardId);
+            indexShard = new IndexShard(
+                routing,
+                this.indexSettings,
+                path,
+                store,
+                indexSortSupplier,
+                indexCache,
+                mapperService,
+                similarityService,
+                engineFactory,
+                engineConfigFactory,
+                eventListener,
+                readerWrapper,
+                threadPool,
+                bigArrays,
+                engineWarmer,
+                searchOperationListeners,
+                indexingOperationListeners,
+                () -> globalCheckpointSyncer.accept(shardId),
+                retentionLeaseSyncer,
+                circuitBreakerService,
+                translogFactorySupplier,
+                this.indexSettings.isSegRepEnabled() ? checkpointPublisher : null,
+                remoteStore
+            );
+            eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
+            eventListener.afterIndexShardCreated(indexShard);
+            shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
+            success = true;
+            return indexShard;
+        } catch (ShardLockObtainFailedException e) {
+            throw new IOException("failed to obtain in-memory shard lock", e);
+        } finally {
+            if (success == false) {
+                if (lock != null) {
+                    IOUtils.closeWhileHandlingException(lock);
+                }
+                closeShard("initialization failed", shardId, indexShard, store, eventListener);
+            }
+        }
+    }
+
+    /*
+      Fetches the shard path based on the index type -
+      For a remote snapshot index, the cache path is used to initialize the shards.
+      For a local index, a local shard path is loaded or a new path is calculated.
+     */
+    private ShardPath getShardPath(ShardRouting routing, ShardId shardId, ShardLock lock) throws IOException {
+        ShardPath path;
+        if (this.indexSettings.isRemoteSnapshot()) {
+            path = ShardPath.loadFileCachePath(nodeEnv, shardId);
+        } else {
             try {
                 path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
             } catch (IllegalStateException ex) {
@@ -478,65 +574,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             } else {
                 logger.debug("{} creating using an existing path [{}]", shardId, path);
             }
-
-            if (shards.containsKey(shardId.id())) {
-                throw new IllegalStateException(shardId + " already exists");
-            }
-
-            logger.debug("creating shard_id {}", shardId);
-            // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
-            final Engine.Warmer engineWarmer = (reader) -> {
-                IndexShard shard = getShardOrNull(shardId.getId());
-                if (shard != null) {
-                    warmer.warm(reader, shard, IndexService.this.indexSettings);
-                }
-            };
-            Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
-            store = new Store(
-                shardId,
-                this.indexSettings,
-                directory,
-                lock,
-                new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId))
-            );
-            eventListener.onStoreCreated(shardId);
-            indexShard = new IndexShard(
-                routing,
-                this.indexSettings,
-                path,
-                store,
-                indexSortSupplier,
-                indexCache,
-                mapperService,
-                similarityService,
-                engineFactory,
-                engineConfigFactory,
-                eventListener,
-                readerWrapper,
-                threadPool,
-                bigArrays,
-                engineWarmer,
-                searchOperationListeners,
-                indexingOperationListeners,
-                () -> globalCheckpointSyncer.accept(shardId),
-                retentionLeaseSyncer,
-                circuitBreakerService
-            );
-            eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
-            eventListener.afterIndexShardCreated(indexShard);
-            shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
-            success = true;
-            return indexShard;
-        } catch (ShardLockObtainFailedException e) {
-            throw new IOException("failed to obtain in-memory shard lock", e);
-        } finally {
-            if (success == false) {
-                if (lock != null) {
-                    IOUtils.closeWhileHandlingException(lock);
-                }
-                closeShard("initialization failed", shardId, indexShard, store, eventListener);
-            }
         }
+
+        if (shards.containsKey(shardId.id())) {
+            throw new IllegalStateException(shardId + " already exists");
+        }
+        return path;
     }
 
     @Override
@@ -736,6 +779,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
+    /**
+     * Cache listener for bitsets
+     *
+     * @opensearch.internal
+     */
     private static final class BitsetCacheListener implements BitsetFilterCache.Listener {
         final IndexService indexService;
 
@@ -889,6 +937,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
+    /**
+     * Shard Store Deleter Interface
+     *
+     * @opensearch.internal
+     */
     public interface ShardStoreDeleter {
         void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException;
 
@@ -995,6 +1048,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
+    /**
+     * Base asynchronous task
+     *
+     * @opensearch.internal
+     */
     abstract static class BaseAsyncTask extends AbstractAsyncTask {
 
         protected final IndexService indexService;
@@ -1015,6 +1073,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     /**
      * FSyncs the translog for all shards of this index in a defined interval.
+     *
+     * @opensearch.internal
      */
     static final class AsyncTranslogFSync extends BaseAsyncTask {
 

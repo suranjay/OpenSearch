@@ -52,7 +52,6 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.Snapshot;
@@ -60,6 +59,8 @@ import org.opensearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static java.util.Collections.singletonList;
 
@@ -157,7 +158,7 @@ public class RestoreInProgressAllocationDeciderTests extends OpenSearchAllocatio
             routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
         }
 
-        ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shards = ImmutableOpenMap.builder();
+        final Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = new HashMap<>();
         shards.put(primary.shardId(), new RestoreInProgress.ShardRestoreStatus(clusterState.getNodes().getLocalNodeId(), shardState));
 
         Snapshot snapshot = recoverySource.snapshot();
@@ -167,7 +168,7 @@ public class RestoreInProgressAllocationDeciderTests extends OpenSearchAllocatio
             snapshot,
             restoreState,
             singletonList("test"),
-            shards.build()
+            shards
         );
 
         clusterState = ClusterState.builder(clusterState)
@@ -199,9 +200,9 @@ public class RestoreInProgressAllocationDeciderTests extends OpenSearchAllocatio
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
-            .add(newNode("master", Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)))
-            .localNodeId("master")
-            .masterNodeId("master")
+            .add(newNode("cluster-manager", Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)))
+            .localNodeId("cluster-manager")
+            .clusterManagerNodeId("cluster-manager")
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -230,7 +231,7 @@ public class RestoreInProgressAllocationDeciderTests extends OpenSearchAllocatio
         if (randomBoolean()) {
             decision = decider.canAllocate(shardRouting, allocation);
         } else {
-            DiscoveryNode node = clusterState.getNodes().getMasterNode();
+            DiscoveryNode node = clusterState.getNodes().getClusterManagerNode();
             decision = decider.canAllocate(shardRouting, new RoutingNode(node.getId(), node), allocation);
         }
         return decision;

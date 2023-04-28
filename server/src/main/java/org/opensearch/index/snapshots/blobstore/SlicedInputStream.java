@@ -31,10 +31,11 @@
 
 package org.opensearch.index.snapshots.blobstore;
 
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Objects;
 
 /**
  *  A {@link SlicedInputStream} is a logical
@@ -43,6 +44,8 @@ import java.io.InputStream;
  * of all logical sub-streams ahead of time. Instead, {@link #openSlice(int)} is called
  * if a new slice is required. Each slice is closed once it's been fully consumed or if
  * close is called before.
+ *
+ * @opensearch.internal
  */
 public abstract class SlicedInputStream extends InputStream {
     private int slice = 0;
@@ -98,6 +101,11 @@ public abstract class SlicedInputStream extends InputStream {
 
     @Override
     public final int read(byte[] buffer, int offset, int length) throws IOException {
+        Objects.checkFromIndexSize(offset, length, buffer.length);
+        if (length == 0) {
+            return 0;
+        }
+
         final InputStream stream = currentStream();
         if (stream == null) {
             return -1;

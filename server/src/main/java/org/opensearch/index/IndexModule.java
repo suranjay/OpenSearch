@@ -40,12 +40,13 @@ import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.Version;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -53,8 +54,8 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.analysis.IndexAnalyzers;
@@ -70,12 +71,16 @@ import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
+import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.IndexStorePlugin;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.threadpool.ThreadPool;
@@ -94,6 +99,7 @@ import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * IndexModule represents the central extension point for index level custom implementations like:
@@ -109,6 +115,8 @@ import java.util.function.Function;
  *      <li>Settings update listener - Custom settings update listener can be registered via
  *      {@link #addSettingsUpdateConsumer(Setting, Consumer)}</li>
  * </ul>
+ *
+ * @opensearch.internal
  */
 public final class IndexModule {
 
@@ -140,6 +148,18 @@ public final class IndexModule {
     public static final Setting<List<String>> INDEX_STORE_PRE_LOAD_SETTING = Setting.listSetting(
         "index.store.preload",
         Collections.emptyList(),
+        Function.identity(),
+        Property.IndexScope,
+        Property.NodeScope
+    );
+
+    /** Which lucene file extensions to load with the mmap directory when using hybridfs store.
+     *  This is an expert setting.
+     *  @see <a href="https://lucene.apache.org/core/9_2_0/core/org/apache/lucene/codecs/lucene92/package-summary.html#file-names">Lucene File Extensions</a>.
+     */
+    public static final Setting<List<String>> INDEX_STORE_HYBRID_MMAP_EXTENSIONS = Setting.listSetting(
+        "index.store.hybrid.mmap.extensions",
+        List.of("nvd", "dvd", "tim", "tip", "dim", "kdd", "kdi", "cfs", "doc"),
         Function.identity(),
         Property.IndexScope,
         Property.NodeScope
@@ -184,9 +204,9 @@ public final class IndexModule {
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
      * via {@link org.opensearch.plugins.PluginsService#onIndexModule(IndexModule)}.
      *
-     * @param indexSettings       the index settings
-     * @param analysisRegistry    the analysis registry
-     * @param engineFactory       the engine factory
+     * @param indexSettings      the index settings
+     * @param analysisRegistry   the analysis registry
+     * @param engineFactory      the engine factory
      * @param directoryFactories the available store types
      */
     public IndexModule(
@@ -376,21 +396,18 @@ public final class IndexModule {
         }
     }
 
-    public static boolean isBuiltinType(String storeType) {
-        for (Type type : Type.values()) {
-            if (type.match(storeType)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
+    /**
+     * Type of file system
+     *
+     * @opensearch.internal
+     */
     public enum Type {
         HYBRIDFS("hybridfs"),
         NIOFS("niofs"),
         MMAPFS("mmapfs"),
         SIMPLEFS("simplefs"),
-        FS("fs");
+        FS("fs"),
+        REMOTE_SNAPSHOT("remote_snapshot");
 
         private final String settingsKey;
         private final boolean deprecated;
@@ -407,7 +424,7 @@ public final class IndexModule {
         private static final Map<String, Type> TYPES;
 
         static {
-            final Map<String, Type> types = new HashMap<>(4);
+            final Map<String, Type> types = new HashMap<>(values().length);
             for (final Type type : values()) {
                 types.put(type.settingsKey, type);
             }
@@ -420,6 +437,10 @@ public final class IndexModule {
 
         public boolean isDeprecated() {
             return deprecated;
+        }
+
+        static boolean containsSettingsKey(String key) {
+            return TYPES.containsKey(key);
         }
 
         public static Type fromSettingsKey(final String key) {
@@ -440,6 +461,21 @@ public final class IndexModule {
             return getSettingsKey().equals(setting);
         }
 
+        /**
+         * Convenience method to check whether the given {@link IndexSettings}
+         * object contains an {@link #INDEX_STORE_TYPE_SETTING} set to the value of this type.
+         */
+        public boolean match(IndexSettings settings) {
+            return match(settings.getSettings());
+        }
+
+        /**
+         * Convenience method to check whether the given {@link Settings}
+         * object contains an {@link #INDEX_STORE_TYPE_SETTING} set to the value of this type.
+         */
+        public boolean match(Settings settings) {
+            return match(INDEX_STORE_TYPE_SETTING.get(settings));
+        }
     }
 
     public static Type defaultStoreType(final boolean allowMmap) {
@@ -466,7 +502,9 @@ public final class IndexModule {
         IndicesFieldDataCache indicesFieldDataCache,
         NamedWriteableRegistry namedWriteableRegistry,
         BooleanSupplier idFieldDataEnabled,
-        ValuesSourceRegistry valuesSourceRegistry
+        ValuesSourceRegistry valuesSourceRegistry,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -509,6 +547,7 @@ public final class IndexModule {
                 client,
                 queryCache,
                 directoryFactory,
+                remoteDirectoryFactory,
                 eventListener,
                 readerWrapperFactory,
                 mapperRegistry,
@@ -520,7 +559,8 @@ public final class IndexModule {
                 allowExpensiveQueries,
                 expressionResolver,
                 valuesSourceRegistry,
-                recoveryStateFactory
+                recoveryStateFactory,
+                translogFactorySupplier
             );
             success = true;
             return indexService;
@@ -541,7 +581,7 @@ public final class IndexModule {
         if (storeType.isEmpty() || Type.FS.getSettingsKey().equals(storeType)) {
             type = defaultStoreType(allowMmap);
         } else {
-            if (isBuiltinType(storeType)) {
+            if (Type.containsSettingsKey(storeType)) {
                 type = Type.fromSettingsKey(storeType);
             } else {
                 type = null;
@@ -551,7 +591,7 @@ public final class IndexModule {
             throw new IllegalArgumentException("store type [" + storeType + "] is not allowed because mmap is disabled");
         }
         final IndexStorePlugin.DirectoryFactory factory;
-        if (storeType.isEmpty() || isBuiltinType(storeType)) {
+        if (storeType.isEmpty()) {
             factory = DEFAULT_DIRECTORY_FACTORY;
         } else {
             factory = indexStoreFactories.get(storeType);
@@ -595,7 +635,9 @@ public final class IndexModule {
             xContentRegistry,
             new SimilarityService(indexSettings, scriptService, similarities),
             mapperRegistry,
-            () -> { throw new UnsupportedOperationException("no index query shard context available"); },
+            () -> {
+                throw new UnsupportedOperationException("no index query shard context available");
+            },
             () -> false,
             scriptService
         );
@@ -620,4 +662,31 @@ public final class IndexModule {
         }
     }
 
+    public static Map<String, IndexStorePlugin.DirectoryFactory> createBuiltInDirectoryFactories(
+        Supplier<RepositoriesService> repositoriesService,
+        ThreadPool threadPool,
+        FileCache remoteStoreFileCache
+    ) {
+        final Map<String, IndexStorePlugin.DirectoryFactory> factories = new HashMap<>();
+        for (Type type : Type.values()) {
+            switch (type) {
+                case HYBRIDFS:
+                case NIOFS:
+                case FS:
+                case MMAPFS:
+                case SIMPLEFS:
+                    factories.put(type.getSettingsKey(), DEFAULT_DIRECTORY_FACTORY);
+                    break;
+                case REMOTE_SNAPSHOT:
+                    factories.put(
+                        type.getSettingsKey(),
+                        new RemoteSnapshotDirectoryFactory(repositoriesService, threadPool, remoteStoreFileCache)
+                    );
+                    break;
+                default:
+                    throw new IllegalStateException("No directory factory mapping for built-in type " + type);
+            }
+        }
+        return factories;
+    }
 }

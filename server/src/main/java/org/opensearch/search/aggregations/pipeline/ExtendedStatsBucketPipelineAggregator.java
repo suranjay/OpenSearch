@@ -32,15 +32,17 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
-import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregate all docs into their extended stats
+ *
+ * @opensearch.internal
+ */
 public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
     private final double sigma;
     private double sum = 0;
@@ -59,24 +61,6 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
     ) {
         super(name, bucketsPaths, gapPolicy, formatter, metadata);
         this.sigma = sigma;
-    }
-
-    /**
-     * Read from a stream.
-     */
-    public ExtendedStatsBucketPipelineAggregator(StreamInput in) throws IOException {
-        super(in);
-        sigma = in.readDouble();
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeDouble(sigma);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return ExtendedStatsBucketPipelineAggregationBuilder.NAME;
     }
 
     @Override

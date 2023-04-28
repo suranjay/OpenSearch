@@ -32,13 +32,17 @@
 
 package org.opensearch.indices.recovery;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 
+/**
+ * Request to prepare cluster for translog operations
+ *
+ * @opensearch.internal
+ */
 class RecoveryPrepareForTranslogOperationsRequest extends RecoveryTransportRequest {
 
     private final long recoveryId;
@@ -57,9 +61,6 @@ class RecoveryPrepareForTranslogOperationsRequest extends RecoveryTransportReque
         recoveryId = in.readLong();
         shardId = new ShardId(in);
         totalTranslogOps = in.readVInt();
-        if (in.getVersion().before(LegacyESVersion.V_7_4_0)) {
-            in.readBoolean(); // was fileBasedRecovery
-        }
     }
 
     public long recoveryId() {
@@ -80,8 +81,5 @@ class RecoveryPrepareForTranslogOperationsRequest extends RecoveryTransportReque
         out.writeLong(recoveryId);
         shardId.writeTo(out);
         out.writeVInt(totalTranslogOps);
-        if (out.getVersion().before(LegacyESVersion.V_7_4_0)) {
-            out.writeBoolean(true); // was fileBasedRecovery
-        }
     }
 }

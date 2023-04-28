@@ -39,7 +39,6 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.TransportNodesAction;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
@@ -54,12 +53,18 @@ import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.ReloadablePlugin;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Transport action for reloading OpenSearch Secure Settings
+ *
+ * @opensearch.internal
+ */
 public class TransportNodesReloadSecureSettingsAction extends TransportNodesAction<
     NodesReloadSecureSettingsRequest,
     NodesReloadSecureSettingsResponse,
@@ -178,7 +183,12 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         }
     }
 
-    public static class NodeRequest extends BaseNodeRequest {
+    /**
+     * Inner Node Request
+     *
+     * @opensearch.internal
+     */
+    public static class NodeRequest extends TransportRequest {
 
         NodesReloadSecureSettingsRequest request;
 

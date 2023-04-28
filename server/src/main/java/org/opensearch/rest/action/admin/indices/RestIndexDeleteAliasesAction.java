@@ -47,6 +47,11 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.DELETE;
 
+/**
+ * Transport action to delete index aliases
+ *
+ * @opensearch.api
+ */
 public class RestIndexDeleteAliasesAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestIndexPutAliasAction.class);
@@ -68,7 +73,9 @@ public class RestIndexDeleteAliasesAction extends BaseRestHandler {
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         indicesAliasesRequest.timeout(request.paramAsTime("timeout", indicesAliasesRequest.timeout()));
         indicesAliasesRequest.addAliasAction(AliasActions.remove().indices(indices).aliases(aliases));
-        indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", indicesAliasesRequest.masterNodeTimeout()));
+        indicesAliasesRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", indicesAliasesRequest.clusterManagerNodeTimeout())
+        );
         parseDeprecatedMasterTimeoutParameter(indicesAliasesRequest, request, deprecationLogger, getName());
 
         return channel -> client.admin().indices().aliases(indicesAliasesRequest, new RestToXContentListener<>(channel));

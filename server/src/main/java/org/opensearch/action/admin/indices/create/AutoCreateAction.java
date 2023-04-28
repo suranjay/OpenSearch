@@ -36,7 +36,7 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.ActiveShardsObserver;
-import org.opensearch.action.support.master.TransportMasterNodeAction;
+import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
@@ -50,6 +50,8 @@ import org.opensearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.opensearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
@@ -62,6 +64,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Api that auto creates an index or data stream that originate from requests that write into an index that doesn't yet exist.
+ *
+ * @opensearch.internal
  */
 public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
@@ -72,11 +76,17 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         super(NAME, CreateIndexResponse::new);
     }
 
-    public static final class TransportAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
+    /**
+     * Transport Action for Auto Create
+     *
+     * @opensearch.internal
+     */
+    public static final class TransportAction extends TransportClusterManagerNodeAction<CreateIndexRequest, CreateIndexResponse> {
 
         private final ActiveShardsObserver activeShardsObserver;
         private final MetadataCreateIndexService createIndexService;
         private final MetadataCreateDataStreamService metadataCreateDataStreamService;
+        private final ClusterManagerTaskThrottler.ThrottlingKey autoCreateTaskKey;
 
         @Inject
         public TransportAction(
@@ -92,6 +102,9 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
+
+            // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+            autoCreateTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.AUTO_CREATE_KEY, true);
         }
 
         @Override
@@ -105,7 +118,11 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         }
 
         @Override
-        protected void masterOperation(CreateIndexRequest request, ClusterState state, ActionListener<CreateIndexResponse> finalListener) {
+        protected void clusterManagerOperation(
+            CreateIndexRequest request,
+            ClusterState state,
+            ActionListener<CreateIndexResponse> finalListener
+        ) {
             AtomicReference<String> indexNameRef = new AtomicReference<>();
             ActionListener<ClusterStateUpdateResponse> listener = ActionListener.wrap(response -> {
                 String indexName = indexNameRef.get();
@@ -115,7 +132,9 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         new String[] { indexName },
                         ActiveShardCount.DEFAULT,
                         request.timeout(),
-                        shardsAcked -> { finalListener.onResponse(new CreateIndexResponse(true, shardsAcked, indexName)); },
+                        shardsAcked -> {
+                            finalListener.onResponse(new CreateIndexResponse(true, shardsAcked, indexName));
+                        },
                         finalListener::onFailure
                     );
                 } else {
@@ -132,12 +151,17 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     }
 
                     @Override
+                    public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                        return autoCreateTaskKey;
+                    }
+
+                    @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
                         DataStreamTemplate dataStreamTemplate = resolveAutoCreateDataStream(request, currentState.metadata());
                         if (dataStreamTemplate != null) {
                             CreateDataStreamClusterStateUpdateRequest createRequest = new CreateDataStreamClusterStateUpdateRequest(
                                 request.index(),
-                                request.masterNodeTimeout(),
+                                request.clusterManagerNodeTimeout(),
                                 request.timeout()
                             );
                             ClusterState clusterState = metadataCreateDataStreamService.createDataStream(createRequest, currentState);
@@ -150,7 +174,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                                 request.cause(),
                                 indexName,
                                 request.index()
-                            ).ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
+                            ).ackTimeout(request.timeout()).masterNodeTimeout(request.clusterManagerNodeTimeout());
                             return createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
                         }
                     }

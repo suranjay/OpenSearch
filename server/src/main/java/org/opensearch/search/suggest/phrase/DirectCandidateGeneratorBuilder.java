@@ -41,12 +41,12 @@ import org.apache.lucene.search.spell.StringDistance;
 import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.suggest.SortBy;
@@ -57,6 +57,11 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Consumer;
 
+/**
+ * Builder for a phrase candidate directly retrieved from an IndexReader
+ *
+ * @opensearch.internal
+ */
 public final class DirectCandidateGeneratorBuilder implements CandidateGenerator {
 
     private static final String TYPE = "direct_generator";

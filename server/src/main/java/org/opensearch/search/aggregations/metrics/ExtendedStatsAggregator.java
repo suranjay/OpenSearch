@@ -33,7 +33,7 @@ package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
@@ -51,6 +51,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregate all docs into their extended statistics
+ *
+ * @opensearch.internal
+ */
 class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     static final ParseField SIGMA_FIELD = new ParseField("sigma");

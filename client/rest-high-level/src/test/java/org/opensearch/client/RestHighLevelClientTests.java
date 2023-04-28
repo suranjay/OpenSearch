@@ -33,19 +33,6 @@
 package org.opensearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.ProtocolVersion;
-import org.apache.http.RequestLine;
-import org.apache.http.StatusLine;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.entity.ContentType;
-import org.apache.http.message.BasicHttpResponse;
-import org.apache.http.message.BasicRequestLine;
-import org.apache.http.message.BasicStatusLine;
-import org.apache.http.nio.entity.NByteArrayEntity;
-import org.apache.http.nio.entity.NStringEntity;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
@@ -62,11 +49,11 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.cbor.CborXContent;
 import org.opensearch.common.xcontent.smile.SmileXContent;
 import org.opensearch.index.rankeval.DiscountedCumulativeGain;
@@ -87,6 +74,17 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.ProtocolVersion;
+import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
+import org.apache.hc.core5.http.io.entity.StringEntity;
+import org.apache.hc.core5.http.message.BasicClassicHttpResponse;
+import org.apache.hc.core5.http.message.RequestLine;
+import org.apache.hc.core5.http.message.StatusLine;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -123,7 +121,7 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
     private static final String SUBMIT_TASK_PREFIX = "submit_";
     private static final String SUBMIT_TASK_SUFFIX = "_task";
     private static final ProtocolVersion HTTP_PROTOCOL = new ProtocolVersion("http", 1, 1);
-    private static final RequestLine REQUEST_LINE = new BasicRequestLine(HttpGet.METHOD_NAME, "/", HTTP_PROTOCOL);
+    private static final RequestLine REQUEST_LINE = new RequestLine(HttpGet.METHOD_NAME, "/", HTTP_PROTOCOL);
 
     /**
      * These APIs do not use a Request object (because they don't have a body, or any request parameters).
@@ -134,6 +132,8 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         // core
         "ping",
         "info",
+        "delete_all_pits",
+        "get_all_pits",
         // security
         "security.get_ssl_certificates",
         "security.authenticate",
@@ -256,7 +256,7 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         Response response = mock(Response.class);
         ContentType contentType = ContentType.parse(RequestConverters.REQUEST_BODY_CONTENT_TYPE.mediaType());
         String requestBody = toXContent(toXContent, RequestConverters.REQUEST_BODY_CONTENT_TYPE, false).utf8ToString();
-        when(response.getEntity()).thenReturn(new NStringEntity(requestBody, contentType));
+        when(response.getEntity()).thenReturn(new StringEntity(requestBody, contentType));
         when(restClient.performRequest(any(Request.class))).thenReturn(response);
     }
 
@@ -284,6 +284,20 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         }
     }
 
+    public void testNullableActionListener() {
+        ActionRequest request = new ActionRequest() {
+            @Override
+            public ActionRequestValidationException validate() {
+                return null;
+            }
+        };
+
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> restHighLevelClient.performRequestAsync(request, null, RequestOptions.DEFAULT, null, null, null)
+        );
+    }
+
     public void testParseEntity() throws IOException {
         {
             IllegalStateException ise = expectThrows(IllegalStateException.class, () -> restHighLevelClient.parseEntity(null, null));
@@ -292,14 +306,14 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         {
             IllegalStateException ise = expectThrows(
                 IllegalStateException.class,
-                () -> restHighLevelClient.parseEntity(new NStringEntity("", (ContentType) null), null)
+                () -> restHighLevelClient.parseEntity(new StringEntity("", (ContentType) null), null)
             );
             assertEquals("OpenSearch didn't return the [Content-Type] header, unable to parse response body", ise.getMessage());
         }
         {
-            NStringEntity entity = new NStringEntity("", ContentType.APPLICATION_SVG_XML);
+            StringEntity entity = new StringEntity("", ContentType.APPLICATION_SVG_XML);
             IllegalStateException ise = expectThrows(IllegalStateException.class, () -> restHighLevelClient.parseEntity(entity, null));
-            assertEquals("Unsupported Content-Type: " + entity.getContentType().getValue(), ise.getMessage());
+            assertEquals("Unsupported Content-Type: " + entity.getContentType(), ise.getMessage());
         }
         {
             CheckedFunction<XContentParser, String, IOException> entityParser = parser -> {
@@ -310,9 +324,9 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
                 assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
                 return value;
             };
-            HttpEntity jsonEntity = new NStringEntity("{\"field\":\"value\"}", ContentType.APPLICATION_JSON);
+            HttpEntity jsonEntity = new StringEntity("{\"field\":\"value\"}", ContentType.APPLICATION_JSON);
             assertEquals("value", restHighLevelClient.parseEntity(jsonEntity, entityParser));
-            HttpEntity yamlEntity = new NStringEntity("---\nfield: value\n", ContentType.create("application/yaml"));
+            HttpEntity yamlEntity = new StringEntity("---\nfield: value\n", ContentType.create("application/yaml"));
             assertEquals("value", restHighLevelClient.parseEntity(yamlEntity, entityParser));
             HttpEntity smileEntity = createBinaryEntity(SmileXContent.contentBuilder(), ContentType.create("application/smile"));
             assertEquals("value", restHighLevelClient.parseEntity(smileEntity, entityParser));
@@ -326,13 +340,13 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
             builder.startObject();
             builder.field("field", "value");
             builder.endObject();
-            return new NByteArrayEntity(BytesReference.bytes(builder).toBytesRef().bytes, contentType);
+            return new ByteArrayEntity(BytesReference.bytes(builder).toBytesRef().bytes, contentType);
         }
     }
 
     public void testConvertExistsResponse() {
         RestStatus restStatus = randomBoolean() ? RestStatus.OK : randomFrom(RestStatus.values());
-        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+        ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(restStatus.getStatus(), restStatus.name());
         Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         boolean result = RestHighLevelClient.convertExistsResponse(response);
         assertEquals(restStatus == RestStatus.OK, result);
@@ -341,7 +355,7 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
     public void testParseResponseException() throws IOException {
         {
             RestStatus restStatus = randomFrom(RestStatus.values());
-            HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+            ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(restStatus.getStatus(), restStatus.name());
             Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
             ResponseException responseException = new ResponseException(response);
             OpenSearchException openSearchException = restHighLevelClient.parseResponseException(responseException);
@@ -351,9 +365,9 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         }
         {
             RestStatus restStatus = randomFrom(RestStatus.values());
-            HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+            ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(restStatus.getStatus(), restStatus.name());
             httpResponse.setEntity(
-                new NStringEntity(
+                new StringEntity(
                     "{\"error\":\"test error message\",\"status\":" + restStatus.getStatus() + "}",
                     ContentType.APPLICATION_JSON
                 )
@@ -367,8 +381,8 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         }
         {
             RestStatus restStatus = randomFrom(RestStatus.values());
-            HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
-            httpResponse.setEntity(new NStringEntity("{\"error\":", ContentType.APPLICATION_JSON));
+            ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(restStatus.getStatus(), restStatus.name());
+            httpResponse.setEntity(new StringEntity("{\"error\":", ContentType.APPLICATION_JSON));
             Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
             ResponseException responseException = new ResponseException(response);
             OpenSearchException openSearchException = restHighLevelClient.parseResponseException(responseException);
@@ -379,8 +393,8 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         }
         {
             RestStatus restStatus = randomFrom(RestStatus.values());
-            HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
-            httpResponse.setEntity(new NStringEntity("{\"status\":" + restStatus.getStatus() + "}", ContentType.APPLICATION_JSON));
+            ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(restStatus.getStatus(), restStatus.name());
+            httpResponse.setEntity(new StringEntity("{\"status\":" + restStatus.getStatus() + "}", ContentType.APPLICATION_JSON));
             Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
             ResponseException responseException = new ResponseException(response);
             OpenSearchException openSearchException = restHighLevelClient.parseResponseException(responseException);
@@ -395,7 +409,7 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         MainRequest mainRequest = new MainRequest();
         CheckedFunction<MainRequest, Request, IOException> requestConverter = request -> new Request(HttpGet.METHOD_NAME, "/");
         RestStatus restStatus = randomFrom(RestStatus.values());
-        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+        ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(restStatus.getStatus(), restStatus.name());
         Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         when(restClient.performRequest(any(Request.class))).thenReturn(mockResponse);
         {
@@ -411,17 +425,13 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         {
             IOException ioe = expectThrows(
                 IOException.class,
-                () -> restHighLevelClient.performRequest(
-                    mainRequest,
-                    requestConverter,
-                    RequestOptions.DEFAULT,
-                    response -> { throw new IllegalStateException(); },
-                    Collections.emptySet()
-                )
+                () -> restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT, response -> {
+                    throw new IllegalStateException();
+                }, Collections.emptySet())
             );
             assertEquals(
                 "Unable to parse response body for Response{requestLine=GET / http/1.1, host=http://localhost:9200, "
-                    + "response=http/1.1 "
+                    + "response=HTTP/1.1 "
                     + restStatus.getStatus()
                     + " "
                     + restStatus.name()
@@ -435,7 +445,7 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         MainRequest mainRequest = new MainRequest();
         CheckedFunction<MainRequest, Request, IOException> requestConverter = request -> new Request(HttpGet.METHOD_NAME, "/");
         RestStatus restStatus = randomFrom(RestStatus.values());
-        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+        ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(restStatus.getStatus(), restStatus.name());
         Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(mockResponse);
         when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
@@ -458,9 +468,9 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         MainRequest mainRequest = new MainRequest();
         CheckedFunction<MainRequest, Request, IOException> requestConverter = request -> new Request(HttpGet.METHOD_NAME, "/");
         RestStatus restStatus = randomFrom(RestStatus.values());
-        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+        ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(restStatus.getStatus(), restStatus.name());
         httpResponse.setEntity(
-            new NStringEntity("{\"error\":\"test error message\",\"status\":" + restStatus.getStatus() + "}", ContentType.APPLICATION_JSON)
+            new StringEntity("{\"error\":\"test error message\",\"status\":" + restStatus.getStatus() + "}", ContentType.APPLICATION_JSON)
         );
         Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(mockResponse);
@@ -484,8 +494,8 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         MainRequest mainRequest = new MainRequest();
         CheckedFunction<MainRequest, Request, IOException> requestConverter = request -> new Request(HttpGet.METHOD_NAME, "/");
         RestStatus restStatus = randomFrom(RestStatus.values());
-        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
-        httpResponse.setEntity(new NStringEntity("{\"error\":", ContentType.APPLICATION_JSON));
+        ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(restStatus.getStatus(), restStatus.name());
+        httpResponse.setEntity(new StringEntity("{\"error\":", ContentType.APPLICATION_JSON));
         Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(mockResponse);
         when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
@@ -509,8 +519,8 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         MainRequest mainRequest = new MainRequest();
         CheckedFunction<MainRequest, Request, IOException> requestConverter = request -> new Request(HttpGet.METHOD_NAME, "/");
         RestStatus restStatus = randomFrom(RestStatus.values());
-        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
-        httpResponse.setEntity(new NStringEntity("{\"status\":" + restStatus.getStatus() + "}", ContentType.APPLICATION_JSON));
+        ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(restStatus.getStatus(), restStatus.name());
+        httpResponse.setEntity(new StringEntity("{\"status\":" + restStatus.getStatus() + "}", ContentType.APPLICATION_JSON));
         Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(mockResponse);
         when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
@@ -533,7 +543,7 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
     public void testPerformRequestOnResponseExceptionWithIgnores() throws IOException {
         MainRequest mainRequest = new MainRequest();
         CheckedFunction<MainRequest, Request, IOException> requestConverter = request -> new Request(HttpGet.METHOD_NAME, "/");
-        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(RestStatus.NOT_FOUND));
+        ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(RestStatus.NOT_FOUND.getStatus(), RestStatus.NOT_FOUND.name());
         Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(mockResponse);
         when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
@@ -553,19 +563,15 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
     public void testPerformRequestOnResponseExceptionWithIgnoresErrorNoBody() throws IOException {
         MainRequest mainRequest = new MainRequest();
         CheckedFunction<MainRequest, Request, IOException> requestConverter = request -> new Request(HttpGet.METHOD_NAME, "/");
-        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(RestStatus.NOT_FOUND));
+        ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(RestStatus.NOT_FOUND.getStatus(), RestStatus.NOT_FOUND.name());
         Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(mockResponse);
         when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
         OpenSearchException openSearchException = expectThrows(
             OpenSearchException.class,
-            () -> restHighLevelClient.performRequest(
-                mainRequest,
-                requestConverter,
-                RequestOptions.DEFAULT,
-                response -> { throw new IllegalStateException(); },
-                Collections.singleton(404)
-            )
+            () -> restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT, response -> {
+                throw new IllegalStateException();
+            }, Collections.singleton(404))
         );
         assertEquals(RestStatus.NOT_FOUND, openSearchException.status());
         assertSame(responseException, openSearchException.getCause());
@@ -575,20 +581,16 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
     public void testPerformRequestOnResponseExceptionWithIgnoresErrorValidBody() throws IOException {
         MainRequest mainRequest = new MainRequest();
         CheckedFunction<MainRequest, Request, IOException> requestConverter = request -> new Request(HttpGet.METHOD_NAME, "/");
-        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(RestStatus.NOT_FOUND));
-        httpResponse.setEntity(new NStringEntity("{\"error\":\"test error message\",\"status\":404}", ContentType.APPLICATION_JSON));
+        ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(RestStatus.NOT_FOUND.getStatus(), RestStatus.NOT_FOUND.name());
+        httpResponse.setEntity(new StringEntity("{\"error\":\"test error message\",\"status\":404}", ContentType.APPLICATION_JSON));
         Response mockResponse = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(mockResponse);
         when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
         OpenSearchException openSearchException = expectThrows(
             OpenSearchException.class,
-            () -> restHighLevelClient.performRequest(
-                mainRequest,
-                requestConverter,
-                RequestOptions.DEFAULT,
-                response -> { throw new IllegalStateException(); },
-                Collections.singleton(404)
-            )
+            () -> restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT, response -> {
+                throw new IllegalStateException();
+            }, Collections.singleton(404))
         );
         assertEquals(RestStatus.NOT_FOUND, openSearchException.status());
         assertSame(responseException, openSearchException.getSuppressed()[0]);
@@ -604,7 +606,7 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
                 Collections.emptySet()
             );
             RestStatus restStatus = randomFrom(RestStatus.values());
-            HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+            ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(restStatus.getStatus(), restStatus.name());
             responseListener.onSuccess(new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse));
             assertNull(trackingActionListener.exception.get());
             assertEquals(restStatus.getStatus(), trackingActionListener.statusCode.get());
@@ -617,13 +619,13 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
                 Collections.emptySet()
             );
             RestStatus restStatus = randomFrom(RestStatus.values());
-            HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+            ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(restStatus.getStatus(), restStatus.name());
             responseListener.onSuccess(new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse));
             assertThat(trackingActionListener.exception.get(), instanceOf(IOException.class));
             IOException ioe = (IOException) trackingActionListener.exception.get();
             assertEquals(
                 "Unable to parse response body for Response{requestLine=GET / http/1.1, host=http://localhost:9200, "
-                    + "response=http/1.1 "
+                    + "response=HTTP/1.1 "
                     + restStatus.getStatus()
                     + " "
                     + restStatus.name()
@@ -654,7 +656,7 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
             Collections.emptySet()
         );
         RestStatus restStatus = randomFrom(RestStatus.values());
-        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+        ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(restStatus.getStatus(), restStatus.name());
         Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(response);
         responseListener.onFailure(responseException);
@@ -673,9 +675,9 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
             Collections.emptySet()
         );
         RestStatus restStatus = randomFrom(RestStatus.values());
-        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
+        ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(restStatus.getStatus(), restStatus.name());
         httpResponse.setEntity(
-            new NStringEntity("{\"error\":\"test error message\",\"status\":" + restStatus.getStatus() + "}", ContentType.APPLICATION_JSON)
+            new StringEntity("{\"error\":\"test error message\",\"status\":" + restStatus.getStatus() + "}", ContentType.APPLICATION_JSON)
         );
         Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(response);
@@ -696,8 +698,8 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
                 Collections.emptySet()
             );
             RestStatus restStatus = randomFrom(RestStatus.values());
-            HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
-            httpResponse.setEntity(new NStringEntity("{\"error\":", ContentType.APPLICATION_JSON));
+            ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(restStatus.getStatus(), restStatus.name());
+            httpResponse.setEntity(new StringEntity("{\"error\":", ContentType.APPLICATION_JSON));
             Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
             ResponseException responseException = new ResponseException(response);
             responseListener.onFailure(responseException);
@@ -716,8 +718,8 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
                 Collections.emptySet()
             );
             RestStatus restStatus = randomFrom(RestStatus.values());
-            HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
-            httpResponse.setEntity(new NStringEntity("{\"status\":" + restStatus.getStatus() + "}", ContentType.APPLICATION_JSON));
+            ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(restStatus.getStatus(), restStatus.name());
+            httpResponse.setEntity(new StringEntity("{\"status\":" + restStatus.getStatus() + "}", ContentType.APPLICATION_JSON));
             Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
             ResponseException responseException = new ResponseException(response);
             responseListener.onFailure(responseException);
@@ -737,7 +739,7 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
             trackingActionListener,
             Collections.singleton(404)
         );
-        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(RestStatus.NOT_FOUND));
+        ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(RestStatus.NOT_FOUND.getStatus(), RestStatus.NOT_FOUND.name());
         Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(response);
         responseListener.onFailure(responseException);
@@ -755,7 +757,7 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
             trackingActionListener,
             Collections.singleton(404)
         );
-        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(RestStatus.NOT_FOUND));
+        ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(RestStatus.NOT_FOUND.getStatus(), RestStatus.NOT_FOUND.name());
         Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(response);
         responseListener.onFailure(responseException);
@@ -775,8 +777,8 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
             trackingActionListener,
             Collections.singleton(404)
         );
-        HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(RestStatus.NOT_FOUND));
-        httpResponse.setEntity(new NStringEntity("{\"error\":\"test error message\",\"status\":404}", ContentType.APPLICATION_JSON));
+        ClassicHttpResponse httpResponse = new BasicClassicHttpResponse(RestStatus.NOT_FOUND.getStatus(), RestStatus.NOT_FOUND.name());
+        httpResponse.setEntity(new StringEntity("{\"error\":\"test error message\",\"status\":404}", ContentType.APPLICATION_JSON));
         Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(response);
         responseListener.onFailure(responseException);
@@ -871,7 +873,14 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
             "nodes.hot_threads",
             "nodes.usage",
             "nodes.reload_secure_settings",
-            "search_shards", };
+            "search_shards",
+            "remote_store.restore",
+            "cluster.put_weighted_routing",
+            "cluster.get_weighted_routing",
+            "cluster.delete_weighted_routing",
+            "cluster.put_decommission_awareness",
+            "cluster.get_decommission_awareness",
+            "cluster.delete_decommission_awareness", };
         List<String> booleanReturnMethods = Arrays.asList("security.enable_user", "security.disable_user", "security.change_password");
         Set<String> deprecatedMethods = new HashSet<>();
         deprecatedMethods.add("indices.force_merge");
@@ -984,37 +993,34 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         }
 
         assertEquals("incorrect number of exceptions for method [" + method + "]", 1, method.getExceptionTypes().length);
+        final Class<?>[] parameterTypes = method.getParameterTypes();
         // a few methods don't accept a request object as argument
         if (APIS_WITHOUT_REQUEST_OBJECT.contains(apiName)) {
-            assertEquals("incorrect number of arguments for method [" + method + "]", 1, method.getParameterTypes().length);
-            assertThat(
-                "the parameter to method [" + method + "] is the wrong type",
-                method.getParameterTypes()[0],
-                equalTo(RequestOptions.class)
-            );
+            assertEquals("incorrect number of arguments for method [" + method + "]", 1, method.getParameterCount());
+            assertThat("the parameter to method [" + method + "] is the wrong type", parameterTypes[0], equalTo(RequestOptions.class));
         } else {
-            assertEquals("incorrect number of arguments for method [" + method + "]", 2, method.getParameterTypes().length);
+            assertEquals("incorrect number of arguments for method [" + method + "]", 2, method.getParameterCount());
             // This is no longer true for all methods. Some methods can contain these 2 args backwards because of deprecation
-            if (method.getParameterTypes()[0].equals(RequestOptions.class)) {
+            if (parameterTypes[0].equals(RequestOptions.class)) {
                 assertThat(
                     "the first parameter to method [" + method + "] is the wrong type",
-                    method.getParameterTypes()[0],
+                    parameterTypes[0],
                     equalTo(RequestOptions.class)
                 );
                 assertThat(
                     "the second parameter to method [" + method + "] is the wrong type",
-                    method.getParameterTypes()[1].getSimpleName(),
+                    parameterTypes[1].getSimpleName(),
                     endsWith("Request")
                 );
             } else {
                 assertThat(
                     "the first parameter to method [" + method + "] is the wrong type",
-                    method.getParameterTypes()[0].getSimpleName(),
+                    parameterTypes[0].getSimpleName(),
                     endsWith("Request")
                 );
                 assertThat(
                     "the second parameter to method [" + method + "] is the wrong type",
-                    method.getParameterTypes()[1],
+                    parameterTypes[1],
                     equalTo(RequestOptions.class)
                 );
             }
@@ -1028,39 +1034,40 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         );
         assertThat("async method [" + method + "] should return Cancellable", method.getReturnType(), equalTo(Cancellable.class));
         assertEquals("async method [" + method + "] should not throw any exceptions", 0, method.getExceptionTypes().length);
+        final Class<?>[] parameterTypes = method.getParameterTypes();
         if (APIS_WITHOUT_REQUEST_OBJECT.contains(apiName.replaceAll("_async$", ""))) {
-            assertEquals(2, method.getParameterTypes().length);
-            assertThat(method.getParameterTypes()[0], equalTo(RequestOptions.class));
-            assertThat(method.getParameterTypes()[1], equalTo(ActionListener.class));
+            assertEquals(2, parameterTypes.length);
+            assertThat(parameterTypes[0], equalTo(RequestOptions.class));
+            assertThat(parameterTypes[1], equalTo(ActionListener.class));
         } else {
-            assertEquals("async method [" + method + "] has the wrong number of arguments", 3, method.getParameterTypes().length);
+            assertEquals("async method [" + method + "] has the wrong number of arguments", 3, method.getParameterCount());
             // This is no longer true for all methods. Some methods can contain these 2 args backwards because of deprecation
-            if (method.getParameterTypes()[0].equals(RequestOptions.class)) {
+            if (parameterTypes[0].equals(RequestOptions.class)) {
                 assertThat(
                     "the first parameter to async method [" + method + "] should be a request type",
-                    method.getParameterTypes()[0],
+                    parameterTypes[0],
                     equalTo(RequestOptions.class)
                 );
                 assertThat(
                     "the second parameter to async method [" + method + "] is the wrong type",
-                    method.getParameterTypes()[1].getSimpleName(),
+                    parameterTypes[1].getSimpleName(),
                     endsWith("Request")
                 );
             } else {
                 assertThat(
                     "the first parameter to async method [" + method + "] should be a request type",
-                    method.getParameterTypes()[0].getSimpleName(),
+                    parameterTypes[0].getSimpleName(),
                     endsWith("Request")
                 );
                 assertThat(
                     "the second parameter to async method [" + method + "] is the wrong type",
-                    method.getParameterTypes()[1],
+                    parameterTypes[1],
                     equalTo(RequestOptions.class)
                 );
             }
             assertThat(
                 "the third parameter to async method [" + method + "] is the wrong type",
-                method.getParameterTypes()[2],
+                parameterTypes[2],
                 equalTo(ActionListener.class)
             );
         }
@@ -1073,16 +1080,17 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         ClientYamlSuiteRestSpec restSpec
     ) {
         String methodName = extractMethodName(apiName);
+        final Class<?>[] parameterTypes = method.getParameterTypes();
         assertTrue("submit task method [" + method.getName() + "] doesn't have corresponding sync method", methods.containsKey(methodName));
-        assertEquals("submit task method [" + method + "] has the wrong number of arguments", 2, method.getParameterTypes().length);
+        assertEquals("submit task method [" + method + "] has the wrong number of arguments", 2, method.getParameterCount());
         assertThat(
             "the first parameter to submit task method [" + method + "] is the wrong type",
-            method.getParameterTypes()[0].getSimpleName(),
+            parameterTypes[0].getSimpleName(),
             endsWith("Request")
         );
         assertThat(
             "the second parameter to submit task method [" + method + "] is the wrong type",
-            method.getParameterTypes()[1],
+            parameterTypes[1],
             equalTo(RequestOptions.class)
         );
 
@@ -1141,6 +1149,6 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
     }
 
     private static StatusLine newStatusLine(RestStatus restStatus) {
-        return new BasicStatusLine(HTTP_PROTOCOL, restStatus.getStatus(), restStatus.name());
+        return new StatusLine(HTTP_PROTOCOL, restStatus.getStatus(), restStatus.name());
     }
 }

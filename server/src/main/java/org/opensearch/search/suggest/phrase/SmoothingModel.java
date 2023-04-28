@@ -34,13 +34,18 @@ package org.opensearch.search.suggest.phrase;
 
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.NamedWriteable;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.suggest.phrase.WordScorer.WordScorerFactory;
 
 import java.io.IOException;
 
+/**
+ * Smooths the scoring calculation
+ *
+ * @opensearch.internal
+ */
 public abstract class SmoothingModel implements NamedWriteable, ToXContentFragment {
 
     @Override

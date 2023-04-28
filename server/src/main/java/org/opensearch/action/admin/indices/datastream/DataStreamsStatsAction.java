@@ -56,8 +56,8 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.shard.IndexShard;
@@ -78,6 +78,11 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.stream.Stream;
 
+/**
+ * Transport action for retrieving datastream stats
+ *
+ * @opensearch.internal
+ */
 public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Response> {
 
     public static final DataStreamsStatsAction INSTANCE = new DataStreamsStatsAction();
@@ -87,6 +92,11 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         super(NAME, DataStreamsStatsAction.Response::new);
     }
 
+    /**
+     * Request for Data Streams Stats
+     *
+     * @opensearch.internal
+     */
     public static class Request extends BroadcastRequest<Request> {
         public Request() {
             super((String[]) null);
@@ -97,6 +107,11 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         }
     }
 
+    /**
+     * Response for Data Streams Stats
+     *
+     * @opensearch.internal
+     */
     public static class Response extends BroadcastResponse {
         private final int dataStreamCount;
         private final int backingIndices;
@@ -198,6 +213,11 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         }
     }
 
+    /**
+     * The Data Streams Stats container
+     *
+     * @opensearch.internal
+     */
     public static class DataStreamStats implements ToXContentObject, Writeable {
         private final String dataStream;
         private final int backingIndices;
@@ -289,6 +309,11 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         }
     }
 
+    /**
+     * Per Shard Data Stream stats
+     *
+     * @opensearch.internal
+     */
     public static class DataStreamShardStats implements Writeable {
         private final ShardRouting shardRouting;
         private final StoreStats storeStats;
@@ -326,12 +351,22 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         }
     }
 
+    /**
+     * Aggregated data Stream stats
+     *
+     * @opensearch.internal
+     */
     private static class AggregatedStats {
         Set<String> backingIndices = new HashSet<>();
         long storageBytes = 0L;
         long maxTimestamp = 0L;
     }
 
+    /**
+     * Transport Action for Data Stream Stats
+     *
+     * @opensearch.internal
+     */
     public static class TransportAction extends TransportBroadcastByNodeAction<Request, Response, DataStreamShardStats> {
 
         private final ClusterService clusterService;

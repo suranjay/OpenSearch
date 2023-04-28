@@ -56,8 +56,8 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.Index;
@@ -248,10 +248,10 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
             assert serviceHolderWithNoType == null;
             // we initialize the serviceHolder and serviceHolderWithNoType just once, but need some
             // calls to the randomness source during its setup. In order to not mix these calls with
-            // the randomness source that is later used in the test method, we use the master seed during
+            // the randomness source that is later used in the test method, we use the cluster-manager seed during
             // this setup
-            long masterSeed = SeedUtils.parseSeed(RandomizedTest.getContext().getRunnerSeedAsString());
-            RandomizedTest.getContext().runWithPrivateRandomness(masterSeed, (Callable<Void>) () -> {
+            long clusterManagerSeed = SeedUtils.parseSeed(RandomizedTest.getContext().getRunnerSeedAsString());
+            RandomizedTest.getContext().runWithPrivateRandomness(clusterManagerSeed, (Callable<Void>) () -> {
                 serviceHolder = new ServiceHolder(
                     nodeSettings,
                     createTestIndexSettings(),
@@ -369,12 +369,9 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
             boolean registerType
         ) throws IOException {
             this.nowInMillis = nowInMillis;
-            Environment env = InternalSettingsPreparer.prepareEnvironment(
-                nodeSettings,
-                emptyMap(),
-                null,
-                () -> { throw new AssertionError("node.name must be set"); }
-            );
+            Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings, emptyMap(), null, () -> {
+                throw new AssertionError("node.name must be set");
+            });
             PluginsService pluginsService;
             pluginsService = new PluginsService(nodeSettings, null, env.modulesDir(), env.pluginsDir(), plugins);
 

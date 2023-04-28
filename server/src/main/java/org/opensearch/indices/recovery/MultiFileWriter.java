@@ -44,6 +44,7 @@ import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.transport.Transports;
 
 import java.io.IOException;
@@ -56,9 +57,14 @@ import java.util.PriorityQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * A multi file writer utility for recovery
+ *
+ * @opensearch.internal
+ */
 public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
-    public MultiFileWriter(Store store, RecoveryState.Index indexState, String tempFilePrefix, Logger logger, Runnable ensureOpen) {
+    public MultiFileWriter(Store store, ReplicationLuceneIndex indexState, String tempFilePrefix, Logger logger, Runnable ensureOpen) {
         super("multi_file_writer");
         this.store = store;
         this.indexState = indexState;
@@ -71,7 +77,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Logger logger;
     private final Store store;
-    private final RecoveryState.Index indexState;
+    private final ReplicationLuceneIndex indexState;
     private final String tempFilePrefix;
 
     private final ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
@@ -150,7 +156,10 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
                 + temporaryFileName
                 + "] in "
                 + Arrays.toString(store.directory().listAll());
-            store.directory().sync(Collections.singleton(temporaryFileName));
+            // With Segment Replication, we will fsync after a full commit has been received.
+            if (store.indexSettings().isSegRepEnabled() == false) {
+                store.directory().sync(Collections.singleton(temporaryFileName));
+            }
             IndexOutput remove = removeOpenIndexOutputs(name);
             assert remove == null || remove == indexOutput; // remove maybe null if we got finished
         }
@@ -193,6 +202,11 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         store.renameTempFilesSafe(tempFileNames);
     }
 
+    /**
+     * A file chunk
+     *
+     * @opensearch.internal
+     */
     static final class FileChunk {
         final StoreFileMetadata md;
         final BytesReference content;

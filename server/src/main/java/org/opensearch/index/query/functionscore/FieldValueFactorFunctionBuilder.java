@@ -39,8 +39,8 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.opensearch.common.lucene.search.function.ScoreFunction;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.QueryShardContext;
@@ -52,6 +52,8 @@ import java.util.Objects;
 /**
  * Builder to construct {@code field_value_factor} functions for a function
  * score query.
+ *
+ * @opensearch.internal
  */
 public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldValueFactorFunctionBuilder> {
     public static final String NAME = "field_value_factor";

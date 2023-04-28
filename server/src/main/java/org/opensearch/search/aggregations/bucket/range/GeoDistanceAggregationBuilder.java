@@ -32,17 +32,17 @@
 
 package org.opensearch.search.aggregations.bucket.range;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.geo.GeoDistance;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.DistanceUnit;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParser.Token;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.common.xcontent.XContentParserUtils;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.AggregationBuilder;
@@ -65,6 +65,11 @@ import static org.opensearch.search.aggregations.bucket.range.RangeAggregator.Ra
 import static org.opensearch.search.aggregations.bucket.range.RangeAggregator.Range.KEY_FIELD;
 import static org.opensearch.search.aggregations.bucket.range.RangeAggregator.Range.TO_FIELD;
 
+/**
+ * Aggregation Builder for geo_distance agg
+ *
+ * @opensearch.internal
+ */
 public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilder<GeoDistanceAggregationBuilder> {
     public static final String NAME = "geo_distance";
     public static final ValuesSourceRegistry.RegistryKey<GeoDistanceAggregatorSupplier> REGISTRY_KEY =
@@ -116,6 +121,11 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         return builder;
     }
 
+    /**
+     * Range for a geo distance agg
+     *
+     * @opensearch.internal
+     */
     public static class Range extends RangeAggregator.Range {
         public Range(String key, Double from, Double to) {
             super(key(key, from, to), from == null ? 0 : from, to);

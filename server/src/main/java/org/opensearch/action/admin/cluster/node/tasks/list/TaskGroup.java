@@ -32,8 +32,8 @@
 
 package org.opensearch.action.admin.cluster.node.tasks.list;
 
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.tasks.TaskInfo;
 
 import java.io.IOException;
@@ -44,6 +44,8 @@ import java.util.stream.Collectors;
 
 /**
  * Information about a currently running task and all its subtasks.
+ *
+ * @opensearch.internal
  */
 public class TaskGroup implements ToXContentObject {
 
@@ -60,6 +62,11 @@ public class TaskGroup implements ToXContentObject {
         return new Builder(taskInfo);
     }
 
+    /**
+     * Builder for the Task Group
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
         private TaskInfo taskInfo;
         private List<Builder> childTasks;

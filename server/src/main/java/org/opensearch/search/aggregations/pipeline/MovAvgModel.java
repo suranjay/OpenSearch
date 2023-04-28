@@ -35,7 +35,7 @@ package org.opensearch.search.aggregations.pipeline;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.ToXContentFragment;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -43,6 +43,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 
+/**
+ * Base moving average model class
+ *
+ * @opensearch.internal
+ */
 public abstract class MovAvgModel implements NamedWriteable, ToXContentFragment {
 
     /**
@@ -153,6 +158,8 @@ public abstract class MovAvgModel implements NamedWriteable, ToXContentFragment 
 
     /**
      * Abstract class which also provides some concrete parsing functionality.
+     *
+     * @opensearch.internal
      */
     public abstract static class AbstractModelParser {
         /**

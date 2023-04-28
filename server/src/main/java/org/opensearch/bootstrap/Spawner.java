@@ -33,7 +33,7 @@
 package org.opensearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.plugins.Platforms;
 import org.opensearch.plugins.PluginInfo;
@@ -51,6 +51,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Spawns native module controller processes if present. Will only work prior to a system call filter being installed.
+ *
+ * @opensearch.internal
  */
 final class Spawner implements Closeable {
 

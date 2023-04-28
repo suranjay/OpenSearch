@@ -32,7 +32,6 @@
 
 package org.opensearch.action.fieldcaps;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -44,6 +43,8 @@ import java.util.Objects;
 
 /**
  * Response for {@link TransportFieldCapabilitiesIndexAction}.
+ *
+ * @opensearch.internal
  */
 public class FieldCapabilitiesIndexResponse extends ActionResponse implements Writeable {
     private final String indexName;
@@ -60,7 +61,7 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
         super(in);
         this.indexName = in.readString();
         this.responseMap = in.readMap(StreamInput::readString, IndexFieldCapabilities::new);
-        this.canMatch = in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0) ? in.readBoolean() : true;
+        this.canMatch = in.readBoolean();
     }
 
     /**
@@ -93,9 +94,7 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(indexName);
         out.writeMap(responseMap, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            out.writeBoolean(canMatch);
-        }
+        out.writeBoolean(canMatch);
     }
 
     @Override

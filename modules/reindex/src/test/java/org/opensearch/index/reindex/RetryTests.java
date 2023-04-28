@@ -43,13 +43,13 @@ import org.opensearch.client.Client;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.Netty4Plugin;
+import org.opensearch.transport.Netty4ModulePlugin;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -84,7 +84,7 @@ public class RetryTests extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, Netty4Plugin.class);
+        return Arrays.asList(ReindexModulePlugin.class, Netty4ModulePlugin.class);
     }
 
     /**
@@ -118,18 +118,18 @@ public class RetryTests extends OpenSearchIntegTestCase {
     public void testReindexFromRemote() throws Exception {
         Function<Client, AbstractBulkByScrollRequestBuilder<?, ?>> function = client -> {
             /*
-             * Use the master node for the reindex from remote because that node
+             * Use the cluster-manager node for the reindex from remote because that node
              * doesn't have a copy of the data on it.
              */
-            NodeInfo masterNode = null;
+            NodeInfo clusterManagerNode = null;
             for (NodeInfo candidate : client.admin().cluster().prepareNodesInfo().get().getNodes()) {
-                if (candidate.getNode().isMasterNode()) {
-                    masterNode = candidate;
+                if (candidate.getNode().isClusterManagerNode()) {
+                    clusterManagerNode = candidate;
                 }
             }
-            assertNotNull(masterNode);
+            assertNotNull(clusterManagerNode);
 
-            TransportAddress address = masterNode.getInfo(HttpInfo.class).getAddress().publishAddress();
+            TransportAddress address = clusterManagerNode.getInfo(HttpInfo.class).getAddress().publishAddress();
             RemoteInfo remote = new RemoteInfo(
                 "http",
                 address.getAddress(),
@@ -206,7 +206,7 @@ public class RetryTests extends OpenSearchIntegTestCase {
         assertFalse(initialBulkResponse.buildFailureMessage(), initialBulkResponse.hasFailures());
         client().admin().indices().prepareRefresh("source").get();
 
-        AbstractBulkByScrollRequestBuilder<?, ?> builder = request.apply(internalCluster().masterClient());
+        AbstractBulkByScrollRequestBuilder<?, ?> builder = request.apply(internalCluster().clusterManagerClient());
         // Make sure we use more than one batch so we have to scroll
         builder.source().setSize(DOC_COUNT / randomIntBetween(2, 10));
 
@@ -262,8 +262,8 @@ public class RetryTests extends OpenSearchIntegTestCase {
      */
     private BulkByScrollTask.Status taskStatus(String action) {
         /*
-         * We always use the master client because we always start the test requests on the
-         * master. We do this simply to make sure that the test request is not started on the
+         * We always use the cluster-manager client because we always start the test requests on the
+         * cluster-manager. We do this simply to make sure that the test request is not started on the
          * node who's queue we're manipulating.
          */
         ListTasksResponse response = client().admin().cluster().prepareListTasks().setActions(action).setDetailed(true).get();

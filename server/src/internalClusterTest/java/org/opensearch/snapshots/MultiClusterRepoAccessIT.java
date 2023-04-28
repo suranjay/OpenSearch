@@ -33,7 +33,7 @@ package org.opensearch.snapshots;
 
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.snapshots.mockstore.MockRepository;
@@ -107,13 +107,13 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testConcurrentDeleteFromOtherCluster() throws InterruptedException {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoNameOnFirstCluster = "test-repo";
         final String repoNameOnSecondCluster = randomBoolean() ? "test-repo" : "other-repo";
         createRepository(repoNameOnFirstCluster, "fs", repoPath);
 
-        secondCluster.startMasterOnlyNode();
+        secondCluster.startClusterManagerOnlyNode();
         secondCluster.startDataOnlyNode();
         secondCluster.client()
             .admin()

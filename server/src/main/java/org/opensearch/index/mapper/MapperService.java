@@ -35,8 +35,7 @@ package org.opensearch.index.mapper;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
-import org.opensearch.Assertions;
-import org.opensearch.LegacyESVersion;
+import org.opensearch.core.Assertions;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
@@ -48,10 +47,10 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.AbstractIndexComponent;
 import org.opensearch.index.IndexSettings;
@@ -87,14 +86,21 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * The core field mapping service
+ *
+ * @opensearch.internal
+ */
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
     /**
      * The reason why a mapping is being merged.
+     *
+     * @opensearch.internal
      */
     public enum MergeReason {
         /**
-         * Pre-flight check before sending a mapping update to the master
+         * Pre-flight check before sending a mapping update to the cluster-manager
          */
         MAPPING_UPDATE_PREFLIGHT,
         /**
@@ -221,8 +227,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.mapperRegistry = mapperRegistry;
         this.idFieldDataEnabled = idFieldDataEnabled;
 
-        if (INDEX_MAPPER_DYNAMIC_SETTING.exists(indexSettings.getSettings())
-            && indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_0_0)) {
+        if (INDEX_MAPPER_DYNAMIC_SETTING.exists(indexSettings.getSettings())) {
             throw new IllegalArgumentException("Setting " + INDEX_MAPPER_DYNAMIC_SETTING.getKey() + " was removed after version 6.0.0");
         }
     }
@@ -303,7 +308,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
 
             // refresh mapping can happen when the parsing/merging of the mapping from the metadata doesn't result in the same
-            // mapping, in this case, we send to the master to refresh its own version of the mappings (to conform with the
+            // mapping, in this case, we send to the cluster-manager to refresh its own version of the mappings (to conform with the
             // merge version of it, which it does when refreshing the mappings), and warn log it.
             if (documentMapper().mappingSource().equals(incomingMappingSource) == false) {
                 logger.debug(
@@ -343,7 +348,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                         + "to be the same as new mapping ["
                         + newSource
                         + "]";
-                    final CompressedXContent mapperSource = new CompressedXContent(Strings.toString(mapper));
+                    final CompressedXContent mapperSource = new CompressedXContent(Strings.toString(XContentType.JSON, mapper));
                     assert currentSource.equals(mapperSource) : "expected current mapping ["
                         + currentSource
                         + "] for type ["
@@ -576,11 +581,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Given the full name of a field, returns its {@link MappedFieldType}.
      */
     public MappedFieldType fieldType(String fullName) {
-        if (fullName.equals(TypeFieldMapper.NAME)) {
-            String type = mapper == null ? null : mapper.type();
-            return new TypeFieldMapper.TypeFieldType(type);
-        }
-
         return this.mapper == null ? null : this.mapper.fieldTypes().get(fullName);
     }
 
@@ -672,7 +672,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * this method considers all mapper plugins
      */
     public boolean isMetadataField(String field) {
-        return mapperRegistry.isMetadataField(indexVersionCreated, field);
+        return mapperRegistry.isMetadataField(field);
     }
 
     /**

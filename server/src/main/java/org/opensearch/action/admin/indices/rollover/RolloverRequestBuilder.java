@@ -33,13 +33,21 @@ package org.opensearch.action.admin.indices.rollover;
 
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.ActiveShardCount;
-import org.opensearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 
-public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<RolloverRequest, RolloverResponse, RolloverRequestBuilder> {
+/**
+ * Transport request to rollover an index.
+ *
+ * @opensearch.internal
+ */
+public class RolloverRequestBuilder extends ClusterManagerNodeOperationRequestBuilder<
+    RolloverRequest,
+    RolloverResponse,
+    RolloverRequestBuilder> {
     public RolloverRequestBuilder(OpenSearchClient client, RolloverAction action) {
         super(client, action, new RolloverRequest());
     }

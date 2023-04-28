@@ -37,7 +37,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.MapperService.MergeReason;
@@ -149,7 +149,7 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
         );
 
         assertThat(doc.docs().size(), equalTo(2));
-        assertThat(doc.docs().get(0).get(TypeFieldMapper.NAME), equalTo(nested1Mapper.nestedTypePathAsString()));
+        assertThat(doc.docs().get(0).get(NestedPathFieldMapper.NAME), equalTo(nested1Mapper.nestedTypePath()));
         assertThat(doc.docs().get(0).get("nested1.field1"), equalTo("1"));
         assertThat(doc.docs().get(0).get("nested1.field2"), equalTo("2"));
 
@@ -180,10 +180,10 @@ public class NestedObjectMapperTests extends OpenSearchSingleNodeTestCase {
         );
 
         assertThat(doc.docs().size(), equalTo(3));
-        assertThat(doc.docs().get(0).get(TypeFieldMapper.NAME), equalTo(nested1Mapper.nestedTypePathAsString()));
+        assertThat(doc.docs().get(0).get(NestedPathFieldMapper.NAME), equalTo(nested1Mapper.nestedTypePath()));
         assertThat(doc.docs().get(0).get("nested1.field1"), equalTo("1"));
         assertThat(doc.docs().get(0).get("nested1.field2"), equalTo("2"));
-        assertThat(doc.docs().get(1).get(TypeFieldMapper.NAME), equalTo(nested1Mapper.nestedTypePathAsString()));
+        assertThat(doc.docs().get(1).get(NestedPathFieldMapper.NAME), equalTo(nested1Mapper.nestedTypePath()));
         assertThat(doc.docs().get(1).get("nested1.field1"), equalTo("3"));
         assertThat(doc.docs().get(1).get("nested1.field2"), equalTo("4"));
 

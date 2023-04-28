@@ -31,14 +31,16 @@
 
 package org.opensearch.search.aggregations;
 
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentFragment;
 
 import java.util.Map;
 
 /**
  * An aggregation. Extends {@link ToXContent} as it makes it easier to print out its content.
+ *
+ * @opensearch.internal
  */
 public interface Aggregation extends ToXContentFragment {
 

@@ -35,7 +35,8 @@ package org.opensearch.action.index;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
 
@@ -48,6 +49,8 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedT
  *
  * @see IndexRequest
  * @see org.opensearch.client.Client#index(IndexRequest)
+ *
+ * @opensearch.internal
  */
 public class IndexResponse extends DocWriteResponse {
 
@@ -87,7 +90,7 @@ public class IndexResponse extends DocWriteResponse {
         builder.append(",result=").append(getResult().getLowercase());
         builder.append(",seqNo=").append(getSeqNo());
         builder.append(",primaryTerm=").append(getPrimaryTerm());
-        builder.append(",shards=").append(Strings.toString(getShardInfo()));
+        builder.append(",shards=").append(Strings.toString(XContentType.JSON, getShardInfo()));
         return builder.append("]").toString();
     }
 
@@ -112,6 +115,8 @@ public class IndexResponse extends DocWriteResponse {
      * Builder class for {@link IndexResponse}. This builder is usually used during xcontent parsing to
      * temporarily store the parsed values, then the {@link Builder#build()} method is called to
      * instantiate the {@link IndexResponse}.
+     *
+     * @opensearch.internal
      */
     public static class Builder extends DocWriteResponse.Builder {
         @Override

@@ -39,10 +39,15 @@ import org.opensearch.common.compress.CompressorFactory;
 import org.opensearch.common.io.stream.InputStreamStreamInput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 
 import java.io.IOException;
 
+/**
+ * Logs transport activity
+ *
+ * @opensearch.internal
+ */
 public final class TransportLogger {
 
     private static final Logger logger = LogManager.getLogger(TransportLogger.class);
@@ -107,13 +112,7 @@ public final class TransportLogger {
                 sb.append(", request id: ").append(requestId);
                 sb.append(", type: ").append(type);
                 sb.append(", version: ").append(version);
-
-                if (version.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-                    sb.append(", header size: ").append(streamInput.readInt()).append('B');
-                } else {
-                    streamInput = decompressingStream(status, streamInput);
-                    InboundHandler.assertRemoteVersion(streamInput, version);
-                }
+                sb.append(", header size: ").append(streamInput.readInt()).append('B');
 
                 // read and discard headers
                 ThreadContext.readHeadersFromStream(streamInput);

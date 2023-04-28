@@ -33,9 +33,10 @@
 package org.opensearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-import org.apache.http.Header;
-import org.apache.http.HttpHost;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+
+import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpHost;
 import org.junit.After;
 
 import java.io.IOException;
@@ -297,7 +298,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
     }
 
     public void testSetNodes() throws Exception {
-        RestClient restClient = createRestClient(NodeSelector.SKIP_DEDICATED_MASTERS);
+        RestClient restClient = createRestClient(NodeSelector.SKIP_DEDICATED_CLUSTER_MANAGERS);
         List<Node> newNodes = new ArrayList<>(nodes.size());
         for (int i = 0; i < nodes.size(); i++) {
             Node.Roles roles = i == 0

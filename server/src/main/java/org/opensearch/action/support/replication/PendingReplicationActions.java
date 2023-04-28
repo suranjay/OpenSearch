@@ -35,6 +35,7 @@ package org.opensearch.action.support.replication;
 import org.opensearch.action.support.RetryableAction;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.index.shard.PrimaryShardClosedException;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.shard.ReplicationGroup;
 import org.opensearch.index.shard.ShardId;
@@ -45,7 +46,13 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
+/**
+ * Pending Replication Actions
+ *
+ * @opensearch.internal
+ */
 public class PendingReplicationActions implements Consumer<ReplicationGroup>, Releasable {
 
     private final Map<String, Set<RetryableAction<?>>> onGoingReplicationActions = ConcurrentCollections.newConcurrentMap();
@@ -116,7 +123,7 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
             }
         }
 
-        cancelActions(toCancel, "Replica left ReplicationGroup");
+        cancelActions(toCancel, () -> new IndexShardClosedException(shardId, "Replica left ReplicationGroup"));
     }
 
     @Override
@@ -124,15 +131,11 @@ public class PendingReplicationActions implements Consumer<ReplicationGroup>, Re
         ArrayList<Set<RetryableAction<?>>> toCancel = new ArrayList<>(onGoingReplicationActions.values());
         onGoingReplicationActions.clear();
 
-        cancelActions(toCancel, "Primary closed.");
+        cancelActions(toCancel, () -> new PrimaryShardClosedException(shardId));
     }
 
-    private void cancelActions(ArrayList<Set<RetryableAction<?>>> toCancel, String message) {
+    private void cancelActions(ArrayList<Set<RetryableAction<?>>> toCancel, Supplier<IndexShardClosedException> exceptionSupplier) {
         threadPool.executor(ThreadPool.Names.GENERIC)
-            .execute(
-                () -> toCancel.stream()
-                    .flatMap(Collection::stream)
-                    .forEach(action -> action.cancel(new IndexShardClosedException(shardId, message)))
-            );
+            .execute(() -> toCancel.stream().flatMap(Collection::stream).forEach(action -> action.cancel(exceptionSupplier.get())));
     }
 }

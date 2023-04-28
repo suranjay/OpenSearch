@@ -35,10 +35,10 @@ package org.opensearch.search.aggregations.bucket.terms;
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedSupplier;
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParserUtils;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.Aggregations;
@@ -52,6 +52,11 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * A significant terms result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregation<ParsedSignificantTerms.ParsedBucket>
     implements
         SignificantTerms {
@@ -123,6 +128,11 @@ public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregatio
         );
     }
 
+    /**
+     * Parsed bucket for significant values
+     *
+     * @opensearch.internal
+     */
     public abstract static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements SignificantTerms.Bucket {
 
         protected long subsetDf;

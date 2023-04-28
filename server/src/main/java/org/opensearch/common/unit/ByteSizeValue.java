@@ -40,19 +40,26 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.logging.LogConfigurator;
 import org.opensearch.common.network.NetworkService;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
+/**
+ * A byte size value
+ *
+ * @opensearch.internal
+ */
 public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXContentFragment {
 
     /**
      * We have to lazy initialize the deprecation logger as otherwise a static logger here would be constructed before logging is configured
      * leading to a runtime failure (see {@link LogConfigurator#checkErrorListener()} ). The premature construction would come from any
      * {@link ByteSizeValue} object constructed in, for example, settings in {@link NetworkService}.
+     *
+     * @opensearch.internal
      */
     static class DeprecationLoggerHolder {
         static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ByteSizeValue.class);

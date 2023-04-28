@@ -35,13 +35,15 @@ package org.opensearch.cluster.coordination;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 /**
  * Class encapsulating stats about the PendingClusterStatsQueue
+ *
+ * @opensearch.internal
  */
 public class PendingClusterStateStats implements Writeable, ToXContentFragment {
 
@@ -90,6 +92,11 @@ public class PendingClusterStateStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Fields for parsing and toXContent
+     *
+     * @opensearch.internal
+     */
     static final class Fields {
         static final String QUEUE = "cluster_state_queue";
         static final String TOTAL = "total";

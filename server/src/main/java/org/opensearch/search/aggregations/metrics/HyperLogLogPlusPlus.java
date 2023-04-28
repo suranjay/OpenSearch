@@ -60,6 +60,8 @@ import java.nio.ByteOrder;
  * to the HyperLogLog algorithm and then this is used.
  *
  * It supports storing several HyperLogLogPlusPlus structures which are identified by a bucket number.
+ *
+ * @opensearch.internal
  */
 public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
@@ -223,16 +225,20 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
     }
 
+    /**
+     * The hyper log log
+     *
+     * @opensearch.internal
+     */
     private static class HyperLogLog extends AbstractHyperLogLog implements Releasable {
         private final BigArrays bigArrays;
         private final HyperLogLogIterator iterator;
         // array for holding the runlens.
         private ByteArray runLens;
 
-
         HyperLogLog(BigArrays bigArrays, long initialBucketCount, int precision) {
             super(precision);
-            this.runLens =  bigArrays.newByteArray(initialBucketCount << precision);
+            this.runLens = bigArrays.newByteArray(initialBucketCount << precision);
             this.bigArrays = bigArrays;
             this.iterator = new HyperLogLogIterator(this, precision, m);
         }
@@ -267,6 +273,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
     }
 
+    /**
+     * Iterator for hyper log log
+     *
+     * @opensearch.internal
+     */
     private static class HyperLogLogIterator implements AbstractHyperLogLog.RunLenIterator {
 
         private final HyperLogLog hll;
@@ -302,6 +313,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
     }
 
+    /**
+     * The plus plus
+     *
+     * @opensearch.internal
+     */
     private static class LinearCounting extends AbstractLinearCounting implements Releasable {
 
         protected final int threshold;
@@ -395,6 +411,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
     }
 
+    /**
+     * The plus plus iterator
+     *
+     * @opensearch.internal
+     */
     private static class LinearCountingIterator implements AbstractLinearCounting.HashesIterator {
 
         private final LinearCounting lc;

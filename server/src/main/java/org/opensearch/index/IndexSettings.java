@@ -32,11 +32,11 @@
 package org.opensearch.index;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.MergePolicy;
-import org.opensearch.LegacyESVersion;
+import org.apache.lucene.sandbox.index.MergeOnFlushMergePolicy;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.Strings;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
@@ -45,22 +45,29 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.node.Node;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
+import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
+import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
 
 /**
  * This class encapsulates all index level settings and handles settings updates.
@@ -68,8 +75,13 @@ import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIEL
  * the latest updated settings instance. Classes that need to listen to settings updates can register
  * a settings consumer at index creation via {@link IndexModule#addSettingsUpdateConsumer(Setting, Consumer)} that will
  * be called for each settings update.
+ *
+ * @opensearch.internal
  */
 public final class IndexSettings {
+    private static final String MERGE_ON_FLUSH_DEFAULT_POLICY = "default";
+    private static final String MERGE_ON_FLUSH_MERGE_POLICY = "merge-on-flush";
+
     public static final Setting<List<String>> DEFAULT_FIELD_SETTING = Setting.listSetting(
         "index.query.default_field",
         Collections.singletonList("*"),
@@ -449,6 +461,17 @@ public final class IndexSettings {
     );
 
     /**
+     * The maximum number of slices allowed in a search request with PIT
+     */
+    public static final Setting<Integer> MAX_SLICES_PER_PIT = Setting.intSetting(
+        "index.max_slices_per_pit",
+        1024,
+        1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
      * The maximum length of regex string allowed in a regexp query.
      */
     public static final Setting<Integer> MAX_REGEX_LENGTH_SETTING = Setting.intSetting(
@@ -512,16 +535,47 @@ public final class IndexSettings {
     public static final Setting<TimeValue> INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME = Setting.timeSetting(
         "index.merge_on_flush.max_full_flush_merge_wait_time",
         new TimeValue(10, TimeUnit.SECONDS),
-        new TimeValue(0, TimeUnit.MILLISECONDS),
+        new TimeValue(1, TimeUnit.MILLISECONDS),
         Property.Dynamic,
         Property.IndexScope
     );
 
     public static final Setting<Boolean> INDEX_MERGE_ON_FLUSH_ENABLED = Setting.boolSetting(
         "index.merge_on_flush.enabled",
-        false,
+        true, /* https://issues.apache.org/jira/browse/LUCENE-10078 */
         Property.IndexScope,
         Property.Dynamic
+    );
+
+    public static final Setting<String> INDEX_MERGE_ON_FLUSH_POLICY = Setting.simpleString(
+        "index.merge_on_flush.policy",
+        MERGE_ON_FLUSH_DEFAULT_POLICY,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    public static final Setting<String> SEARCHABLE_SNAPSHOT_REPOSITORY = Setting.simpleString(
+        "index.searchable_snapshot.repository",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
+    public static final Setting<String> SEARCHABLE_SNAPSHOT_ID_UUID = Setting.simpleString(
+        "index.searchable_snapshot.snapshot_id.uuid",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
+    public static final Setting<String> SEARCHABLE_SNAPSHOT_ID_NAME = Setting.simpleString(
+        "index.searchable_snapshot.snapshot_id.name",
+        Property.IndexScope,
+        Property.InternalIndex
+    );
+
+    public static final Setting<String> SEARCHABLE_SNAPSHOT_INDEX_ID = Setting.simpleString(
+        "index.searchable_snapshot.index.id",
+        Property.IndexScope,
+        Property.InternalIndex
     );
 
     private final Index index;
@@ -530,6 +584,15 @@ public final class IndexSettings {
     private final String nodeName;
     private final Settings nodeSettings;
     private final int numberOfShards;
+    private final ReplicationType replicationType;
+    private final boolean isRemoteStoreEnabled;
+    private final boolean isRemoteTranslogStoreEnabled;
+    private final TimeValue remoteTranslogUploadBufferInterval;
+    private final String remoteStoreTranslogRepository;
+    private final String remoteStoreRepository;
+    private final boolean isRemoteSnapshot;
+    private Version extendedCompatibilitySnapshotVersion;
+
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
     private volatile IndexMetadata indexMetadata;
@@ -590,6 +653,7 @@ public final class IndexSettings {
     private volatile long mappingTotalFieldsLimit;
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
+    private volatile boolean searchSegmentOrderReversed;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -599,7 +663,10 @@ public final class IndexSettings {
      * The maximum number of slices allowed in a scroll request.
      */
     private volatile int maxSlicesPerScroll;
-
+    /**
+     * The maximum number of slices allowed in a PIT request.
+     */
+    private volatile int maxSlicesPerPit;
     /**
      * The maximum length of regex string allowed in a regexp query.
      */
@@ -613,6 +680,10 @@ public final class IndexSettings {
      * Is merge of flush enabled or not
      */
     private volatile boolean mergeOnFlushEnabled;
+    /**
+     * Specialized merge-on-flush policy if provided
+     */
+    private volatile UnaryOperator<MergePolicy> mergeOnFlushPolicy;
 
     /**
      * Returns the default search fields for this index.
@@ -681,6 +752,28 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
+        if (FeatureFlags.isEnabled(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL)
+            && indexMetadata.isSystem() == false
+            && settings.get(IndexMetadata.SETTING_REPLICATION_TYPE) == null) {
+            replicationType = IndicesService.CLUSTER_REPLICATION_TYPE_SETTING.get(settings);
+        } else {
+            replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
+        }
+        isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
+        isRemoteTranslogStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false);
+        remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
+        remoteTranslogUploadBufferInterval = settings.getAsTime(
+            IndexMetadata.SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL,
+            TimeValue.timeValueMillis(100)
+        );
+        remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY);
+        isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this.settings);
+
+        if (isRemoteSnapshot && FeatureFlags.isEnabled(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)) {
+            extendedCompatibilitySnapshotVersion = SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
+        } else {
+            extendedCompatibilitySnapshotVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
+        }
 
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
@@ -712,6 +805,7 @@ public final class IndexSettings {
         maxShingleDiff = scopedSettings.get(MAX_SHINGLE_DIFF_SETTING);
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
         maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
+        maxSlicesPerPit = scopedSettings.get(MAX_SLICES_PER_PIT);
         maxAnalyzedOffset = scopedSettings.get(MAX_ANALYZED_OFFSET_SETTING);
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
@@ -728,6 +822,7 @@ public final class IndexSettings {
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         maxFullFlushMergeWaitTime = scopedSettings.get(INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME);
         mergeOnFlushEnabled = scopedSettings.get(INDEX_MERGE_ON_FLUSH_ENABLED);
+        setMergeOnFlushPolicy(scopedSettings.get(INDEX_MERGE_ON_FLUSH_POLICY));
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(
@@ -784,6 +879,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_ANALYZED_OFFSET_SETTING, this::setHighlightMaxAnalyzedOffset);
         scopedSettings.addSettingsUpdateConsumer(MAX_TERMS_COUNT_SETTING, this::setMaxTermsCount);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
+        scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_PIT, this::setMaxSlicesPerPit);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultFields);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_IDLE_AFTER, this::setSearchIdleAfter);
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
@@ -799,6 +895,11 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING, this::setMappingFieldNameLengthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME, this::setMaxFullFlushMergeWaitTime);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_ENABLED, this::setMergeOnFlushEnabled);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_POLICY, this::setMergeOnFlushPolicy);
+    }
+
+    private void setSearchSegmentOrderReversed(boolean reversed) {
+        this.searchSegmentOrderReversed = reversed;
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -869,7 +970,7 @@ public final class IndexSettings {
      * Returns <code>true</code> if the index has a custom data path
      */
     public boolean hasCustomDataPath() {
-        return Strings.isNotEmpty(customDataPath());
+        return !Strings.isEmpty(customDataPath());
     }
 
     /**
@@ -916,11 +1017,67 @@ public final class IndexSettings {
     }
 
     /**
+     * Returns true if segment replication is enabled on the index.
+     */
+    public boolean isSegRepEnabled() {
+        return ReplicationType.SEGMENT.equals(replicationType);
+    }
+
+    /**
+     * Returns if remote store is enabled for this index.
+     */
+    public boolean isRemoteStoreEnabled() {
+        return isRemoteStoreEnabled;
+    }
+
+    /**
+     * Returns if remote translog store is enabled for this index.
+     */
+    public boolean isRemoteTranslogStoreEnabled() {
+        return isRemoteTranslogStoreEnabled;
+    }
+
+    /**
+     * Returns if remote store is enabled for this index.
+     */
+    public String getRemoteStoreRepository() {
+        return remoteStoreRepository;
+    }
+
+    public String getRemoteStoreTranslogRepository() {
+        return remoteStoreTranslogRepository;
+    }
+
+    /**
+     * Returns true if this is remote/searchable snapshot
+     */
+    public boolean isRemoteSnapshot() {
+        return isRemoteSnapshot;
+    }
+
+    /**
+     * If this is a remote snapshot and the extended compatibility
+     * feature flag is enabled, this returns the minimum {@link Version}
+     * supported. In all other cases, the return value is the
+     * {@link Version#minimumIndexCompatibilityVersion()} of {@link Version#CURRENT}.
+     */
+    public Version getExtendedCompatibilitySnapshotVersion() {
+        return extendedCompatibilitySnapshotVersion;
+    }
+
+    /**
      * Returns the node settings. The settings returned from {@link #getSettings()} are a merged version of the
      * index settings and the node settings where node settings are overwritten by index settings.
      */
     public Settings getNodeSettings() {
         return nodeSettings;
+    }
+
+    /**
+     * Returns true if index level setting for leaf reverse order search optimization is enabled
+     */
+    public boolean getSearchSegmentOrderReversed() {
+        return this.searchSegmentOrderReversed;
     }
 
     /**
@@ -1003,6 +1160,15 @@ public final class IndexSettings {
     }
 
     /**
+     * Returns the translog sync/upload buffer interval when remote translog store is enabled and index setting
+     * {@code index.translog.durability} is set as {@code request}.
+     * @return the buffer interval.
+     */
+    public TimeValue getRemoteTranslogUploadBufferInterval() {
+        return remoteTranslogUploadBufferInterval;
+    }
+
+    /**
      * Returns this interval in which the shards of this index are asynchronously refreshed. {@code -1} means async refresh is disabled.
      */
     public TimeValue getRefreshInterval() {
@@ -1049,8 +1215,7 @@ public final class IndexSettings {
     }
 
     private static boolean shouldDisableTranslogRetention(Settings settings) {
-        return INDEX_SOFT_DELETES_SETTING.get(settings)
-            && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(LegacyESVersion.V_7_4_0);
+        return INDEX_SOFT_DELETES_SETTING.get(settings);
     }
 
     /**
@@ -1242,6 +1407,17 @@ public final class IndexSettings {
     }
 
     /**
+     * The maximum number of slices allowed in a PIT request.
+     */
+    public int getMaxSlicesPerPit() {
+        return maxSlicesPerPit;
+    }
+
+    private void setMaxSlicesPerPit(int value) {
+        this.maxSlicesPerPit = value;
+    }
+
+    /**
      * The maximum length of regex string allowed in a regexp query.
      */
     public int getMaxRegexLength() {
@@ -1377,5 +1553,28 @@ public final class IndexSettings {
 
     public boolean isMergeOnFlushEnabled() {
         return mergeOnFlushEnabled;
+    }
+
+    private void setMergeOnFlushPolicy(String policy) {
+        if (Strings.isEmpty(policy) || MERGE_ON_FLUSH_DEFAULT_POLICY.equalsIgnoreCase(policy)) {
+            mergeOnFlushPolicy = null;
+        } else if (MERGE_ON_FLUSH_MERGE_POLICY.equalsIgnoreCase(policy)) {
+            this.mergeOnFlushPolicy = MergeOnFlushMergePolicy::new;
+        } else {
+            throw new IllegalArgumentException(
+                "The "
+                    + IndexSettings.INDEX_MERGE_ON_FLUSH_POLICY.getKey()
+                    + " has unsupported policy specified: "
+                    + policy
+                    + ". Please use one of: "
+                    + MERGE_ON_FLUSH_DEFAULT_POLICY
+                    + ", "
+                    + MERGE_ON_FLUSH_MERGE_POLICY
+            );
+        }
+    }
+
+    public Optional<UnaryOperator<MergePolicy>> getMergeOnFlushPolicy() {
+        return Optional.ofNullable(mergeOnFlushPolicy);
     }
 }

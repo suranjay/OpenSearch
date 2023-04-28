@@ -50,11 +50,10 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
@@ -66,6 +65,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -86,31 +86,34 @@ public class ClusterStateTests extends OpenSearchTestCase {
         final DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), version);
         final DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).build();
         ClusterName name = ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
-        ClusterState noMaster1 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
-        ClusterState noMaster2 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
-        ClusterState withMaster1a = ClusterState.builder(name)
+        ClusterState noClusterManager1 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
+        ClusterState noClusterManager2 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
+        ClusterState withClusterManager1a = ClusterState.builder(name)
             .version(randomInt(5))
-            .nodes(DiscoveryNodes.builder(nodes).masterNodeId(node1.getId()))
+            .nodes(DiscoveryNodes.builder(nodes).clusterManagerNodeId(node1.getId()))
             .build();
-        ClusterState withMaster1b = ClusterState.builder(name)
+        ClusterState withClusterManager1b = ClusterState.builder(name)
             .version(randomInt(5))
-            .nodes(DiscoveryNodes.builder(nodes).masterNodeId(node1.getId()))
+            .nodes(DiscoveryNodes.builder(nodes).clusterManagerNodeId(node1.getId()))
             .build();
-        ClusterState withMaster2 = ClusterState.builder(name)
+        ClusterState withClusterManager2 = ClusterState.builder(name)
             .version(randomInt(5))
-            .nodes(DiscoveryNodes.builder(nodes).masterNodeId(node2.getId()))
+            .nodes(DiscoveryNodes.builder(nodes).clusterManagerNodeId(node2.getId()))
             .build();
 
-        // states with no master should never supersede anything
-        assertFalse(noMaster1.supersedes(noMaster2));
-        assertFalse(noMaster1.supersedes(withMaster1a));
+        // states with no cluster-manager should never supersede anything
+        assertFalse(noClusterManager1.supersedes(noClusterManager2));
+        assertFalse(noClusterManager1.supersedes(withClusterManager1a));
 
-        // states should never supersede states from another master
-        assertFalse(withMaster1a.supersedes(withMaster2));
-        assertFalse(withMaster1a.supersedes(noMaster1));
+        // states should never supersede states from another cluster-manager
+        assertFalse(withClusterManager1a.supersedes(withClusterManager2));
+        assertFalse(withClusterManager1a.supersedes(noClusterManager1));
 
-        // state from the same master compare by version
-        assertThat(withMaster1a.supersedes(withMaster1b), equalTo(withMaster1a.version() > withMaster1b.version()));
+        // state from the same cluster-manager compare by version
+        assertThat(
+            withClusterManager1a.supersedes(withClusterManager1b),
+            equalTo(withClusterManager1a.version() > withClusterManager1b.version())
+        );
     }
 
     public void testBuilderRejectsNullCustom() {
@@ -122,9 +125,9 @@ public class ClusterStateTests extends OpenSearchTestCase {
     public void testBuilderRejectsNullInCustoms() {
         final ClusterState.Builder builder = ClusterState.builder(ClusterName.DEFAULT);
         final String key = randomAlphaOfLength(10);
-        final ImmutableOpenMap.Builder<String, ClusterState.Custom> mapBuilder = ImmutableOpenMap.builder();
+        final Map<String, ClusterState.Custom> mapBuilder = new HashMap<>();
         mapBuilder.put(key, null);
-        final ImmutableOpenMap<String, ClusterState.Custom> map = mapBuilder.build();
+        final Map<String, ClusterState.Custom> map = Collections.unmodifiableMap(mapBuilder);
         assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
     }
 
@@ -146,8 +149,8 @@ public class ClusterStateTests extends OpenSearchTestCase {
                 + "  \"cluster_uuid\" : \"clusterUUID\",\n"
                 + "  \"version\" : 0,\n"
                 + "  \"state_uuid\" : \"stateUUID\",\n"
-                + "  \"master_node\" : \"masterNodeId\",\n"
-                + "  \"cluster_manager_node\" : \"masterNodeId\",\n"
+                + "  \"master_node\" : \"clusterManagerNodeId\",\n"
+                + "  \"cluster_manager_node\" : \"clusterManagerNodeId\",\n"
                 + "  \"blocks\" : {\n"
                 + "    \"global\" : {\n"
                 + "      \"1\" : {\n"
@@ -158,7 +161,8 @@ public class ClusterStateTests extends OpenSearchTestCase {
                 + "          \"read\",\n"
                 + "          \"write\",\n"
                 + "          \"metadata_read\",\n"
-                + "          \"metadata_write\"\n"
+                + "          \"metadata_write\",\n"
+                + "          \"create_index\"\n"
                 + "        ]\n"
                 + "      }\n"
                 + "    },\n"
@@ -171,7 +175,8 @@ public class ClusterStateTests extends OpenSearchTestCase {
                 + "            \"read\",\n"
                 + "            \"write\",\n"
                 + "            \"metadata_read\",\n"
-                + "            \"metadata_write\"\n"
+                + "            \"metadata_write\",\n"
+                + "            \"create_index\"\n"
                 + "          ]\n"
                 + "        }\n"
                 + "      }\n"
@@ -352,8 +357,8 @@ public class ClusterStateTests extends OpenSearchTestCase {
                 + "  \"cluster_uuid\" : \"clusterUUID\",\n"
                 + "  \"version\" : 0,\n"
                 + "  \"state_uuid\" : \"stateUUID\",\n"
-                + "  \"master_node\" : \"masterNodeId\",\n"
-                + "  \"cluster_manager_node\" : \"masterNodeId\",\n"
+                + "  \"master_node\" : \"clusterManagerNodeId\",\n"
+                + "  \"cluster_manager_node\" : \"clusterManagerNodeId\",\n"
                 + "  \"blocks\" : {\n"
                 + "    \"global\" : {\n"
                 + "      \"1\" : {\n"
@@ -364,7 +369,8 @@ public class ClusterStateTests extends OpenSearchTestCase {
                 + "          \"read\",\n"
                 + "          \"write\",\n"
                 + "          \"metadata_read\",\n"
-                + "          \"metadata_write\"\n"
+                + "          \"metadata_write\",\n"
+                + "          \"create_index\"\n"
                 + "        ]\n"
                 + "      }\n"
                 + "    },\n"
@@ -377,7 +383,8 @@ public class ClusterStateTests extends OpenSearchTestCase {
                 + "            \"read\",\n"
                 + "            \"write\",\n"
                 + "            \"metadata_read\",\n"
-                + "            \"metadata_write\"\n"
+                + "            \"metadata_write\",\n"
+                + "            \"create_index\"\n"
                 + "          ]\n"
                 + "        }\n"
                 + "      }\n"
@@ -551,8 +558,8 @@ public class ClusterStateTests extends OpenSearchTestCase {
                 + "  \"cluster_uuid\" : \"clusterUUID\",\n"
                 + "  \"version\" : 0,\n"
                 + "  \"state_uuid\" : \"stateUUID\",\n"
-                + "  \"master_node\" : \"masterNodeId\",\n"
-                + "  \"cluster_manager_node\" : \"masterNodeId\",\n"
+                + "  \"master_node\" : \"clusterManagerNodeId\",\n"
+                + "  \"cluster_manager_node\" : \"clusterManagerNodeId\",\n"
                 + "  \"blocks\" : {\n"
                 + "    \"global\" : {\n"
                 + "      \"1\" : {\n"
@@ -563,7 +570,8 @@ public class ClusterStateTests extends OpenSearchTestCase {
                 + "          \"read\",\n"
                 + "          \"write\",\n"
                 + "          \"metadata_read\",\n"
-                + "          \"metadata_write\"\n"
+                + "          \"metadata_write\",\n"
+                + "          \"create_index\"\n"
                 + "        ]\n"
                 + "      }\n"
                 + "    },\n"
@@ -576,7 +584,8 @@ public class ClusterStateTests extends OpenSearchTestCase {
                 + "            \"read\",\n"
                 + "            \"write\",\n"
                 + "            \"metadata_read\",\n"
-                + "            \"metadata_write\"\n"
+                + "            \"metadata_write\",\n"
+                + "            \"create_index\"\n"
                 + "          ]\n"
                 + "        }\n"
                 + "      }\n"
@@ -868,7 +877,7 @@ public class ClusterStateTests extends OpenSearchTestCase {
             .stateUUID("stateUUID")
             .nodes(
                 DiscoveryNodes.builder()
-                    .masterNodeId("masterNodeId")
+                    .clusterManagerNodeId("clusterManagerNodeId")
                     .add(new DiscoveryNode("nodeId1", new TransportAddress(InetAddress.getByName("127.0.0.1"), 111), Version.CURRENT))
                     .build()
             )

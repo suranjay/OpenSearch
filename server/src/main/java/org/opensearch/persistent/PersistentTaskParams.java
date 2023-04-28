@@ -34,10 +34,12 @@ package org.opensearch.persistent;
 
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.common.io.stream.VersionedNamedWriteable;
-import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.ToXContentObject;
 
 /**
  * Parameters used to start persistent task
+ *
+ * @opensearch.internal
  */
 public interface PersistentTaskParams extends VersionedNamedWriteable, ToXContentObject, ClusterState.FeatureAware {
 

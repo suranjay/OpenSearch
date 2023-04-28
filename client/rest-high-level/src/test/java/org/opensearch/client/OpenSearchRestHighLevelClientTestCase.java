@@ -32,7 +32,7 @@
 
 package org.opensearch.client;
 
-import org.apache.http.util.EntityUtils;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -51,16 +51,18 @@ import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.ingest.Pipeline;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchModule;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -324,7 +326,7 @@ public abstract class OpenSearchRestHighLevelClientTestCase extends OpenSearchRe
         });
     }
 
-    protected static Map<String, Object> toMap(Response response) throws IOException {
+    protected static Map<String, Object> toMap(Response response) throws IOException, OpenSearchParseException, ParseException {
         return XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
     }
 

@@ -33,17 +33,17 @@ package org.opensearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.network.InetAddresses;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParser.Token;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.script.Script;
 import org.opensearch.search.aggregations.AggregationBuilder;
@@ -65,6 +65,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Aggregation Builder for ip_range agg
+ *
+ * @opensearch.internal
+ */
 public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuilder<IpRangeAggregationBuilder> {
     public static final String NAME = "ip_range";
     public static final ValuesSourceRegistry.RegistryKey<IpRangeAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
@@ -123,6 +128,11 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
         }
     }
 
+    /**
+     * Range for an IP range
+     *
+     * @opensearch.internal
+     */
     public static class Range implements ToXContentObject {
 
         private final String key;

@@ -39,7 +39,7 @@ import org.opensearch.common.geo.parsers.GeoWKTParser;
 import org.opensearch.common.geo.parsers.ShapeParser;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.GeometryCollection;
 import org.locationtech.spatial4j.shape.Shape;
@@ -49,6 +49,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Builds a geometry collection
+ *
+ * @opensearch.internal
+ */
 public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryCollection<Geometry>, GeometryCollectionBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.GEOMETRYCOLLECTION;

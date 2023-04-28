@@ -52,6 +52,8 @@ import java.util.function.Predicate;
 /**
  * Utilities for network interfaces / addresses binding and publishing.
  * Its only intended for that purpose, not general purpose usage!!!!
+ *
+ * @opensearch.internal
  */
 public abstract class NetworkUtils {
 
@@ -237,7 +239,7 @@ public abstract class NetworkUtils {
         if (list.isEmpty()) {
             throw new IllegalArgumentException("Interface '" + name + "' has no internet addresses");
         }
-        return list.toArray(new InetAddress[list.size()]);
+        return list.toArray(new InetAddress[0]);
     }
 
     /** Returns only the IPV4 addresses in {@code addresses} */
@@ -251,7 +253,7 @@ public abstract class NetworkUtils {
         if (list.isEmpty()) {
             throw new IllegalArgumentException("No ipv4 addresses found in " + Arrays.toString(addresses));
         }
-        return list.toArray(new InetAddress[list.size()]);
+        return list.toArray(new InetAddress[0]);
     }
 
     /** Returns only the IPV6 addresses in {@code addresses} */
@@ -265,6 +267,6 @@ public abstract class NetworkUtils {
         if (list.isEmpty()) {
             throw new IllegalArgumentException("No ipv6 addresses found in " + Arrays.toString(addresses));
         }
-        return list.toArray(new InetAddress[list.size()]);
+        return list.toArray(new InetAddress[0]);
     }
 }

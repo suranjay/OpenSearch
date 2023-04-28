@@ -78,7 +78,6 @@ import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.IndexSettingsModule;
-import org.opensearch.test.VersionUtils;
 import org.opensearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
@@ -437,7 +436,7 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final ClusterState originalState = clusterService.state();
 
-        // import an index with minor version incremented by one over cluster master version, it should be ignored
+        // import an index with minor version incremented by one over cluster cluster-manager version, it should be ignored
         final LocalAllocateDangledIndices dangling = getInstanceFromNode(LocalAllocateDangledIndices.class);
         final Settings idxSettingsLater = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(Version.CURRENT.id + 10000))
@@ -564,10 +563,9 @@ public class IndicesServiceTests extends OpenSearchSingleNodeTestCase {
 
     public void testIsMetadataField() {
         IndicesService indicesService = getIndicesService();
-        final Version randVersion = VersionUtils.randomIndexCompatibleVersion(random());
-        assertFalse(indicesService.isMetadataField(randVersion, randomAlphaOfLengthBetween(10, 15)));
+        assertFalse(indicesService.isMetadataField(randomAlphaOfLengthBetween(10, 15)));
         for (String builtIn : IndicesModule.getBuiltInMetadataFields()) {
-            assertTrue(indicesService.isMetadataField(randVersion, builtIn));
+            assertTrue(indicesService.isMetadataField(builtIn));
         }
     }
 

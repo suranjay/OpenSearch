@@ -42,6 +42,11 @@ import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * OpenSearch REST status
+ *
+ * @opensearch.api
+ */
 public enum RestStatus {
     /**
      * The client SHOULD continue with its request. This interim response is used to inform the client that the
@@ -426,6 +431,12 @@ public enum RestStatus {
      * next-hop server.
      */
     EXPECTATION_FAILED(417),
+    /**
+     * The request was directed at a server that is not able to produce a response. This can be sent by a server
+     * that is not configured to produce responses for the combination of scheme and authority that are included
+     * in the request URI.
+     */
+    MISDIRECTED_REQUEST(421),
     /**
      * The 422 (Unprocessable Entity) status code means the server understands the content type of the request
      * entity (hence a 415(Unsupported Media Type) status code is inappropriate), and the syntax of the request

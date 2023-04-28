@@ -37,13 +37,13 @@ import org.opensearch.cluster.coordination.Coordinator;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.service.ClusterApplier;
-import org.opensearch.cluster.service.MasterService;
+import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.gateway.GatewayMetaState;
 import org.opensearch.plugins.DiscoveryPlugin;
 import org.opensearch.test.OpenSearchTestCase;
@@ -70,7 +70,7 @@ public class DiscoveryModuleTests extends OpenSearchTestCase {
 
     private TransportService transportService;
     private NamedWriteableRegistry namedWriteableRegistry;
-    private MasterService masterService;
+    private ClusterManagerService clusterManagerService;
     private ClusterApplier clusterApplier;
     private ThreadPool threadPool;
     private ClusterSettings clusterSettings;
@@ -93,7 +93,7 @@ public class DiscoveryModuleTests extends OpenSearchTestCase {
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null);
-        masterService = mock(MasterService.class);
+        clusterManagerService = mock(ClusterManagerService.class);
         namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         clusterApplier = mock(ClusterApplier.class);
         clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -112,7 +112,7 @@ public class DiscoveryModuleTests extends OpenSearchTestCase {
             transportService,
             namedWriteableRegistry,
             null,
-            masterService,
+            clusterManagerService,
             clusterApplier,
             clusterSettings,
             plugins,
@@ -218,10 +218,9 @@ public class DiscoveryModuleTests extends OpenSearchTestCase {
     }
 
     public void testLazyConstructionSeedsProvider() {
-        DummyHostsProviderPlugin plugin = () -> Collections.singletonMap(
-            "custom",
-            () -> { throw new AssertionError("created hosts provider which was not selected"); }
-        );
+        DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("custom", () -> {
+            throw new AssertionError("created hosts provider which was not selected");
+        });
         newModule(Settings.EMPTY, Collections.singletonList(plugin));
     }
 

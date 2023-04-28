@@ -40,7 +40,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -51,6 +51,8 @@ import java.util.Objects;
 
 /**
  * Represents the allocation decision by an allocator for an unassigned shard.
+ *
+ * @opensearch.internal
  */
 public class AllocateUnassignedDecision extends AbstractAllocationDecision {
     /** a constant representing a shard decision where no decision was taken */

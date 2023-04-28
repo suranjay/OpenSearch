@@ -53,6 +53,8 @@ import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
 import org.opensearch.common.component.AbstractLifecycleComponent;
@@ -61,7 +63,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -79,6 +81,8 @@ import java.util.stream.Stream;
 
 /**
  * Service responsible for maintaining and providing access to snapshot repositories on nodes.
+ *
+ * @opensearch.internal
  */
 public class RepositoriesService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
@@ -109,6 +113,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private final Map<String, Repository> internalRepositories = ConcurrentCollections.newConcurrentMap();
     private volatile Map<String, Repository> repositories = Collections.emptyMap();
     private final RepositoriesStatsArchive repositoriesStatsArchive;
+    private final ClusterManagerTaskThrottler.ThrottlingKey putRepositoryTaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey deleteRepositoryTaskKey;
 
     public RepositoriesService(
         Settings settings,
@@ -124,7 +130,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         this.threadPool = threadPool;
         // Doesn't make sense to maintain repositories on non-master and non-data nodes
         // Nothing happens there anyway
-        if (DiscoveryNode.isDataNode(settings) || DiscoveryNode.isMasterNode(settings)) {
+        if (DiscoveryNode.isDataNode(settings) || DiscoveryNode.isClusterManagerNode(settings)) {
             if (isDedicatedVotingOnlyNode(DiscoveryNode.getRolesFromSettings(settings)) == false) {
                 clusterService.addHighPriorityApplier(this);
             }
@@ -135,12 +141,15 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             REPOSITORIES_STATS_ARCHIVE_MAX_ARCHIVED_STATS.get(settings),
             threadPool::relativeTimeInMillis
         );
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        putRepositoryTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.PUT_REPOSITORY_KEY, true);
+        deleteRepositoryTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_REPOSITORY_KEY, true);
     }
 
     /**
      * Registers new repository in the cluster
      * <p>
-     * This method can be only called on the master node. It tries to create a new repository on the master
+     * This method can be only called on the cluster-manager node. It tries to create a new repository on the master
      * and if it was successful it adds new repository to cluster metadata.
      *
      * @param request  register repository request
@@ -172,7 +181,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             registrationListener = listener;
         }
 
-        // Trying to create the new repository on master to make sure it works
+        // Trying to create the new repository on cluster-manager to make sure it works
         try {
             closeRepository(createRepository(newRepositoryMetadata, typesRegistry));
         } catch (Exception e) {
@@ -228,6 +237,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 }
 
                 @Override
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                    return putRepositoryTaskKey;
+                }
+
+                @Override
                 public void onFailure(String source, Exception e) {
                     logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", request.name()), e);
                     super.onFailure(source, e);
@@ -235,8 +249,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
                 @Override
                 public boolean mustAck(DiscoveryNode discoveryNode) {
-                    // repository is created on both master and data nodes
-                    return discoveryNode.isMasterNode() || discoveryNode.isDataNode();
+                    // repository is created on both cluster-manager and data nodes
+                    return discoveryNode.isClusterManagerNode() || discoveryNode.isDataNode();
                 }
             }
         );
@@ -245,7 +259,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     /**
      * Unregisters repository in the cluster
      * <p>
-     * This method can be only called on the master node. It removes repository information from cluster metadata.
+     * This method can be only called on the cluster-manager node. It removes repository information from cluster metadata.
      *
      * @param request  unregister repository request
      * @param listener unregister repository listener
@@ -289,9 +303,14 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 }
 
                 @Override
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                    return deleteRepositoryTaskKey;
+                }
+
+                @Override
                 public boolean mustAck(DiscoveryNode discoveryNode) {
-                    // repository was created on both master and data nodes
-                    return discoveryNode.isMasterNode() || discoveryNode.isDataNode();
+                    // repository was created on both cluster-manager and data nodes
+                    return discoveryNode.isClusterManagerNode() || discoveryNode.isDataNode();
                 }
             }
         );
@@ -457,7 +476,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     /**
      * Returns registered repository
      * <p>
-     * This method is called only on the master node
+     * This method is called only on the cluster-manager node
      *
      * @param repositoryName repository name
      * @return registered repository

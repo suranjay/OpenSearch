@@ -35,14 +35,16 @@ package org.opensearch.action.admin.indices.rollover;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 
 /**
  * Condition for index maximum age. Evaluates to <code>true</code>
  * when the index is at least {@link #value} old
+ *
+ * @opensearch.internal
  */
 public class MaxAgeCondition extends Condition<TimeValue> {
     public static final String NAME = "max_age";

@@ -32,18 +32,18 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.NamedDiff;
-import org.opensearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -51,9 +51,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.opensearch.cluster.metadata.ComposableIndexTemplateMetadata.MINIMMAL_SUPPORTED_VERSION;
+
 /**
  * {@link ComponentTemplateMetadata} is a custom {@link Metadata} implementation for storing a map
  * of component templates and their names.
+ *
+ * @opensearch.internal
  */
 public class ComponentTemplateMetadata implements Metadata.Custom {
     public static final String TYPE = "component_template";
@@ -110,7 +114,7 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return LegacyESVersion.V_7_7_0;
+        return MINIMMAL_SUPPORTED_VERSION;
     }
 
     @Override
@@ -151,9 +155,14 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
+    /**
+     * A diff between component template metadata.
+     *
+     * @opensearch.internal
+     */
     static class ComponentTemplateMetadataDiff implements NamedDiff<Metadata.Custom> {
 
         final Diff<Map<String, ComponentTemplate>> componentTemplateDiff;

@@ -39,8 +39,11 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.opensearch.action.ShardOperationFailedException;
+import org.opensearch.common.CheckedRunnable;
+import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.common.compress.NotXContentException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.Index;
 import org.opensearch.rest.RestStatus;
 
@@ -61,6 +64,11 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+/**
+ * Helper class for OpenSearch Exceptions
+ *
+ * @opensearch.internal
+ */
 public final class ExceptionsHelper {
 
     private static final Logger logger = LogManager.getLogger(ExceptionsHelper.class);
@@ -89,9 +97,26 @@ public final class ExceptionsHelper {
                 return RestStatus.BAD_REQUEST;
             } else if (t instanceof OpenSearchRejectedExecutionException) {
                 return RestStatus.TOO_MANY_REQUESTS;
+            } else if (t instanceof NotXContentException) {
+                return RestStatus.BAD_REQUEST;
             }
         }
         return RestStatus.INTERNAL_SERVER_ERROR;
+    }
+
+    public static String summaryMessage(Throwable t) {
+        if (t != null) {
+            if (t instanceof OpenSearchException) {
+                return t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
+            } else if (t instanceof IllegalArgumentException) {
+                return "Invalid argument";
+            } else if (t instanceof JsonParseException) {
+                return "Failed to parse JSON";
+            } else if (t instanceof OpenSearchRejectedExecutionException) {
+                return "Too many requests";
+            }
+        }
+        return "Internal failure";
     }
 
     public static Throwable unwrapCause(Throwable t) {
@@ -313,6 +338,32 @@ public final class ExceptionsHelper {
                 new Thread(() -> { throw error; }).start();
             }
         });
+    }
+
+    /**
+     * Run passed runnable and catch exception and translate exception into runtime exception using
+     * {@link ExceptionsHelper#convertToRuntime(Exception)}
+     * @param supplier to run
+     */
+    public static <R, E extends Exception> R catchAsRuntimeException(CheckedSupplier<R, E> supplier) {
+        try {
+            return supplier.get();
+        } catch (Exception e) {
+            throw convertToRuntime(e);
+        }
+    }
+
+    /**
+     * Run passed runnable and catch exception and translate exception into runtime exception using
+     * {@link ExceptionsHelper#convertToRuntime(Exception)}
+     * @param runnable to run
+     */
+    public static void catchAsRuntimeException(CheckedRunnable<Exception> runnable) {
+        try {
+            runnable.run();
+        } catch (Exception e) {
+            throw convertToRuntime(e);
+        }
     }
 
     /**

@@ -31,7 +31,6 @@
 
 package org.opensearch.action.admin.indices.close;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
@@ -41,28 +40,29 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.util.CollectionUtils;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.Index;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 
+/**
+ * Transport response for closing an index
+ *
+ * @opensearch.internal
+ */
 public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
     private final List<IndexResult> indices;
 
     CloseIndexResponse(StreamInput in) throws IOException {
-        super(in, in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0));
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
-            indices = unmodifiableList(in.readList(IndexResult::new));
-        } else {
-            indices = unmodifiableList(emptyList());
-        }
+        super(in, true);
+        indices = unmodifiableList(in.readList(IndexResult::new));
     }
 
     public CloseIndexResponse(final boolean acknowledged, final boolean shardsAcknowledged, final List<IndexResult> indices) {
@@ -77,12 +77,8 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            writeShardsAcknowledged(out);
-        }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
-            out.writeList(indices);
-        }
+        writeShardsAcknowledged(out);
+        out.writeList(indices);
     }
 
     @Override
@@ -97,9 +93,14 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
+    /**
+     * Inner index result
+     *
+     * @opensearch.internal
+     */
     public static class IndexResult implements Writeable, ToXContentFragment {
 
         private final Index index;
@@ -191,10 +192,15 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
         @Override
         public String toString() {
-            return Strings.toString(this);
+            return Strings.toString(XContentType.JSON, this);
         }
     }
 
+    /**
+     * Shard Result from Close Index Response
+     *
+     * @opensearch.internal
+     */
     public static class ShardResult implements Writeable, ToXContentFragment {
 
         private final int id;
@@ -245,9 +251,14 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
         @Override
         public String toString() {
-            return Strings.toString(this);
+            return Strings.toString(XContentType.JSON, this);
         }
 
+        /**
+         * Inner Failure if something goes wrong
+         *
+         * @opensearch.internal
+         */
         public static class Failure extends DefaultShardOperationFailedException {
 
             private @Nullable String nodeId;
@@ -286,7 +297,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
             @Override
             public String toString() {
-                return Strings.toString(this);
+                return Strings.toString(XContentType.JSON, this);
             }
 
             static Failure readFailure(final StreamInput in) throws IOException {

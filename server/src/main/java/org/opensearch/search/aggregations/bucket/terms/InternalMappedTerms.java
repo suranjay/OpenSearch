@@ -34,7 +34,7 @@ package org.opensearch.search.aggregations.bucket.terms;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.BucketOrder;
 
@@ -47,6 +47,8 @@ import java.util.stream.Collectors;
 
 /**
  * Common superclass for results of the terms aggregation on mapped fields.
+ *
+ * @opensearch.internal
  */
 public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B extends InternalTerms.Bucket<B>> extends InternalTerms<A, B> {
     protected final DocValueFormat format;

@@ -44,8 +44,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
@@ -127,7 +127,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
 
         QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
         assertEquals(1, context.queryResult().topDocs().topDocs.totalHits.value);
-        assertProfileData(context, "MatchAllDocsQuery", query -> {
+        assertProfileData(context, "ConstantScoreQuery", query -> {
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
             assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
             assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
@@ -157,7 +157,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
             assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
         }, (query) -> {
-            assertThat(query.getQueryName(), equalTo("MatchAllDocsQuery"));
+            assertThat(query.getQueryName(), equalTo("ConstantScoreQuery"));
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
             assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
             assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
@@ -239,7 +239,9 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
         assertEquals(1, context.queryResult().topDocs().topDocs.totalHits.value);
-        assertProfileData(context, "MatchAllDocsQuery", query -> {
+        // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
+        // see: https://github.com/apache/lucene/pull/672
+        assertProfileData(context, "ConstantScoreQuery", query -> {
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
             assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
             assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
@@ -287,6 +289,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         ScrollContext scrollContext = new ScrollContext();
         TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader), scrollContext);
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+        context.sort(new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW }));
         scrollContext.lastEmittedDoc = null;
         scrollContext.maxScore = Float.NaN;
         scrollContext.totalHits = null;
@@ -297,12 +300,11 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
         assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
         assertNull(context.queryResult().terminatedEarly());
-        assertThat(context.terminateAfter(), equalTo(0));
         assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
-        assertProfileData(context, "MatchAllDocsQuery", query -> {
+        assertProfileData(context, "ConstantScoreQuery", query -> {
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-            assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("score_count"), greaterThan(0L));
+            assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
+            assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
             assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
             assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
         }, collector -> {
@@ -314,13 +316,12 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         context.setSearcher(newEarlyTerminationContextSearcher(reader, size));
         QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
         assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
-        assertThat(context.terminateAfter(), equalTo(size));
         assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
         assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0].doc, greaterThanOrEqualTo(size));
         assertProfileData(context, "ConstantScoreQuery", query -> {
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-            assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("score_count"), greaterThan(0L));
+            assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
+            assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
             assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
             assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
             assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("score"), equalTo(0L));
@@ -328,11 +329,9 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight"), greaterThan(0L));
             assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
         }, collector -> {
-            assertThat(collector.getReason(), equalTo("search_terminate_after_count"));
+            assertThat(collector.getReason(), equalTo("search_top_hits"));
             assertThat(collector.getTime(), greaterThan(0L));
-            assertThat(collector.getProfiledChildren(), hasSize(1));
-            assertThat(collector.getProfiledChildren().get(0).getReason(), equalTo("search_top_hits"));
-            assertThat(collector.getProfiledChildren().get(0).getTime(), greaterThan(0L));
+            assertThat(collector.getProfiledChildren(), hasSize(0));
         });
 
         reader.close();
@@ -387,7 +386,9 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertTrue(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(1L));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
-            assertProfileData(context, "MatchAllDocsQuery", query -> {
+            // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
+            // see: https://github.com/apache/lucene/pull/672
+            assertProfileData(context, "ConstantScoreQuery", query -> {
                 assertThat(query.getTimeBreakdown().keySet(), not(empty()));
                 assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
                 assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
@@ -463,27 +464,40 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(1L));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
 
-            assertProfileData(context, "BooleanQuery", query -> {
+            // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
+            // see: https://github.com/apache/lucene/pull/672
+            assertProfileData(context, "ConstantScoreQuery", query -> {
                 assertThat(query.getTimeBreakdown().keySet(), not(empty()));
                 assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
                 assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
                 assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
 
-                assertThat(query.getProfiledChildren(), hasSize(2));
-                assertThat(query.getProfiledChildren().get(0).getQueryName(), equalTo("TermQuery"));
+                // rewritten as a ConstantScoreQuery wrapping the original BooleanQuery
+                // see: https://github.com/apache/lucene/pull/672
+                assertThat(query.getProfiledChildren(), hasSize(1));
+                assertThat(query.getProfiledChildren().get(0).getQueryName(), equalTo("BooleanQuery"));
                 assertThat(query.getProfiledChildren().get(0).getTime(), greaterThan(0L));
                 assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight"), greaterThan(0L));
                 assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
                 assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("score"), equalTo(0L));
                 assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("score_count"), equalTo(0L));
 
-                assertThat(query.getProfiledChildren().get(1).getQueryName(), equalTo("TermQuery"));
-                assertThat(query.getProfiledChildren().get(1).getTime(), greaterThan(0L));
-                assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("create_weight"), greaterThan(0L));
-                assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
-                assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("score"), equalTo(0L));
-                assertThat(query.getProfiledChildren().get(1).getTimeBreakdown().get("score_count"), equalTo(0L));
+                List<ProfileResult> children = query.getProfiledChildren().get(0).getProfiledChildren();
+                assertThat(children, hasSize(2));
+                assertThat(children.get(0).getQueryName(), equalTo("TermQuery"));
+                assertThat(children.get(0).getTime(), greaterThan(0L));
+                assertThat(children.get(0).getTimeBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(children.get(0).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(children.get(0).getTimeBreakdown().get("score"), equalTo(0L));
+                assertThat(children.get(0).getTimeBreakdown().get("score_count"), equalTo(0L));
+
+                assertThat(children.get(1).getQueryName(), equalTo("TermQuery"));
+                assertThat(children.get(1).getTime(), greaterThan(0L));
+                assertThat(children.get(1).getTimeBreakdown().get("create_weight"), greaterThan(0L));
+                assertThat(children.get(1).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
+                assertThat(children.get(1).getTimeBreakdown().get("score"), equalTo(0L));
+                assertThat(children.get(1).getTimeBreakdown().get("score_count"), equalTo(0L));
             }, collector -> {
                 assertThat(collector.getReason(), equalTo("search_terminate_after_count"));
                 assertThat(collector.getTime(), greaterThan(0L));
@@ -571,7 +585,9 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0], instanceOf(FieldDoc.class));
         FieldDoc fieldDoc = (FieldDoc) context.queryResult().topDocs().topDocs.scoreDocs[0];
         assertThat(fieldDoc.fields[0], equalTo(1));
-        assertProfileData(context, "MatchAllDocsQuery", query -> {
+        // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
+        // see: https://github.com/apache/lucene/pull/672
+        assertProfileData(context, "ConstantScoreQuery", query -> {
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
             assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
             assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
@@ -605,7 +621,9 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
                 assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
             }, (query) -> {
-                assertThat(query.getQueryName(), equalTo("MatchAllDocsQuery"));
+                // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
+                // see: https://github.com/apache/lucene/pull/672
+                assertThat(query.getQueryName(), equalTo("ConstantScoreQuery"));
                 assertThat(query.getTimeBreakdown().keySet(), not(empty()));
                 assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
                 assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
@@ -623,7 +641,9 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0], instanceOf(FieldDoc.class));
             assertThat(fieldDoc.fields[0], anyOf(equalTo(1), equalTo(2)));
-            assertProfileData(context, "MatchAllDocsQuery", query -> {
+            // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
+            // see: https://github.com/apache/lucene/pull/672
+            assertProfileData(context, "ConstantScoreQuery", query -> {
                 assertThat(query.getTimeBreakdown().keySet(), not(empty()));
                 assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
                 assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
@@ -640,7 +660,9 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0], instanceOf(FieldDoc.class));
             assertThat(fieldDoc.fields[0], anyOf(equalTo(1), equalTo(2)));
-            assertProfileData(context, "MatchAllDocsQuery", query -> {
+            // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
+            // see: https://github.com/apache/lucene/pull/672
+            assertProfileData(context, "ConstantScoreQuery", query -> {
                 assertThat(query.getTimeBreakdown().keySet(), not(empty()));
                 assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
                 assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
@@ -695,7 +717,9 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertNull(context.queryResult().terminatedEarly());
             assertThat(context.terminateAfter(), equalTo(0));
             assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
-            assertProfileData(context, "MatchAllDocsQuery", query -> {
+            // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
+            // see: https://github.com/apache/lucene/pull/672
+            assertProfileData(context, "ConstantScoreQuery", query -> {
                 assertThat(query.getTimeBreakdown().keySet(), not(empty()));
                 assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
                 assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
@@ -806,7 +830,9 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         assertEquals(numDocs / 2, context.queryResult().topDocs().topDocs.totalHits.value);
         assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(3));
         assertEquals(context.queryResult().topDocs().topDocs.totalHits.relation, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
-        assertProfileData(context, "SpanNearQuery", query -> {
+        // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
+        // see: https://github.com/apache/lucene/pull/672
+        assertProfileData(context, "ConstantScoreQuery", query -> {
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
             assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
             assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));

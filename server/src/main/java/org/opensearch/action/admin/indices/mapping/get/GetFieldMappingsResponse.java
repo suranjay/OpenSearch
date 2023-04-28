@@ -34,17 +34,17 @@ package org.opensearch.action.admin.indices.mapping.get;
 
 import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
@@ -56,7 +56,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
@@ -64,6 +64,8 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
  *
  * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
  * Any changes done to this class should go to that client class as well.
+ *
+ * @opensearch.internal
  */
 public class GetFieldMappingsResponse extends ActionResponse implements ToXContentObject {
 
@@ -173,6 +175,11 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         }
     }
 
+    /**
+     * Metadata for field mappings for toXContent
+     *
+     * @opensearch.internal
+     */
     public static class FieldMappingMetadata implements ToXContentFragment {
 
         private static final ParseField FULL_NAME = new ParseField("full_name");

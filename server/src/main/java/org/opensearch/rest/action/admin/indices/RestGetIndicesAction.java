@@ -53,6 +53,8 @@ import static org.opensearch.rest.RestRequest.Method.HEAD;
 
 /**
  * The REST handler for get index and head index APIs.
+ *
+ * @opensearch.api
  */
 public class RestGetIndicesAction extends BaseRestHandler {
 
@@ -75,7 +77,9 @@ public class RestGetIndicesAction extends BaseRestHandler {
         getIndexRequest.indices(indices);
         getIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, getIndexRequest.indicesOptions()));
         getIndexRequest.local(request.paramAsBoolean("local", getIndexRequest.local()));
-        getIndexRequest.masterNodeTimeout(request.paramAsTime("cluster_manager_timeout", getIndexRequest.masterNodeTimeout()));
+        getIndexRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", getIndexRequest.clusterManagerNodeTimeout())
+        );
         parseDeprecatedMasterTimeoutParameter(getIndexRequest, request, deprecationLogger, getName());
         getIndexRequest.humanReadable(request.paramAsBoolean("human", false));
         getIndexRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));

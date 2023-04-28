@@ -31,7 +31,7 @@
 
 package org.opensearch.index.analysis;
 
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -51,6 +51,8 @@ import static org.opensearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_QUOT
  * access to individual tokenizers, char or token filter.
  *
  * @see AnalysisRegistry
+ *
+ * @opensearch.internal
  */
 public final class IndexAnalyzers implements Closeable {
     private final Map<String, NamedAnalyzer> analyzers;

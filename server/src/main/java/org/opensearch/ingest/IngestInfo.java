@@ -34,7 +34,7 @@ package org.opensearch.ingest;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.ReportingService;
 
 import java.io.IOException;
@@ -43,6 +43,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 
+/**
+ * Information about an ingest event
+ *
+ * @opensearch.internal
+ */
 public class IngestInfo implements ReportingService.Info {
 
     private final Set<ProcessorInfo> processors;

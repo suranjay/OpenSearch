@@ -33,7 +33,7 @@
 package org.opensearch.rest;
 
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.xcontent.XContent;
+import org.opensearch.core.xcontent.XContent;
 import org.opensearch.rest.RestRequest.Method;
 
 import java.util.Collections;
@@ -43,6 +43,8 @@ import java.util.stream.Collectors;
 
 /**
  * Handler for REST requests
+ *
+ * @opensearch.api
  */
 @FunctionalInterface
 public interface RestHandler {
@@ -117,6 +119,11 @@ public interface RestHandler {
         return new Wrapper(delegate);
     }
 
+    /**
+     * Wrapper for a handler.
+     *
+     * @opensearch.internal
+     */
     class Wrapper implements RestHandler {
         private final RestHandler delegate;
 
@@ -170,6 +177,11 @@ public interface RestHandler {
         }
     }
 
+    /**
+     * Route for the request.
+     *
+     * @opensearch.internal
+     */
     class Route {
 
         private final String path;

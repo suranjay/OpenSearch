@@ -33,10 +33,14 @@
 package org.opensearch.common.xcontent;
 
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.ObjectParser.ValueType;
+import org.opensearch.core.xcontent.AbstractObjectParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ObjectParser.ValueType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -44,6 +48,8 @@ import java.util.function.BiConsumer;
 /**
  * This class provides helpers for {@link ObjectParser} that allow dealing with
  * classes outside of the xcontent dependencies.
+ *
+ * @opensearch.internal
  */
 public final class ObjectParserHelper<Value, Context> {
 

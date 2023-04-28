@@ -43,6 +43,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Script for terms set query
+ *
+ * @opensearch.internal
+ */
 public abstract class TermsSetQueryScript {
 
     public static final String[] PARAMETERS = {};
@@ -50,7 +55,7 @@ public abstract class TermsSetQueryScript {
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("terms_set", Factory.class);
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.opensearch.common.collect.Map.of("doc", value -> {
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of("doc", value -> {
         deprecationLogger.deprecate(
             "terms-set-query-script_doc",
             "Accessing variable [doc] via [params.doc] from within an terms-set-query-script "
@@ -120,6 +125,8 @@ public abstract class TermsSetQueryScript {
 
     /**
      * A factory to construct {@link TermsSetQueryScript} instances.
+     *
+     * @opensearch.internal
      */
     public interface LeafFactory {
         TermsSetQueryScript newInstance(LeafReaderContext ctx) throws IOException;
@@ -127,6 +134,8 @@ public abstract class TermsSetQueryScript {
 
     /**
      * A factory to construct stateful {@link TermsSetQueryScript} factories for a specific index.
+     *
+     * @opensearch.internal
      */
     public interface Factory extends ScriptFactory {
         LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);

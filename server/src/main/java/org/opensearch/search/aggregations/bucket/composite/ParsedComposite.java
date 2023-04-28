@@ -32,16 +32,21 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * A composite result parsed between nodes
+ *
+ * @opensearch.internal
+ */
 public class ParsedComposite extends ParsedMultiBucketAggregation<ParsedComposite.ParsedBucket> implements CompositeAggregation {
     private static final ObjectParser<ParsedComposite, Void> PARSER = new ObjectParser<>(
         ParsedComposite.class.getSimpleName(),
@@ -101,6 +106,11 @@ public class ParsedComposite extends ParsedMultiBucketAggregation<ParsedComposit
         return CompositeAggregation.toXContentFragment(this, builder, params);
     }
 
+    /**
+     * Parsed bucket for the parsed composite agg
+     *
+     * @opensearch.internal
+     */
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements CompositeAggregation.Bucket {
         private Map<String, Object> key;
 

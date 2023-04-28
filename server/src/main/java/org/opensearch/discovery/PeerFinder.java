@@ -32,16 +32,15 @@
 
 package org.opensearch.discovery;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.coordination.PeersResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -65,6 +64,11 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 
+/**
+ * finds peers
+ *
+ * @opensearch.internal
+ */
 public abstract class PeerFinder {
 
     private static final Logger logger = LogManager.getLogger(PeerFinder.class);
@@ -79,6 +83,14 @@ public abstract class PeerFinder {
         Setting.Property.NodeScope
     );
 
+    // the time between attempts to find all peers when node is in decommissioned state, default set to 2 minutes
+    public static final Setting<TimeValue> DISCOVERY_FIND_PEERS_INTERVAL_DURING_DECOMMISSION_SETTING = Setting.timeSetting(
+        "discovery.find_peers_interval_during_decommission",
+        TimeValue.timeValueSeconds(120L),
+        TimeValue.timeValueMillis(1000),
+        Setting.Property.NodeScope
+    );
+
     public static final Setting<TimeValue> DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING = Setting.timeSetting(
         "discovery.request_peers_timeout",
         TimeValue.timeValueMillis(3000),
@@ -86,7 +98,8 @@ public abstract class PeerFinder {
         Setting.Property.NodeScope
     );
 
-    private final TimeValue findPeersInterval;
+    private final Settings settings;
+    private TimeValue findPeersInterval;
     private final TimeValue requestPeersTimeout;
 
     private final Object mutex = new Object();
@@ -107,6 +120,7 @@ public abstract class PeerFinder {
         TransportAddressConnector transportAddressConnector,
         ConfiguredHostsResolver configuredHostsResolver
     ) {
+        this.settings = settings;
         findPeersInterval = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
         requestPeersTimeout = DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
@@ -121,6 +135,23 @@ public abstract class PeerFinder {
             PeersRequest::new,
             (request, channel, task) -> channel.sendResponse(handlePeersRequest(request))
         );
+    }
+
+    public synchronized void onNodeCommissionStatusChange(boolean localNodeCommissioned) {
+        findPeersInterval = localNodeCommissioned
+            ? DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings)
+            : DISCOVERY_FIND_PEERS_INTERVAL_DURING_DECOMMISSION_SETTING.get(settings);
+        logger.info(
+            "setting findPeersInterval to [{}] as node commission status = [{}] for local node [{}]",
+            findPeersInterval,
+            localNodeCommissioned,
+            transportService.getLocalNode()
+        );
+    }
+
+    // package private for tests
+    TimeValue getFindPeersInterval() {
+        return findPeersInterval;
     }
 
     public void activate(final DiscoveryNodes lastAcceptedNodes) {
@@ -169,7 +200,7 @@ public abstract class PeerFinder {
             final List<DiscoveryNode> knownPeers;
             if (active) {
                 assert leader.isPresent() == false : leader;
-                if (peersRequest.getSourceNode().isMasterNode()) {
+                if (peersRequest.getSourceNode().isClusterManagerNode()) {
                     startProbe(peersRequest.getSourceNode().getAddress());
                 }
                 peersRequest.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(this::startProbe);
@@ -208,7 +239,7 @@ public abstract class PeerFinder {
      * Invoked on receipt of a PeersResponse from a node that believes it's an active leader, which this node should therefore try and join.
      * Note that invocations of this method are not synchronised. By the time it is called we may have been deactivated.
      */
-    protected abstract void onActiveMasterFound(DiscoveryNode masterNode, long term);
+    protected abstract void onActiveClusterManagerFound(DiscoveryNode clusterManagerNode, long term);
 
     /**
      * Invoked when the set of found peers changes. Note that invocations of this method are not fully synchronised, so we only guarantee
@@ -223,6 +254,11 @@ public abstract class PeerFinder {
         return lastResolvedAddresses;
     }
 
+    /**
+     * Transport address connector interface.
+     *
+     * @opensearch.internal
+     */
     public interface TransportAddressConnector {
         /**
          * Identify the node at the given address and, if it is a cluster-manager node and not the local node then establish a full connection to it.
@@ -230,6 +266,11 @@ public abstract class PeerFinder {
         void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<DiscoveryNode> listener);
     }
 
+    /**
+     * Resolves the configured unicast host.
+     *
+     * @opensearch.internal
+     */
     public interface ConfiguredHostsResolver {
         /**
          * Attempt to resolve the configured unicast hosts list to a list of transport addresses.
@@ -276,8 +317,8 @@ public abstract class PeerFinder {
         }
 
         logger.trace("probing cluster-manager nodes from cluster state: {}", lastAcceptedNodes);
-        for (ObjectCursor<DiscoveryNode> discoveryNodeObjectCursor : lastAcceptedNodes.getMasterNodes().values()) {
-            startProbe(discoveryNodeObjectCursor.value.getAddress());
+        for (final DiscoveryNode discoveryNodeObjectCursor : lastAcceptedNodes.getClusterManagerNodes().values()) {
+            startProbe(discoveryNodeObjectCursor.getAddress());
         }
 
         configuredHostsResolver.resolveConfiguredHosts(providedAddresses -> {
@@ -381,7 +422,7 @@ public abstract class PeerFinder {
             transportAddressConnector.connectToRemoteMasterNode(transportAddress, new ActionListener<DiscoveryNode>() {
                 @Override
                 public void onResponse(DiscoveryNode remoteNode) {
-                    assert remoteNode.isMasterNode() : remoteNode + " is not cluster-manager-eligible";
+                    assert remoteNode.isClusterManagerNode() : remoteNode + " is not cluster-manager-eligible";
                     assert remoteNode.equals(getLocalNode()) == false : remoteNode + " is the local node";
                     synchronized (mutex) {
                         if (active == false) {
@@ -442,14 +483,14 @@ public abstract class PeerFinder {
 
                         peersRequestInFlight = false;
 
-                        response.getMasterNode().map(DiscoveryNode::getAddress).ifPresent(PeerFinder.this::startProbe);
+                        response.getClusterManagerNode().map(DiscoveryNode::getAddress).ifPresent(PeerFinder.this::startProbe);
                         response.getKnownPeers().stream().map(DiscoveryNode::getAddress).forEach(PeerFinder.this::startProbe);
                     }
 
-                    if (response.getMasterNode().equals(Optional.of(discoveryNode))) {
+                    if (response.getClusterManagerNode().equals(Optional.of(discoveryNode))) {
                         // Must not hold lock here to avoid deadlock
                         assert holdsLock() == false : "PeerFinder mutex is held in error";
-                        onActiveMasterFound(discoveryNode, response.getTerm());
+                        onActiveClusterManagerFound(discoveryNode, response.getTerm());
                     }
                 }
 

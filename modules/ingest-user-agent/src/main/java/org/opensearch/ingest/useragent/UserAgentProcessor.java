@@ -313,7 +313,13 @@ public class UserAgentProcessor extends AbstractProcessor {
         ) throws Exception {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "user_agent");
-            String regexFilename = readStringProperty(TYPE, processorTag, config, "regex_file", IngestUserAgentPlugin.DEFAULT_PARSER_NAME);
+            String regexFilename = readStringProperty(
+                TYPE,
+                processorTag,
+                config,
+                "regex_file",
+                IngestUserAgentModulePlugin.DEFAULT_PARSER_NAME
+            );
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             boolean useECS = readBooleanProperty(TYPE, processorTag, config, "ecs", true);
@@ -346,7 +352,7 @@ public class UserAgentProcessor extends AbstractProcessor {
                 deprecationLogger.deprecate(
                     "ecs_false_non_common_schema",
                     "setting [ecs] to false for non-common schema "
-                        + "format is deprecated and will be removed in 8.0, set to true or remove to use the non-deprecated format"
+                        + "format is deprecated and will be removed in 3.0, set to true or remove to use the non-deprecated format"
                 );
             }
 

@@ -32,7 +32,7 @@
 
 package org.opensearch.transport;
 
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressorFactory;
 import org.opensearch.common.io.Streams;
@@ -55,6 +55,8 @@ import java.util.zip.DeflaterOutputStream;
  *
  * {@link CompressibleBytesOutputStream#close()} will NOT close the underlying stream. The byte stream passed
  * in the constructor must be closed individually.
+ *
+ * @opensearch.internal
  */
 final class CompressibleBytesOutputStream extends StreamOutput {
 

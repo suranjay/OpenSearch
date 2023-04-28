@@ -32,14 +32,11 @@
 
 package org.opensearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.IndexGraveyard.IndexGraveyardDiff;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.index.Index;
 
@@ -47,12 +44,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
  * An event received by the local node, signaling that the cluster state has changed.
+ *
+ * @opensearch.internal
  */
 public class ClusterChangedEvent {
 
@@ -127,8 +127,7 @@ public class ClusterChangedEvent {
             return Collections.emptyList();
         }
         List<String> created = null;
-        for (ObjectCursor<String> cursor : state.metadata().indices().keys()) {
-            String index = cursor.value;
+        for (final String index : state.metadata().indices().keySet()) {
             if (!previousState.metadata().hasIndex(index)) {
                 if (created == null) {
                     created = new ArrayList<>();
@@ -168,20 +167,20 @@ public class ClusterChangedEvent {
      */
     public Set<String> changedCustomMetadataSet() {
         Set<String> result = new HashSet<>();
-        ImmutableOpenMap<String, Metadata.Custom> currentCustoms = state.metadata().customs();
-        ImmutableOpenMap<String, Metadata.Custom> previousCustoms = previousState.metadata().customs();
+        Map<String, Metadata.Custom> currentCustoms = state.metadata().customs();
+        Map<String, Metadata.Custom> previousCustoms = previousState.metadata().customs();
         if (currentCustoms.equals(previousCustoms) == false) {
-            for (ObjectObjectCursor<String, Metadata.Custom> currentCustomMetadata : currentCustoms) {
+            for (Map.Entry<String, Metadata.Custom> currentCustomMetadata : currentCustoms.entrySet()) {
                 // new custom md added or existing custom md changed
-                if (previousCustoms.containsKey(currentCustomMetadata.key) == false
-                    || currentCustomMetadata.value.equals(previousCustoms.get(currentCustomMetadata.key)) == false) {
-                    result.add(currentCustomMetadata.key);
+                if (previousCustoms.containsKey(currentCustomMetadata.getKey()) == false
+                    || currentCustomMetadata.getValue().equals(previousCustoms.get(currentCustomMetadata.getKey())) == false) {
+                    result.add(currentCustomMetadata.getKey());
                 }
             }
             // existing custom md deleted
-            for (ObjectObjectCursor<String, Metadata.Custom> previousCustomMetadata : previousCustoms) {
-                if (currentCustoms.containsKey(previousCustomMetadata.key) == false) {
-                    result.add(previousCustomMetadata.key);
+            for (Map.Entry<String, Metadata.Custom> previousCustomMetadata : previousCustoms.entrySet()) {
+                if (currentCustoms.containsKey(previousCustomMetadata.getKey()) == false) {
+                    result.add(previousCustomMetadata.getKey());
                 }
             }
         }
@@ -211,8 +210,18 @@ public class ClusterChangedEvent {
     /**
      * Returns <code>true</code> iff the local node is the mater node of the cluster.
      */
+    public boolean localNodeClusterManager() {
+        return state.nodes().isLocalNodeElectedClusterManager();
+    }
+
+    /**
+     * Returns <code>true</code> iff the local node is the mater node of the cluster.
+     *
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #localNodeClusterManager()}
+     */
+    @Deprecated
     public boolean localNodeMaster() {
-        return state.nodes().isLocalNodeElectedMaster();
+        return localNodeClusterManager();
     }
 
     /**
@@ -248,7 +257,7 @@ public class ClusterChangedEvent {
      * Determines whether or not the current cluster state represents an entirely
      * new cluster, either when a node joins a cluster for the first time or when
      * the node receives a cluster state update from a brand new cluster (different
-     * UUID from the previous cluster), which will happen when a master node is
+     * UUID from the previous cluster), which will happen when a cluster-manager node is
      * elected that has never been part of the cluster before.
      */
     public boolean isNewCluster() {
@@ -260,10 +269,10 @@ public class ClusterChangedEvent {
     // Get the deleted indices by comparing the index metadatas in the previous and new cluster states.
     // If an index exists in the previous cluster state, but not in the new cluster state, it must have been deleted.
     private List<Index> indicesDeletedFromClusterState() {
-        // If the new cluster state has a new cluster UUID, the likely scenario is that a node was elected
-        // master that has had its data directory wiped out, in which case we don't want to delete the indices and lose data;
+        // If the new cluster state has a new cluster UUID, the likely scenario is that a node was elected cluster-manager
+        // that has had its data directory wiped out, in which case we don't want to delete the indices and lose data;
         // rather we want to import them as dangling indices instead. So we check here if the cluster UUID differs from the previous
-        // cluster UUID, in which case, we don't want to delete indices that the master erroneously believes shouldn't exist.
+        // cluster UUID, in which case, we don't want to delete indices that the cluster-manager erroneously believes shouldn't exist.
         // See test DiscoveryWithServiceDisruptionsIT.testIndicesDeleted()
         // See discussion on https://github.com/elastic/elasticsearch/pull/9952 and
         // https://github.com/elastic/elasticsearch/issues/11665
@@ -274,8 +283,7 @@ public class ClusterChangedEvent {
         final Metadata previousMetadata = previousState.metadata();
         final Metadata currentMetadata = state.metadata();
 
-        for (ObjectCursor<IndexMetadata> cursor : previousMetadata.indices().values()) {
-            IndexMetadata index = cursor.value;
+        for (final IndexMetadata index : previousMetadata.indices().values()) {
             IndexMetadata current = currentMetadata.index(index.getIndex());
             if (current == null) {
                 if (deleted == null) {

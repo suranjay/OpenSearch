@@ -36,7 +36,6 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
@@ -51,6 +50,7 @@ import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotShardsService;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -63,6 +63,8 @@ import static java.util.Collections.unmodifiableMap;
 
 /**
  * Transport action that collects snapshot shard statuses from data nodes
+ *
+ * @opensearch.internal
  */
 public class TransportNodesSnapshotsStatus extends TransportNodesAction<
     TransportNodesSnapshotsStatus.Request,
@@ -143,6 +145,11 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
         }
     }
 
+    /**
+     * Inner Request
+     *
+     * @opensearch.internal
+     */
     public static class Request extends BaseNodesRequest<Request> {
 
         private Snapshot[] snapshots;
@@ -169,6 +176,11 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
         }
     }
 
+    /**
+     * Inner Node Snapshot Status
+     *
+     * @opensearch.internal
+     */
     public static class NodesSnapshotStatus extends BaseNodesResponse<NodeSnapshotStatus> {
 
         public NodesSnapshotStatus(StreamInput in) throws IOException {
@@ -190,7 +202,12 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
         }
     }
 
-    public static class NodeRequest extends BaseNodeRequest {
+    /**
+     * Inner Node Request
+     *
+     * @opensearch.internal
+     */
+    public static class NodeRequest extends TransportRequest {
 
         private final List<Snapshot> snapshots;
 
@@ -210,6 +227,11 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
         }
     }
 
+    /**
+     * Inner Node Shapshot Status
+     *
+     * @opensearch.internal
+     */
     public static class NodeSnapshotStatus extends BaseNodeResponse {
 
         private final Map<Snapshot, Map<ShardId, SnapshotIndexShardStatus>> status;

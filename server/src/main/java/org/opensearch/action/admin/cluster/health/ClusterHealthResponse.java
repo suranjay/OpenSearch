@@ -32,21 +32,25 @@
 
 package org.opensearch.action.admin.cluster.health;
 
+import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.awarenesshealth.ClusterAwarenessHealth;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterIndexHealth;
 import org.opensearch.cluster.health.ClusterStateHealth;
-import org.opensearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.StatusToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -57,15 +61,21 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
-import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * Transport response for Cluster Health
+ *
+ * @opensearch.internal
+ */
 public class ClusterHealthResponse extends ActionResponse implements StatusToXContentObject {
     private static final String CLUSTER_NAME = "cluster_name";
     private static final String STATUS = "status";
     private static final String TIMED_OUT = "timed_out";
     private static final String NUMBER_OF_NODES = "number_of_nodes";
     private static final String NUMBER_OF_DATA_NODES = "number_of_data_nodes";
+    @Deprecated
     private static final String DISCOVERED_MASTER = "discovered_master";
     private static final String DISCOVERED_CLUSTER_MANAGER = "discovered_cluster_manager";
     private static final String NUMBER_OF_PENDING_TASKS = "number_of_pending_tasks";
@@ -91,6 +101,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
             int numberOfNodes = (int) parsedObjects[i++];
             int numberOfDataNodes = (int) parsedObjects[i++];
             boolean hasDiscoveredMaster = Boolean.TRUE.equals(parsedObjects[i++]);
+            boolean hasDiscoveredClusterManager = Boolean.TRUE.equals(parsedObjects[i++]);
             int activeShards = (int) parsedObjects[i++];
             int relocatingShards = (int) parsedObjects[i++];
             int activePrimaryShards = (int) parsedObjects[i++];
@@ -118,7 +129,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
                 unassignedShards,
                 numberOfNodes,
                 numberOfDataNodes,
-                hasDiscoveredMaster,
+                hasDiscoveredClusterManager || hasDiscoveredMaster,
                 activeShardsPercent,
                 status,
                 indices
@@ -152,6 +163,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         PARSER.declareInt(constructorArg(), new ParseField(NUMBER_OF_NODES));
         PARSER.declareInt(constructorArg(), new ParseField(NUMBER_OF_DATA_NODES));
         PARSER.declareBoolean(optionalConstructorArg(), new ParseField(DISCOVERED_MASTER));
+        PARSER.declareBoolean(optionalConstructorArg(), new ParseField(DISCOVERED_CLUSTER_MANAGER));
         PARSER.declareInt(constructorArg(), new ParseField(ACTIVE_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(RELOCATING_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(ACTIVE_PRIMARY_SHARDS));
@@ -179,6 +191,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private boolean timedOut = false;
     private ClusterStateHealth clusterStateHealth;
     private ClusterHealthStatus clusterHealthStatus;
+    private ClusterAwarenessHealth clusterAwarenessHealth;
 
     public ClusterHealthResponse() {}
 
@@ -192,6 +205,11 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         numberOfInFlightFetch = in.readInt();
         delayedUnassignedShards = in.readInt();
         taskMaxWaitingTime = in.readTimeValue();
+        if (in.getVersion().onOrAfter(Version.V_2_5_0)) {
+            if (in.readBoolean()) {
+                clusterAwarenessHealth = new ClusterAwarenessHealth(in);
+            }
+        }
     }
 
     /** needed for plugins BWC */
@@ -215,6 +233,30 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         this.taskMaxWaitingTime = taskMaxWaitingTime;
         this.clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices);
         this.clusterHealthStatus = clusterStateHealth.getStatus();
+    }
+
+    // Awareness Attribute health
+    public ClusterHealthResponse(
+        String clusterName,
+        ClusterState clusterState,
+        ClusterSettings clusterSettings,
+        String[] concreteIndices,
+        String awarenessAttributeName,
+        int numberOfPendingTasks,
+        int numberOfInFlightFetch,
+        int delayedUnassignedShards,
+        TimeValue taskMaxWaitingTime
+    ) {
+        this(
+            clusterName,
+            concreteIndices,
+            clusterState,
+            numberOfPendingTasks,
+            numberOfInFlightFetch,
+            delayedUnassignedShards,
+            taskMaxWaitingTime
+        );
+        this.clusterAwarenessHealth = new ClusterAwarenessHealth(clusterState, clusterSettings, awarenessAttributeName);
     }
 
     /**
@@ -276,8 +318,14 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         return clusterStateHealth.getNumberOfDataNodes();
     }
 
+    public boolean hasDiscoveredClusterManager() {
+        return clusterStateHealth.hasDiscoveredClusterManager();
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #hasDiscoveredClusterManager()} */
+    @Deprecated
     public boolean hasDiscoveredMaster() {
-        return clusterStateHealth.hasDiscoveredMaster();
+        return hasDiscoveredClusterManager();
     }
 
     public int getNumberOfPendingTasks() {
@@ -343,6 +391,10 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         return clusterStateHealth.getActiveShardsPercent();
     }
 
+    public ClusterAwarenessHealth getClusterAwarenessHealth() {
+        return clusterAwarenessHealth;
+    }
+
     public static ClusterHealthResponse readResponseFrom(StreamInput in) throws IOException {
         return new ClusterHealthResponse(in);
     }
@@ -357,11 +409,19 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         out.writeInt(numberOfInFlightFetch);
         out.writeInt(delayedUnassignedShards);
         out.writeTimeValue(taskMaxWaitingTime);
+        if (out.getVersion().onOrAfter(Version.V_2_5_0)) {
+            if (clusterAwarenessHealth != null) {
+                out.writeBoolean(true);
+                clusterAwarenessHealth.writeTo(out);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
     }
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
     @Override
@@ -377,8 +437,8 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         builder.field(TIMED_OUT, isTimedOut());
         builder.field(NUMBER_OF_NODES, getNumberOfNodes());
         builder.field(NUMBER_OF_DATA_NODES, getNumberOfDataNodes());
-        builder.field(DISCOVERED_MASTER, hasDiscoveredMaster());  // the field will be removed in a future major version
-        builder.field(DISCOVERED_CLUSTER_MANAGER, hasDiscoveredMaster());
+        builder.field(DISCOVERED_MASTER, hasDiscoveredClusterManager());  // the field will be removed in a future major version
+        builder.field(DISCOVERED_CLUSTER_MANAGER, hasDiscoveredClusterManager());
         builder.field(ACTIVE_PRIMARY_SHARDS, getActivePrimaryShards());
         builder.field(ACTIVE_SHARDS, getActiveShards());
         builder.field(RELOCATING_SHARDS, getRelocatingShards());
@@ -392,6 +452,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
         String level = params.param("level", "cluster");
         boolean outputIndices = "indices".equals(level) || "shards".equals(level);
+        boolean outputAwarenessHealth = "awareness_attributes".equals(level);
 
         if (outputIndices) {
             builder.startObject(INDICES);
@@ -400,6 +461,11 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
             }
             builder.endObject();
         }
+
+        if (outputAwarenessHealth && clusterAwarenessHealth != null) {
+            clusterAwarenessHealth.toXContent(builder, params);
+        }
+
         builder.endObject();
         return builder;
     }

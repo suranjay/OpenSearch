@@ -53,12 +53,12 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.internal.io.Streams;
+import org.opensearch.common.util.io.Streams;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayOutputStream;
@@ -73,6 +73,8 @@ import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 
 /**
  * Service that can store task results.
+ *
+ * @opensearch.internal
  */
 public class TaskResultsService {
 
@@ -84,7 +86,7 @@ public class TaskResultsService {
 
     public static final String TASK_RESULT_MAPPING_VERSION_META_FIELD = "version";
 
-    public static final int TASK_RESULT_MAPPING_VERSION = 3; // must match version in task-index-mapping.json
+    public static final int TASK_RESULT_MAPPING_VERSION = 4; // must match version in task-index-mapping.json
 
     /**
      * The backoff policy to use when saving a task result fails. The total wait

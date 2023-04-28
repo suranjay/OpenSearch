@@ -35,14 +35,15 @@ package org.opensearch.index.query;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
-import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentLocation;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentLocation;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -57,6 +58,8 @@ import static org.opensearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.c
  * Matches spans which are near one another. One can specify slop, the maximum number
  * of intervening unmatched positions, as well as whether matches are required to be in-order.
  * The span near query maps to Lucene {@link SpanNearQuery}.
+ *
+ * @opensearch.internal
  */
 public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_near";
@@ -304,6 +307,8 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
      * can be invoked for it.
      * This QueryBuilder is only applicable as a clause in SpanGapQueryBuilder but
      * yet to enforce this restriction.
+     *
+     * @opensearch.internal
      */
     public static class SpanGapQueryBuilder implements SpanQueryBuilder {
         public static final String NAME = "span_gap";
@@ -440,7 +445,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
         @Override
         public final String toString() {
-            return Strings.toString(this, true, true);
+            return Strings.toString(XContentType.JSON, this, true, true);
         }
 
         // copied from AbstractQueryBuilder

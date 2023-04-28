@@ -37,8 +37,8 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.tasks.TaskId;
 
@@ -49,6 +49,8 @@ import java.io.IOException;
  * CompositeIndicesRequest but in a misleading way. Rather than returning all the subrequests that it will make it tries to return a
  * representative set of subrequests. This is best-effort but better than {@linkplain ReindexRequest} because scripts can't change the
  * destination index and things.
+ *
+ * @opensearch.internal
  */
 public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<UpdateByQueryRequest>
     implements

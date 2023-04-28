@@ -44,7 +44,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.search.aggregations.Aggregator;
@@ -60,6 +60,11 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Aggregate all docs that match a nested path
+ *
+ * @opensearch.internal
+ */
 public class NestedAggregator extends BucketsAggregator implements SingleBucketAggregator {
 
     static final ParseField PATH_FIELD = new ParseField("path");
@@ -125,7 +130,8 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     }
 
     @Override
-    protected void preGetSubLeafCollectors() throws IOException {
+    protected void preGetSubLeafCollectors(LeafReaderContext ctx) throws IOException {
+        super.preGetSubLeafCollectors(ctx);
         processBufferedDocs();
     }
 
@@ -225,6 +231,11 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
         }
     }
 
+    /**
+     * A cached scorable doc
+     *
+     * @opensearch.internal
+     */
     private static class CachedScorable extends Scorable {
         int doc;
         float score;

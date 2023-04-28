@@ -31,29 +31,57 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.PointValues;
+import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.Index;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Primary DataStream class
+ *
+ * @opensearch.internal
+ */
 public final class DataStream extends AbstractDiffable<DataStream> implements ToXContentObject {
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
+    public static final String TIMESERIES_FIELDNAME = "@timestamp";
+    public static final Comparator<LeafReader> TIMESERIES_LEAF_SORTER = Comparator.comparingLong((LeafReader r) -> {
+        try {
+            PointValues points = r.getPointValues(TIMESERIES_FIELDNAME);
+            if (points != null) {
+                // could be a multipoint (probably not) but get the maximum time value anyway
+                byte[] sortValue = points.getMaxPackedValue();
+                // decode the first dimension because this should not be a multi dimension field
+                // it's a bug in the date field if it is
+                return LongPoint.decodeDimension(sortValue, 0);
+            } else {
+                // segment does not have a timestamp field, just return the minimum value
+                return Long.MIN_VALUE;
+            }
+        } catch (IOException e) {
+            throw new OpenSearchException("Not a timeseries Index! Field [{}] not found!", TIMESERIES_FIELDNAME);
+        }
+    }).reversed();
 
     private final String name;
     private final TimestampField timeStampField;
@@ -227,6 +255,11 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         return Objects.hash(name, timeStampField, indices, generation);
     }
 
+    /**
+     * A timestamp field.
+     *
+     * @opensearch.internal
+     */
     public static final class TimestampField implements Writeable, ToXContentObject {
 
         static ParseField NAME_FIELD = new ParseField("name");

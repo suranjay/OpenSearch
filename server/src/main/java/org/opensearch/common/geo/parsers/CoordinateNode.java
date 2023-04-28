@@ -33,8 +33,8 @@ package org.opensearch.common.geo.parsers;
 
 import org.locationtech.jts.geom.Coordinate;
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -44,6 +44,8 @@ import java.util.List;
  * <p>
  * Can either be a leaf node consisting of a Coordinate, or a parent with
  * children
+ *
+ * @opensearch.internal
  */
 public class CoordinateNode implements ToXContentObject {
     public final Coordinate coordinate;

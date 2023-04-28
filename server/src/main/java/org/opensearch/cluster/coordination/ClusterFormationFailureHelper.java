@@ -59,6 +59,11 @@ import java.util.stream.StreamSupport;
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
 
+/**
+ * Helper for cluster failure events
+ *
+ * @opensearch.internal
+ */
 public class ClusterFormationFailureHelper {
     private static final Logger logger = LogManager.getLogger(ClusterFormationFailureHelper.class);
 
@@ -102,6 +107,11 @@ public class ClusterFormationFailureHelper {
         warningScheduler = null;
     }
 
+    /**
+     * A warning scheduler.
+     *
+     * @opensearch.internal
+     */
     private class WarningScheduler {
 
         private boolean isActive() {
@@ -138,6 +148,11 @@ public class ClusterFormationFailureHelper {
         }
     }
 
+    /**
+     * State of the cluster formation.
+     *
+     * @opensearch.internal
+     */
     static class ClusterFormationState {
         private final Settings settings;
         private final ClusterState clusterState;
@@ -169,9 +184,10 @@ public class ClusterFormationFailureHelper {
             if (statusInfo.getStatus() == UNHEALTHY) {
                 return String.format(Locale.ROOT, "this node is unhealthy: %s", statusInfo.getInfo());
             }
-            final List<String> clusterStateNodes = StreamSupport.stream(clusterState.nodes().getMasterNodes().values().spliterator(), false)
-                .map(n -> n.value.toString())
-                .collect(Collectors.toList());
+            final List<String> clusterStateNodes = StreamSupport.stream(
+                clusterState.nodes().getClusterManagerNodes().values().spliterator(),
+                false
+            ).map(n -> n.toString()).collect(Collectors.toList());
 
             final String discoveryWillContinueDescription = String.format(
                 Locale.ROOT,
@@ -191,7 +207,7 @@ public class ClusterFormationFailureHelper {
                 discoveryWillContinueDescription
             );
 
-            if (clusterState.nodes().getLocalNode().isMasterNode() == false) {
+            if (clusterState.nodes().getLocalNode().isClusterManagerNode() == false) {
                 return String.format(Locale.ROOT, "cluster-manager not discovered yet: %s", discoveryStateIgnoringQuorum);
             }
 
@@ -218,7 +234,7 @@ public class ClusterFormationFailureHelper {
 
             assert clusterState.getLastCommittedConfiguration().isEmpty() == false;
 
-            if (clusterState.getLastCommittedConfiguration().equals(VotingConfiguration.MUST_JOIN_ELECTED_MASTER)) {
+            if (clusterState.getLastCommittedConfiguration().equals(VotingConfiguration.MUST_JOIN_ELECTED_CLUSTER_MANAGER)) {
                 return String.format(
                     Locale.ROOT,
                     "cluster-manager not discovered yet and this node was detached from its previous cluster, have discovered %s; %s",

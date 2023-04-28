@@ -33,15 +33,15 @@
 package org.opensearch.cluster.routing;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -54,6 +54,8 @@ import java.util.Objects;
  * the target shard (only materialized in RoutingNodes) is initializing with the id set to the origin shard
  * relocationId. Once relocation is done, the new allocation id is set to the relocationId. This is similar
  * behavior to how ShardRouting#currentNodeId is used.
+ *
+ * @opensearch.internal
  */
 public class AllocationId implements ToXContentObject, Writeable {
     private static final String ID_KEY = "id";

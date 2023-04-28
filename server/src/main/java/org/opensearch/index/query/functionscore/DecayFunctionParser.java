@@ -32,12 +32,12 @@
 
 package org.opensearch.index.query.functionscore;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.SearchModule;
@@ -79,6 +79,8 @@ import java.util.function.BiFunction;
  * {@link DecayFunctionBuilder}, setup a PARSER field with this class, and
  * register them in {@link SearchModule#registerScoreFunctions} or {@link SearchPlugin#getScoreFunctions}
  * See {@link GaussDecayFunctionBuilder#PARSER} for an example.
+ *
+ * @opensearch.internal
  */
 public final class DecayFunctionParser<DFB extends DecayFunctionBuilder<DFB>> implements ScoreFunctionParser<DFB> {
 

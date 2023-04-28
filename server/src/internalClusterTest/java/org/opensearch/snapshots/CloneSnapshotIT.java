@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.containsString;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
 import org.opensearch.index.snapshots.blobstore.SnapshotFiles;
@@ -72,26 +72,18 @@ import static org.hamcrest.Matchers.is;
 public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testShardClone() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "repo-name";
         final Path repoPath = randomRepoPath();
         createRepository(repoName, "fs", repoPath);
-
-        final boolean useBwCFormat = randomBoolean();
-        if (useBwCFormat) {
-            initWithSnapshotVersion(repoName, repoPath, SnapshotsService.OLD_SNAPSHOT_FORMAT);
-            // Re-create repo to clear repository data cache
-            assertAcked(clusterAdmin().prepareDeleteRepository(repoName).get());
-            createRepository(repoName, "fs", repoPath);
-        }
 
         final String indexName = "test-index";
         createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
         final String sourceSnapshot = "source-snapshot";
         final SnapshotInfo sourceSnapshotInfo = createFullSnapshot(repoName, sourceSnapshot);
 
-        final BlobStoreRepository repository = (BlobStoreRepository) internalCluster().getCurrentMasterNodeInstance(
+        final BlobStoreRepository repository = (BlobStoreRepository) internalCluster().getCurrentClusterManagerNodeInstance(
             RepositoriesService.class
         ).repository(repoName);
         final RepositoryData repositoryData = getRepositoryData(repoName);
@@ -101,20 +93,10 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final SnapshotId targetSnapshotId = new SnapshotId("target-snapshot", UUIDs.randomBase64UUID(random()));
 
-        final String currentShardGen;
-        if (useBwCFormat) {
-            currentShardGen = null;
-        } else {
-            currentShardGen = repositoryData.shardGenerations().getShardGen(indexId, shardId);
-        }
+        final String currentShardGen = repositoryData.shardGenerations().getShardGen(indexId, shardId);
         final String newShardGeneration = PlainActionFuture.get(
             f -> repository.cloneShardSnapshot(sourceSnapshotInfo.snapshotId(), targetSnapshotId, repositoryShardId, currentShardGen, f)
         );
-
-        if (useBwCFormat) {
-            final long gen = Long.parseLong(newShardGeneration);
-            assertEquals(gen, 1L); // Initial snapshot brought it to 0, clone increments it to 1
-        }
 
         final BlobStoreIndexShardSnapshot targetShardSnapshot = readShardSnapshot(repository, repositoryShardId, targetSnapshotId);
         final BlobStoreIndexShardSnapshot sourceShardSnapshot = readShardSnapshot(
@@ -143,7 +125,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testCloneSnapshotIndex() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "repo-name";
         createRepository(repoName, "fs");
@@ -172,7 +154,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testClonePreventsSnapshotDelete() throws Exception {
-        final String masterName = internalCluster().startMasterOnlyNode();
+        final String clusterManagerName = internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "repo-name";
         createRepository(repoName, "mock");
@@ -185,9 +167,9 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexRandomDocs(indexName, randomIntBetween(20, 100));
 
         final String targetSnapshot = "target-snapshot";
-        blockNodeOnAnyFiles(repoName, masterName);
+        blockNodeOnAnyFiles(repoName, clusterManagerName);
         final ActionFuture<AcknowledgedResponse> cloneFuture = startClone(repoName, sourceSnapshot, targetSnapshot, indexName);
-        waitForBlock(masterName, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(clusterManagerName, repoName, TimeValue.timeValueSeconds(30L));
         assertFalse(cloneFuture.isDone());
 
         ConcurrentSnapshotExecutionException ex = expectThrows(
@@ -196,7 +178,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
         assertThat(ex.getMessage(), containsString("cannot delete snapshot while it is being cloned"));
 
-        unblockNode(repoName, masterName);
+        unblockNode(repoName, clusterManagerName);
         assertAcked(cloneFuture.get());
         final List<SnapshotStatus> status = clusterAdmin().prepareSnapshotStatus(repoName)
             .setSnapshots(sourceSnapshot, targetSnapshot)
@@ -210,7 +192,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testConcurrentCloneAndSnapshot() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "repo-name";
         createRepository(repoName, "mock");
@@ -234,7 +216,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testLongRunningCloneAllowsConcurrentSnapshot() throws Exception {
         // large snapshot pool so blocked snapshot threads from cloning don't prevent concurrent snapshot finalizations
-        final String masterNode = internalCluster().startMasterOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
+        final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -245,9 +227,9 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         createFullSnapshot(repoName, sourceSnapshot);
 
         final String targetSnapshot = "target-snapshot";
-        blockMasterOnShardClone(repoName);
+        blockClusterManagerOnShardClone(repoName);
         final ActionFuture<AcknowledgedResponse> cloneFuture = startClone(repoName, sourceSnapshot, targetSnapshot, indexSlow);
-        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(clusterManagerNode, repoName, TimeValue.timeValueSeconds(30L));
 
         final String indexFast = "index-fast";
         createIndexWithRandomDocs(indexFast, randomIntBetween(20, 100));
@@ -257,13 +239,13 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
 
         assertThat(cloneFuture.isDone(), is(false));
-        unblockNode(repoName, masterNode);
+        unblockNode(repoName, clusterManagerNode);
 
         assertAcked(cloneFuture.get());
     }
 
     public void testLongRunningSnapshotAllowsConcurrentClone() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -293,7 +275,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testDeletePreventsClone() throws Exception {
-        final String masterName = internalCluster().startMasterOnlyNode();
+        final String clusterManagerName = internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "repo-name";
         createRepository(repoName, "mock");
@@ -306,9 +288,9 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexRandomDocs(indexName, randomIntBetween(20, 100));
 
         final String targetSnapshot = "target-snapshot";
-        blockNodeOnAnyFiles(repoName, masterName);
+        blockNodeOnAnyFiles(repoName, clusterManagerName);
         final ActionFuture<AcknowledgedResponse> deleteFuture = startDeleteSnapshot(repoName, sourceSnapshot);
-        waitForBlock(masterName, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(clusterManagerName, repoName, TimeValue.timeValueSeconds(30L));
         assertFalse(deleteFuture.isDone());
 
         ConcurrentSnapshotExecutionException ex = expectThrows(
@@ -317,13 +299,13 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
         assertThat(ex.getMessage(), containsString("cannot clone from snapshot that is being deleted"));
 
-        unblockNode(repoName, masterName);
+        unblockNode(repoName, clusterManagerName);
         assertAcked(deleteFuture.get());
     }
 
     public void testBackToBackClonesForIndexNotInCluster() throws Exception {
         // large snapshot pool so blocked snapshot threads from cloning don't prevent concurrent snapshot finalizations
-        final String masterNode = internalCluster().startMasterOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
+        final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -336,9 +318,9 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAcked(admin().indices().prepareDelete(indexBlocked).get());
 
         final String targetSnapshot1 = "target-snapshot";
-        blockMasterOnShardClone(repoName);
+        blockClusterManagerOnShardClone(repoName);
         final ActionFuture<AcknowledgedResponse> cloneFuture1 = startClone(repoName, sourceSnapshot, targetSnapshot1, indexBlocked);
-        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(clusterManagerNode, repoName, TimeValue.timeValueSeconds(30L));
         assertThat(cloneFuture1.isDone(), is(false));
 
         final int extraClones = randomIntBetween(1, 5);
@@ -366,7 +348,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
             assertFalse(extraSnapshotFuture.isDone());
         }
 
-        unblockNode(repoName, masterNode);
+        unblockNode(repoName, clusterManagerNode);
         assertAcked(cloneFuture1.get());
 
         for (ActionFuture<AcknowledgedResponse> extraCloneFuture : extraCloneFutures) {
@@ -377,8 +359,8 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    public void testMasterFailoverDuringCloneStep1() throws Exception {
-        internalCluster().startMasterOnlyNodes(3);
+    public void testClusterManagerFailoverDuringCloneStep1() throws Exception {
+        internalCluster().startClusterManagerOnlyNodes(3);
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -388,13 +370,13 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String sourceSnapshot = "source-snapshot";
         createFullSnapshot(repoName, sourceSnapshot);
 
-        blockMasterOnReadIndexMeta(repoName);
+        blockClusterManagerOnReadIndexMeta(repoName);
         final String cloneName = "target-snapshot";
         final ActionFuture<AcknowledgedResponse> cloneFuture = startCloneFromDataNode(repoName, sourceSnapshot, cloneName, testIndex);
         awaitNumberOfSnapshotsInProgress(1);
-        final String masterNode = internalCluster().getMasterName();
-        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
-        internalCluster().restartNode(masterNode);
+        final String clusterManagerNode = internalCluster().getClusterManagerName();
+        waitForBlock(clusterManagerNode, repoName, TimeValue.timeValueSeconds(30L));
+        internalCluster().restartNode(clusterManagerNode);
         boolean cloneSucceeded = false;
         try {
             cloneFuture.actionGet(TimeValue.timeValueSeconds(30L));
@@ -404,16 +386,17 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
             // snapshot on disconnect slowly enough for it to work out
         }
 
-        awaitNoMoreRunningOperations(internalCluster().getMasterName());
+        awaitNoMoreRunningOperations(internalCluster().getClusterManagerName());
 
-        // Check if the clone operation worked out by chance as a result of the clone request being retried because of the master failover
+        // Check if the clone operation worked out by chance as a result of the clone request being retried
+        // because of the cluster-manager failover
         cloneSucceeded = cloneSucceeded
             || getRepositoryData(repoName).getSnapshotIds().stream().anyMatch(snapshotId -> snapshotId.getName().equals(cloneName));
         assertAllSnapshotsSuccessful(getRepositoryData(repoName), cloneSucceeded ? 2 : 1);
     }
 
     public void testFailsOnCloneMissingIndices() {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "repo-name";
         final Path repoPath = randomRepoPath();
@@ -430,9 +413,9 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
-    public void testMasterFailoverDuringCloneStep2() throws Exception {
+    public void testClusterManagerFailoverDuringCloneStep2() throws Exception {
         // large snapshot pool so blocked snapshot threads from cloning don't prevent concurrent snapshot finalizations
-        internalCluster().startMasterOnlyNodes(3, LARGE_SNAPSHOT_POOL_SETTINGS);
+        internalCluster().startClusterManagerOnlyNodes(3, LARGE_SNAPSHOT_POOL_SETTINGS);
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -443,21 +426,21 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         createFullSnapshot(repoName, sourceSnapshot);
 
         final String targetSnapshot = "target-snapshot";
-        blockMasterOnShardClone(repoName);
+        blockClusterManagerOnShardClone(repoName);
         final ActionFuture<AcknowledgedResponse> cloneFuture = startCloneFromDataNode(repoName, sourceSnapshot, targetSnapshot, testIndex);
         awaitNumberOfSnapshotsInProgress(1);
-        final String masterNode = internalCluster().getMasterName();
-        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
-        internalCluster().restartNode(masterNode);
+        final String clusterManagerNode = internalCluster().getClusterManagerName();
+        waitForBlock(clusterManagerNode, repoName, TimeValue.timeValueSeconds(30L));
+        internalCluster().restartNode(clusterManagerNode);
         expectThrows(SnapshotException.class, cloneFuture::actionGet);
-        awaitNoMoreRunningOperations(internalCluster().getMasterName());
+        awaitNoMoreRunningOperations(internalCluster().getClusterManagerName());
 
         assertAllSnapshotsSuccessful(getRepositoryData(repoName), 2);
     }
 
     public void testExceptionDuringShardClone() throws Exception {
         // large snapshot pool so blocked snapshot threads from cloning don't prevent concurrent snapshot finalizations
-        internalCluster().startMasterOnlyNodes(3, LARGE_SNAPSHOT_POOL_SETTINGS);
+        internalCluster().startClusterManagerOnlyNodes(3, LARGE_SNAPSHOT_POOL_SETTINGS);
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -468,20 +451,20 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         createFullSnapshot(repoName, sourceSnapshot);
 
         final String targetSnapshot = "target-snapshot";
-        blockMasterFromFinalizingSnapshotOnSnapFile(repoName);
+        blockClusterManagerFromFinalizingSnapshotOnSnapFile(repoName);
         final ActionFuture<AcknowledgedResponse> cloneFuture = startCloneFromDataNode(repoName, sourceSnapshot, targetSnapshot, testIndex);
         awaitNumberOfSnapshotsInProgress(1);
-        final String masterNode = internalCluster().getMasterName();
-        waitForBlock(masterNode, repoName, TimeValue.timeValueSeconds(30L));
-        unblockNode(repoName, masterNode);
+        final String clusterManagerNode = internalCluster().getClusterManagerName();
+        waitForBlock(clusterManagerNode, repoName, TimeValue.timeValueSeconds(30L));
+        unblockNode(repoName, clusterManagerNode);
         expectThrows(SnapshotException.class, cloneFuture::actionGet);
-        awaitNoMoreRunningOperations(internalCluster().getMasterName());
+        awaitNoMoreRunningOperations(internalCluster().getClusterManagerName());
         assertAllSnapshotsSuccessful(getRepositoryData(repoName), 1);
         assertAcked(startDeleteSnapshot(repoName, sourceSnapshot).get());
     }
 
     public void testDoesNotStartOnBrokenSourceSnapshot() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -490,8 +473,8 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final String sourceSnapshot = "source-snapshot";
         blockDataNode(repoName, dataNode);
-        final Client masterClient = internalCluster().masterClient();
-        final ActionFuture<CreateSnapshotResponse> sourceSnapshotFuture = masterClient.admin()
+        final Client clusterManagerClient = internalCluster().clusterManagerClient();
+        final ActionFuture<CreateSnapshotResponse> sourceSnapshotFuture = clusterManagerClient.admin()
             .cluster()
             .prepareCreateSnapshot(repoName, sourceSnapshot)
             .setWaitForCompletion(true)
@@ -503,7 +486,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final SnapshotException sne = expectThrows(
             SnapshotException.class,
-            () -> startClone(masterClient, repoName, sourceSnapshot, "target-snapshot", testIndex).actionGet(
+            () -> startClone(clusterManagerClient, repoName, sourceSnapshot, "target-snapshot", testIndex).actionGet(
                 TimeValue.timeValueSeconds(30L)
             )
         );
@@ -516,7 +499,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testStartSnapshotWithSuccessfulShardClonePendingFinalization() throws Exception {
-        final String masterName = internalCluster().startMasterOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
+        final String clusterManagerName = internalCluster().startClusterManagerOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -527,18 +510,18 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String sourceSnapshot = "source-snapshot";
         createFullSnapshot(repoName, sourceSnapshot);
 
-        blockMasterOnWriteIndexFile(repoName);
+        blockClusterManagerOnWriteIndexFile(repoName);
         final String cloneName = "clone-blocked";
         final ActionFuture<AcknowledgedResponse> blockedClone = startClone(repoName, sourceSnapshot, cloneName, indexName);
-        waitForBlock(masterName, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(clusterManagerName, repoName, TimeValue.timeValueSeconds(30L));
         awaitNumberOfSnapshotsInProgress(1);
         blockNodeOnAnyFiles(repoName, dataNode);
         final ActionFuture<CreateSnapshotResponse> otherSnapshot = startFullSnapshot(repoName, "other-snapshot");
         awaitNumberOfSnapshotsInProgress(2);
         assertFalse(blockedClone.isDone());
-        unblockNode(repoName, masterName);
+        unblockNode(repoName, clusterManagerName);
         awaitNumberOfSnapshotsInProgress(1);
-        awaitMasterFinishRepoOperations();
+        awaitClusterManagerFinishRepoOperations();
         unblockNode(repoName, dataNode);
         assertAcked(blockedClone.get());
         assertEquals(getSnapshot(repoName, cloneName).state(), SnapshotState.SUCCESS);
@@ -546,7 +529,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testStartCloneWithSuccessfulShardClonePendingFinalization() throws Exception {
-        final String masterName = internalCluster().startMasterOnlyNode();
+        final String clusterManagerName = internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -557,18 +540,18 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String sourceSnapshot = "source-snapshot";
         createFullSnapshot(repoName, sourceSnapshot);
 
-        blockMasterOnWriteIndexFile(repoName);
+        blockClusterManagerOnWriteIndexFile(repoName);
         final String cloneName = "clone-blocked";
         final ActionFuture<AcknowledgedResponse> blockedClone = startClone(repoName, sourceSnapshot, cloneName, indexName);
-        waitForBlock(masterName, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(clusterManagerName, repoName, TimeValue.timeValueSeconds(30L));
         awaitNumberOfSnapshotsInProgress(1);
         final String otherCloneName = "other-clone";
         final ActionFuture<AcknowledgedResponse> otherClone = startClone(repoName, sourceSnapshot, otherCloneName, indexName);
         awaitNumberOfSnapshotsInProgress(2);
         assertFalse(blockedClone.isDone());
-        unblockNode(repoName, masterName);
-        awaitNoMoreRunningOperations(masterName);
-        awaitMasterFinishRepoOperations();
+        unblockNode(repoName, clusterManagerName);
+        awaitNoMoreRunningOperations(clusterManagerName);
+        awaitClusterManagerFinishRepoOperations();
         assertAcked(blockedClone.get());
         assertAcked(otherClone.get());
         assertEquals(getSnapshot(repoName, cloneName).state(), SnapshotState.SUCCESS);
@@ -576,7 +559,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testStartCloneWithSuccessfulShardSnapshotPendingFinalization() throws Exception {
-        final String masterName = internalCluster().startMasterOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
+        final String clusterManagerName = internalCluster().startClusterManagerOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
@@ -587,9 +570,9 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String sourceSnapshot = "source-snapshot";
         createFullSnapshot(repoName, sourceSnapshot);
 
-        blockMasterOnWriteIndexFile(repoName);
+        blockClusterManagerOnWriteIndexFile(repoName);
         final ActionFuture<CreateSnapshotResponse> blockedSnapshot = startFullSnapshot(repoName, "snap-blocked");
-        waitForBlock(masterName, repoName, TimeValue.timeValueSeconds(30L));
+        waitForBlock(clusterManagerName, repoName, TimeValue.timeValueSeconds(30L));
         awaitNumberOfSnapshotsInProgress(1);
         final String cloneName = "clone";
         final ActionFuture<AcknowledgedResponse> clone = startClone(repoName, sourceSnapshot, cloneName, indexName);
@@ -602,11 +585,11 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
             });
             assertFalse(blockedSnapshot.isDone());
         } finally {
-            unblockNode(repoName, masterName);
+            unblockNode(repoName, clusterManagerName);
         }
         awaitNoMoreRunningOperations();
 
-        awaitMasterFinishRepoOperations();
+        awaitClusterManagerFinishRepoOperations();
 
         assertSuccessful(blockedSnapshot);
         assertAcked(clone.get());
@@ -641,13 +624,13 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         return client.admin().cluster().prepareCloneSnapshot(repoName, sourceSnapshot, targetSnapshot).setIndices(indices).execute();
     }
 
-    private void blockMasterOnReadIndexMeta(String repoName) {
-        ((MockRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName))
+    private void blockClusterManagerOnReadIndexMeta(String repoName) {
+        ((MockRepository) internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class).repository(repoName))
             .setBlockOnReadIndexMeta();
     }
 
-    private void blockMasterOnShardClone(String repoName) {
-        ((MockRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName))
+    private void blockClusterManagerOnShardClone(String repoName) {
+        ((MockRepository) internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class).repository(repoName))
             .setBlockOnWriteShardLevelMeta();
     }
 
