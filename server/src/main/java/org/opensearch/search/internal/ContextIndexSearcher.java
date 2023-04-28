@@ -32,6 +32,15 @@
 
 package org.opensearch.search.internal;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.Executor;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -64,6 +73,10 @@ import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.instrumentation.Span;
+import org.opensearch.instrumentation.Span;
+import org.opensearch.instrumentation.Tracer.Level;
+import org.opensearch.instrumentation.TracerFactory;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
@@ -72,15 +85,6 @@ import org.opensearch.search.profile.query.ProfileWeight;
 import org.opensearch.search.profile.query.QueryProfiler;
 import org.opensearch.search.profile.query.QueryTimingType;
 import org.opensearch.search.query.QuerySearchResult;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.Executor;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
@@ -245,6 +249,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         DocValueFormat[] formats,
         TotalHits totalHits
     ) throws IOException {
+        String id = UUID.randomUUID().toString();
+        final Span span = TracerFactory.getInstance().startTrace("IndexSearcher", null, Level.LOW);
         final List<Collector> collectors = new ArrayList<>(leaves.size());
         for (LeafReaderContext ctx : leaves) {
             final Collector collector = manager.newCollector();
@@ -261,6 +267,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             mergedTopDocs = new TopFieldDocs(totalHits, mergedTopDocs.scoreDocs, mergedTopDocs.fields);
         }
         result.topDocs(new TopDocsAndMaxScore(mergedTopDocs, Float.NaN), formats);
+
+        TracerFactory.getInstance().endTrace(span);
     }
 
     public void search(
@@ -284,6 +292,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+        String id = UUID.randomUUID().toString();
+        final Span span = TracerFactory.getInstance().startTrace("IndexSearcher", null, Level.LOW);
         if (reverseLeafReaderContexts) {
             // reverse the segment search order if this flag is true.
             for (int i = leaves.size() - 1; i >= 0; i--) {
@@ -294,6 +304,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 searchLeaf(leaves.get(i), weight, collector);
             }
         }
+        TracerFactory.getInstance().endTrace(span);
     }
 
     /**
@@ -303,6 +314,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * the provided <code>ctx</code>.
      */
     private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
+        String id = UUID.randomUUID().toString();
+        final Span span = TracerFactory.getInstance().startTrace("IndexSearcher-Leaf", null, Level.LOW);
         cancellable.checkCancelled();
         weight = wrapWeight(weight);
         // See please https://github.com/apache/lucene/pull/964
@@ -344,6 +357,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 }
             }
         }
+        TracerFactory.getInstance().endTrace(span);
     }
 
     private Weight wrapWeight(Weight weight) {

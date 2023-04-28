@@ -59,12 +59,7 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.transport.Transport;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -276,6 +271,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 ? pendingExecutionsPerNode.computeIfAbsent(shard.getNodeId(), n -> new PendingExecutions(maxConcurrentRequestsPerNode))
                 : null;
             Runnable r = () -> {
+//                System.out.println("");
+//                TracerFactory.getInstance().startTrace("child shard" + shardIndex, null, span, Tracer.Level.HIGH);
                 final Thread thread = Thread.currentThread();
                 try {
                     executePhaseOnShard(shardIt, shard, new SearchActionListener<Result>(shard, shardIndex) {
@@ -284,6 +281,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             try {
                                 onShardResult(result, shardIt);
                             } finally {
+//                                TracerFactory.getInstance().endTrace();
                                 executeNext(pendingExecutions, thread);
                             }
                         }
@@ -293,6 +291,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             try {
                                 onShardFailure(shardIndex, shard, shardIt, t);
                             } finally {
+//                                TracerFactory.getInstance().endTrace();
                                 executeNext(pendingExecutions, thread);
                             }
                         }
@@ -314,6 +313,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             }
                         });
                     } finally {
+//                        TracerFactory.getInstance().endTrace();
                         executeNext(pendingExecutions, thread);
                     }
                 }

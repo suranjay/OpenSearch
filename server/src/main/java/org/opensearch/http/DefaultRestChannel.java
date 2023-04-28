@@ -32,6 +32,11 @@
 
 package org.opensearch.http;
 
+import static org.opensearch.tasks.Task.X_OPAQUE_ID;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesArray;
@@ -43,17 +48,12 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.instrumentation.TracerFactory;
 import org.opensearch.rest.AbstractRestChannel;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.RestStatus;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
-import static org.opensearch.tasks.Task.X_OPAQUE_ID;
 
 /**
  * The default rest channel for incoming requests. This class implements the basic logic for sending a rest
@@ -62,6 +62,7 @@ import static org.opensearch.tasks.Task.X_OPAQUE_ID;
  * @opensearch.internal
  */
 public class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
+
 
     static final String CLOSE = "close";
     static final String CONNECTION = "connection";
@@ -164,6 +165,12 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             httpChannel.sendResponse(httpResponse, listener);
             success = true;
         } finally {
+            if (request.uri().startsWith("/_search")) {
+
+                System.out.println("ending 1" + request.getRequestId());
+                /*if (span!=null)*/
+                TracerFactory.getInstance().endTrace();
+            }
             if (success == false) {
                 Releasables.close(toClose);
             }

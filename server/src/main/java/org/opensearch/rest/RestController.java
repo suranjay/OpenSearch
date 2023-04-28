@@ -32,26 +32,13 @@
 
 package org.opensearch.rest;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.OpenSearchException;
-import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
-import org.opensearch.common.breaker.CircuitBreaker;
-import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.common.path.PathTrie;
-import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.util.io.Streams;
-import org.opensearch.http.HttpServerTransport;
-import org.opensearch.indices.breaker.CircuitBreakerService;
-import org.opensearch.usage.UsageService;
+import static org.opensearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
+import static org.opensearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
+import static org.opensearch.rest.RestStatus.BAD_REQUEST;
+import static org.opensearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
+import static org.opensearch.rest.RestStatus.METHOD_NOT_ALLOWED;
+import static org.opensearch.rest.RestStatus.NOT_ACCEPTABLE;
+import static org.opensearch.rest.RestStatus.OK;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -67,14 +54,29 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
-
-import static org.opensearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
-import static org.opensearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
-import static org.opensearch.rest.RestStatus.BAD_REQUEST;
-import static org.opensearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
-import static org.opensearch.rest.RestStatus.METHOD_NOT_ALLOWED;
-import static org.opensearch.rest.RestStatus.NOT_ACCEPTABLE;
-import static org.opensearch.rest.RestStatus.OK;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.OpenSearchException;
+import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.Nullable;
+import org.opensearch.common.Strings;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.path.PathTrie;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.io.Streams;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.http.HttpServerTransport;
+import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.instrumentation.Span;
+import org.opensearch.instrumentation.Tracer;
+import org.opensearch.instrumentation.TracerFactory;
+import org.opensearch.usage.UsageService;
 
 /**
  * OpenSearch REST controller
@@ -82,6 +84,9 @@ import static org.opensearch.rest.RestStatus.OK;
  * @opensearch.api
  */
 public class RestController implements HttpServerTransport.Dispatcher {
+
+    public static Map<String, Span> spanMap = new HashMap<>();
+
 
     private static final Logger logger = LogManager.getLogger(RestController.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestController.class);
@@ -238,6 +243,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
     @Override
     public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
         try {
+            if (request.uri().startsWith("/_search")) {
+                System.out.println("Request Id:" + request.getRequestId() + " uri:" + request.uri() );
+                Map<String, String> map = new HashMap<>();
+                map.put("Request_id", String.valueOf(request.getRequestId()));
+                spanMap.put("Request_" + String.valueOf(request.getRequestId()), TracerFactory.getInstance().startTrace("Request_" + String.valueOf(request.getRequestId()), map, Tracer.Level.HIGH));
+            }
             tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {
             try {
@@ -571,6 +582,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         @Override
         public void sendResponse(RestResponse response) {
             close();
+            final RestRequest request = request();
+            TracerFactory.getInstance().endTrace(spanMap.get("Request_" + String.valueOf(request.getRequestId())));
             delegate.sendResponse(response);
         }
 
