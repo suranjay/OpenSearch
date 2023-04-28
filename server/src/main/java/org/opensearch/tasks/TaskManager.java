@@ -32,22 +32,8 @@
 
 package org.opensearch.tasks;
 
-import static org.opensearch.common.unit.TimeValue.timeValueMillis;
-import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
-import static org.opensearch.instrumentation.DefaultTracer.PARENT_SPAN;
-import static org.opensearch.instrumentation.DefaultTracer.T_SPAN_DETAILS_KEY;
-
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
-import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -63,7 +49,6 @@ import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.collect.HppcMaps;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.ClusterSettings;
@@ -76,14 +61,25 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.Assertions;
-import org.opensearch.instrumentation.OSSpan;
-import org.opensearch.instrumentation.Tracer;
-import org.opensearch.instrumentation.TracerFactory;
+import org.opensearch.instrumentation.Span;
 import org.opensearch.search.fetch.ShardFetchRequest;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TcpChannel;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+
+import static org.opensearch.common.unit.TimeValue.timeValueMillis;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
 
 /**
  * Task Manager service for keeping track of currently running tasks on the nodes
@@ -132,7 +128,7 @@ public class TaskManager implements ClusterStateApplier {
     private volatile boolean taskResourceConsumersEnabled;
     private final Set<Consumer<Task>> taskResourceConsumer;
 
-    private Map<String, OSSpan> spanMap = new ConcurrentHashMap<>();
+    private Map<String, Span> spanMap = new ConcurrentHashMap<>();
 
     public static TaskManager createTaskManagerWithClusterSettings(
         Settings settings,
@@ -229,13 +225,8 @@ public class TaskManager implements ClusterStateApplier {
             String parentId = task.getParentTaskId().isSet() ? String.valueOf(task.getParentTaskId().getId()) : null;
             System.out.println("task.parent "  + task.getId() + " : " + parentId);
 //            System.out.println("stacktrace:" + Arrays.toString(Thread.currentThread().getStackTrace()).replace( ',', '\n' ));
-            Map<String, Object> currentSpan = threadContext.getTransient(T_SPAN_DETAILS_KEY);
-            if (currentSpan!=null) {
-                OSSpan o = (OSSpan) currentSpan.get(PARENT_SPAN);
-//                System.out.println("current span id in task:" + o.getSpan().getSpanContext().getSpanId());
-            }
             String parentSpanName = parentId != null ? "Task_" + parentId : null;
-            OSSpan parentSpan = null;
+            Span parentSpan = null;
             if (parentId != null) {
                 parentSpan = spanMap.get("Task_" + parentId);
                 if (parentSpan == null) {

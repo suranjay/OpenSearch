@@ -51,9 +51,6 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.instrumentation.OSSpan;
-import org.opensearch.instrumentation.Tracer;
-import org.opensearch.instrumentation.TracerFactory;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.AliasFilter;
@@ -62,12 +59,7 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.transport.Transport;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -249,13 +241,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     throw new SearchPhaseExecutionException(getName(), msg, null, ShardSearchFailure.EMPTY_ARRAY);
                 }
             }
-            OSSpan span = TracerFactory.getInstance().getCurrentParent();
             for (int index = 0; index < shardsIts.size(); index++) {
                 final SearchShardIterator shardRoutings = shardsIts.get(index);
                 assert shardRoutings.skip() == false;
-                performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull(), span);
+                performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
             }
-//            TracerFactory.getInstance().endTrace();
         }
     }
 
@@ -266,7 +256,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         successfulShardExecution(iterator);
     }
 
-    private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard, OSSpan span) {
+    private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
         /*
          * We capture the thread that this phase is starting on. When we are called back after executing the phase, we are either on the
          * same thread (because we never went async, or the same thread was selected from the thread pool) or a different thread. If we
@@ -490,7 +480,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             );
         } else {
             if (lastShard == false) {
-                performPhaseOnShard(shardIndex, shardIt, nextShard, null);
+                performPhaseOnShard(shardIndex, shardIt, nextShard);
             }
         }
     }

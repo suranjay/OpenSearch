@@ -48,7 +48,6 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.instrumentation.OSSpan;
 import org.opensearch.instrumentation.TracerFactory;
 import org.opensearch.rest.AbstractRestChannel;
 import org.opensearch.rest.RestChannel;

@@ -16,17 +16,17 @@ public class TracerFactory {
 
     private static DefaultTracer defaultTracer;
 
-    public static synchronized void initializeTracer(ThreadPool threadPool){
+    public static synchronized void initializeTracer(ThreadPool threadPool) {
         OpenTelemetry openTelemetry = OTelMain.openTelemetry;
-        io.opentelemetry.api.trace.Tracer openTelemetryTracer = openTelemetry.getTracer("instrumentation-library-name", "1.0.0");
-        if(defaultTracer == null) {
+        io.opentelemetry.api.trace.Tracer openTelemetryTracer = openTelemetry.getTracer("opensearch-instrumentation", "1.0.0");
+        if (defaultTracer == null) {
             defaultTracer = new DefaultTracer(openTelemetryTracer, threadPool);
-        }else{
-            throw new IllegalStateException("Double-initialization not allowed!");
+        } else {
+            throw new IllegalStateException("Double initialization not allowed!");
         }
     }
 
-    public static Tracer getInstance(){
+    public static Tracer getInstance() {
         return defaultTracer;
     }
 

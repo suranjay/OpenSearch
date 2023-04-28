@@ -12,21 +12,21 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class OSSpanHolder {
 
-    private AtomicReference<OSSpan> span = new AtomicReference<>();
+    private final AtomicReference<Span> span = new AtomicReference<>();
 
-    public OSSpanHolder(OSSpanHolder o) {
-        this.span.getAndSet(o.span.get());
+    public OSSpanHolder(OSSpanHolder spanHolder) {
+        this.span.getAndSet(spanHolder.span.get());
     }
 
-    public OSSpanHolder(OSSpan span) {
+    public OSSpanHolder(Span span) {
         this.span.getAndSet(span);
     }
 
-    public void setSpan(OSSpan span) {
-        this.span.getAndSet(span);
-    }
-
-    public OSSpan getSpan() {
+    public Span getSpan() {
         return span.get();
+    }
+
+    public void setSpan(Span span) {
+        this.span.getAndSet(span);
     }
 }

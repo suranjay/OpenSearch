@@ -18,6 +18,7 @@ import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
+
 import java.util.concurrent.TimeUnit;
 
 public class OTelMain {
@@ -25,14 +26,13 @@ public class OTelMain {
 
     static {
         Resource resource = Resource.getDefault()
-            .merge(Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, "OpenSearch-Search")));
+            .merge(Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, "OpenSearch")));
 
         SdkTracerProvider sdkTracerProvider = SdkTracerProvider.builder()
             .addSpanProcessor(BatchSpanProcessor.builder(OtlpGrpcSpanExporter.builder()
                 .setTimeout(2, TimeUnit.SECONDS).build()).build())
             .setResource(resource)
             .build();
-
 
 
         openTelemetry = OpenTelemetrySdk.builder()

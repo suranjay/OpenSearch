@@ -10,15 +10,14 @@ package org.opensearch.index.shard;
 
 import java.util.HashMap;
 import java.util.Map;
-import org.opensearch.instrumentation.OSSpan;
-import org.opensearch.instrumentation.Tracer;
+import org.opensearch.instrumentation.Span;
 import org.opensearch.instrumentation.Tracer.Level;
 import org.opensearch.instrumentation.TracerFactory;
 import org.opensearch.search.internal.SearchContext;
 
 public class SearchOperationListenerTracerImpl implements SearchOperationListener {
 
-    private Map<String, OSSpan> map = new HashMap<>();
+    private Map<String, Span> map = new HashMap<>();
 
 
     @Override

@@ -73,7 +73,7 @@ import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.instrumentation.OSSpan;
+import org.opensearch.instrumentation.Span;
 import org.opensearch.instrumentation.Tracer.Level;
 import org.opensearch.instrumentation.TracerFactory;
 import org.opensearch.search.DocValueFormat;
@@ -211,7 +211,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         TotalHits totalHits
     ) throws IOException {
         String id = UUID.randomUUID().toString();
-        final OSSpan span = TracerFactory.getInstance().startTrace("IndexSearcher", null, Level.LOW);
+        final Span span = TracerFactory.getInstance().startTrace("IndexSearcher", null, Level.LOW);
         final List<Collector> collectors = new ArrayList<>(leaves.size());
         for (LeafReaderContext ctx : leaves) {
             final Collector collector = manager.newCollector();
@@ -254,7 +254,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Override
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         String id = UUID.randomUUID().toString();
-        final OSSpan span = TracerFactory.getInstance().startTrace("IndexSearcher", null, Level.LOW);
+        final Span span = TracerFactory.getInstance().startTrace("IndexSearcher", null, Level.LOW);
         for (LeafReaderContext ctx : leaves) { // search each subreader
             searchLeaf(ctx, weight, collector);
         }
@@ -269,7 +269,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
         String id = UUID.randomUUID().toString();
-        final OSSpan span = TracerFactory.getInstance().startTrace("IndexSearcher-Leaf", null, Level.LOW);
+        final Span span = TracerFactory.getInstance().startTrace("IndexSearcher-Leaf", null, Level.LOW);
         cancellable.checkCancelled();
         weight = wrapWeight(weight);
         // See please https://github.com/apache/lucene/pull/964

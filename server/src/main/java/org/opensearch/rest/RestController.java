@@ -51,7 +51,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -74,7 +73,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.indices.breaker.CircuitBreakerService;
-import org.opensearch.instrumentation.OSSpan;
+import org.opensearch.instrumentation.Span;
 import org.opensearch.instrumentation.Tracer;
 import org.opensearch.instrumentation.TracerFactory;
 import org.opensearch.usage.UsageService;
@@ -86,7 +85,7 @@ import org.opensearch.usage.UsageService;
  */
 public class RestController implements HttpServerTransport.Dispatcher {
 
-    public static Map<String, OSSpan> spanMap = new HashMap<>();
+    public static Map<String, Span> spanMap = new HashMap<>();
 
 
     private static final Logger logger = LogManager.getLogger(RestController.class);
@@ -246,7 +245,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         try {
             if (request.uri().startsWith("/_search")) {
                 System.out.println("Request Id:" + request.getRequestId() + " uri:" + request.uri() );
-                Map<String, Object> map = new HashMap<>();
+                Map<String, String> map = new HashMap<>();
                 map.put("Request_id", String.valueOf(request.getRequestId()));
                 spanMap.put("Request_" + String.valueOf(request.getRequestId()), TracerFactory.getInstance().startTrace("Request_" + String.valueOf(request.getRequestId()), map, Tracer.Level.HIGH));
             }
