@@ -627,6 +627,12 @@ subprojects {
   }
 }
 
+
+testClusters.all {
+  numberOfNodes = 3
+}
+
+
 reporting {
   reports {
     testAggregateTestReport(AggregateTestReport) {
