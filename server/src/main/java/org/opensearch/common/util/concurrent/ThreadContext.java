@@ -44,19 +44,13 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.http.HttpTransportSettings;
+import org.opensearch.tracer.SpanHolder;
+import org.opensearch.tracer.TracerUtils;
 import org.opensearch.tasks.Task;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
@@ -66,6 +60,7 @@ import java.util.stream.Stream;
 
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE;
+import static org.opensearch.tracer.DefaultTracer.T_CURRENT_SPAN_KEY;
 import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 
 /**
@@ -140,15 +135,15 @@ public final class ThreadContext implements Writeable {
         ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT;
 
         if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
-            threadContextStruct = threadContextStruct.putHeaders(
-                MapBuilder.<String, String>newMapBuilder()
-                    .put(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID))
-                    .immutableMap()
-            );
+            threadContextStruct = threadContextStruct.putHeaders(MapBuilder.<String, String>newMapBuilder().put(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID)).immutableMap());
         }
 
         if (context.transientHeaders.containsKey(TASK_ID)) {
             threadContextStruct = threadContextStruct.putTransient(TASK_ID, context.transientHeaders.get(TASK_ID));
+        }
+
+        if (context.transientHeaders.containsKey(T_CURRENT_SPAN_KEY)) {
+            threadContextStruct = threadContextStruct.putTransient(T_CURRENT_SPAN_KEY, new SpanHolder((SpanHolder) context.transientHeaders.get(T_CURRENT_SPAN_KEY)));
         }
 
         threadLocal.set(threadContextStruct);
@@ -246,6 +241,11 @@ public final class ThreadContext implements Writeable {
         }
         // this is the context when this method returns
         final ThreadContextStruct newContext = threadLocal.get();
+
+        if (newContext.transientHeaders.containsKey(T_CURRENT_SPAN_KEY)) {
+            newContext.transientHeaders.put(T_CURRENT_SPAN_KEY, new SpanHolder((SpanHolder) newContext.transientHeaders.get(T_CURRENT_SPAN_KEY)));
+        }
+
         return () -> {
             if (preserveResponseHeaders && threadLocal.get() != newContext) {
                 threadLocal.set(originalContext.putResponseHeaders(threadLocal.get().responseHeaders));
@@ -710,6 +710,8 @@ public final class ThreadContext implements Writeable {
         }
 
         private void writeTo(StreamOutput out, Map<String, String> defaultHeaders) throws IOException {
+            TracerUtils.addTracerContextInHeader(this.requestHeaders, this.transientHeaders);
+
             final Map<String, String> requestHeaders;
             if (defaultHeaders.isEmpty()) {
                 requestHeaders = this.requestHeaders;
