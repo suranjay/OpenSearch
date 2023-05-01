@@ -31,6 +31,8 @@
 
 package org.opensearch.common.util.concurrent;
 
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.propagation.TextMapSetter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.ContextPreservingActionListener;
@@ -44,19 +46,14 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.http.HttpTransportSettings;
+import org.opensearch.instrumentation.OSSpanHolder;
+import org.opensearch.instrumentation.OTelMain;
+import org.opensearch.instrumentation.Span;
 import org.opensearch.tasks.Task;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
@@ -66,6 +63,7 @@ import java.util.stream.Stream;
 
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE;
+import static org.opensearch.instrumentation.DefaultTracer.T_CURRENT_SPAN_KEY;
 import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 
 /**
@@ -140,15 +138,15 @@ public final class ThreadContext implements Writeable {
         ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT;
 
         if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
-            threadContextStruct = threadContextStruct.putHeaders(
-                MapBuilder.<String, String>newMapBuilder()
-                    .put(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID))
-                    .immutableMap()
-            );
+            threadContextStruct = threadContextStruct.putHeaders(MapBuilder.<String, String>newMapBuilder().put(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID)).immutableMap());
         }
 
         if (context.transientHeaders.containsKey(TASK_ID)) {
             threadContextStruct = threadContextStruct.putTransient(TASK_ID, context.transientHeaders.get(TASK_ID));
+        }
+
+        if (context.transientHeaders.containsKey(T_CURRENT_SPAN_KEY)) {
+            threadContextStruct = threadContextStruct.putTransient(T_CURRENT_SPAN_KEY, new OSSpanHolder((OSSpanHolder) context.transientHeaders.get(T_CURRENT_SPAN_KEY)));
         }
 
         threadLocal.set(threadContextStruct);
@@ -246,6 +244,11 @@ public final class ThreadContext implements Writeable {
         }
         // this is the context when this method returns
         final ThreadContextStruct newContext = threadLocal.get();
+
+        if (newContext.transientHeaders.containsKey(T_CURRENT_SPAN_KEY)) {
+            newContext.transientHeaders.put(T_CURRENT_SPAN_KEY, new OSSpanHolder((OSSpanHolder) newContext.transientHeaders.get(T_CURRENT_SPAN_KEY)));
+        }
+
         return () -> {
             if (preserveResponseHeaders && threadLocal.get() != newContext) {
                 threadLocal.set(originalContext.putResponseHeaders(threadLocal.get().responseHeaders));
@@ -710,6 +713,19 @@ public final class ThreadContext implements Writeable {
         }
 
         private void writeTo(StreamOutput out, Map<String, String> defaultHeaders) throws IOException {
+            TextMapSetter<Map> setter = (carrier, key, value) -> {
+                carrier.put(key, value);
+                System.out.println("Putting headers:" + key + ":" + value);
+            };
+            if (this.transientHeaders != null && this.transientHeaders.containsKey(T_CURRENT_SPAN_KEY)) {
+                System.out.println("transientHeaders:" + transientHeaders);
+                OSSpanHolder spanHolder = (OSSpanHolder) this.transientHeaders.get(T_CURRENT_SPAN_KEY);
+                Span currentSpan = spanHolder.getSpan();
+                OTelMain.openTelemetry.getPropagators().getTextMapPropagator().inject(
+                    Context.current().with(io.opentelemetry.api.trace.Span.wrap(currentSpan.getSpanContext())), requestHeaders, setter
+                );
+            }
+
             final Map<String, String> requestHeaders;
             if (defaultHeaders.isEmpty()) {
                 requestHeaders = this.requestHeaders;
