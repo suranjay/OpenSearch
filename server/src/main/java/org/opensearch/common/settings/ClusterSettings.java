@@ -50,6 +50,7 @@ import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
+import org.opensearch.tracing.Tracer;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
@@ -638,7 +639,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SegmentReplicationPressureService.MAX_ALLOWED_STALE_SHARDS,
 
                 // Settings related to Searchable Snapshots
-                Node.NODE_SEARCH_CACHE_SIZE_SETTING
+                Node.NODE_SEARCH_CACHE_SIZE_SETTING,
+
+                // Settings related to Tracing framework
+                Tracer.TRACER_LEVEL_SETTING
             )
         )
     );
