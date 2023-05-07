@@ -8,8 +8,8 @@
 
 package org.opensearch.index.shard;
 
-import org.opensearch.tracer.Tracer.Level;
-import org.opensearch.tracer.TracerFactory;
+import org.opensearch.tracing.Tracer.Level;
+import org.opensearch.tracing.TracerFactory;
 import org.opensearch.search.internal.SearchContext;
 
 public class SearchOperationListenerTracerImpl implements SearchOperationListener {
@@ -17,25 +17,25 @@ public class SearchOperationListenerTracerImpl implements SearchOperationListene
     @Override
     public void onPreQueryPhase(SearchContext searchContext) {
         SearchOperationListener.super.onPreQueryPhase(searchContext);
-         TracerFactory.getInstance().startTrace("onQueryPhase", null, Level.MID);
+         TracerFactory.getInstance().startSpan("onQueryPhase", null, Level.INFO);
     }
 
     @Override
     public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
         SearchOperationListener.super.onQueryPhase(searchContext, tookInNanos);
-        TracerFactory.getInstance().endTrace();
+        TracerFactory.getInstance().endSpan();
     }
 
     @Override
     public void onPreFetchPhase(SearchContext searchContext) {
         SearchOperationListener.super.onPreFetchPhase(searchContext);
-        TracerFactory.getInstance().startTrace("onFetchPhase", null, Level.MID);
+        TracerFactory.getInstance().startSpan("onFetchPhase", null, Level.INFO);
     }
 
     @Override
     public void onFetchPhase(SearchContext searchContext, long tookInNanos) {
         SearchOperationListener.super.onFetchPhase(searchContext, tookInNanos);
-        TracerFactory.getInstance().endTrace();
+        TracerFactory.getInstance().endSpan();
 
     }
 }
