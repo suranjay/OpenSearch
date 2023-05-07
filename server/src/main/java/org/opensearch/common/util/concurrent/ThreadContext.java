@@ -44,8 +44,8 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.http.HttpTransportSettings;
-import org.opensearch.tracer.SpanHolder;
-import org.opensearch.tracer.TracerUtils;
+import org.opensearch.tracing.SpanHolder;
+import org.opensearch.tracing.TracerUtils;
 import org.opensearch.tasks.Task;
 
 import java.io.IOException;
@@ -60,7 +60,7 @@ import java.util.stream.Stream;
 
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE;
-import static org.opensearch.tracer.DefaultTracer.T_CURRENT_SPAN_KEY;
+import static org.opensearch.tracing.DefaultTracer.CURRENT_SPAN;
 import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 
 /**
@@ -142,8 +142,8 @@ public final class ThreadContext implements Writeable {
             threadContextStruct = threadContextStruct.putTransient(TASK_ID, context.transientHeaders.get(TASK_ID));
         }
 
-        if (context.transientHeaders.containsKey(T_CURRENT_SPAN_KEY)) {
-            threadContextStruct = threadContextStruct.putTransient(T_CURRENT_SPAN_KEY, new SpanHolder((SpanHolder) context.transientHeaders.get(T_CURRENT_SPAN_KEY)));
+        if (context.transientHeaders.containsKey(CURRENT_SPAN)) {
+            threadContextStruct = threadContextStruct.putTransient(CURRENT_SPAN, new SpanHolder((SpanHolder) context.transientHeaders.get(CURRENT_SPAN)));
         }
 
         threadLocal.set(threadContextStruct);
@@ -242,8 +242,8 @@ public final class ThreadContext implements Writeable {
         // this is the context when this method returns
         final ThreadContextStruct newContext = threadLocal.get();
 
-        if (newContext.transientHeaders.containsKey(T_CURRENT_SPAN_KEY)) {
-            newContext.transientHeaders.put(T_CURRENT_SPAN_KEY, new SpanHolder((SpanHolder) newContext.transientHeaders.get(T_CURRENT_SPAN_KEY)));
+        if (newContext.transientHeaders.containsKey(CURRENT_SPAN)) {
+            newContext.transientHeaders.put(CURRENT_SPAN, new SpanHolder((SpanHolder) newContext.transientHeaders.get(CURRENT_SPAN)));
         }
 
         return () -> {
@@ -710,7 +710,7 @@ public final class ThreadContext implements Writeable {
         }
 
         private void writeTo(StreamOutput out, Map<String, String> defaultHeaders) throws IOException {
-            TracerUtils.addTracerContextInHeader(this.requestHeaders, this.transientHeaders);
+            TracerUtils.addTracerContextToHeader(this.requestHeaders, this.transientHeaders);
 
             final Map<String, String> requestHeaders;
             if (defaultHeaders.isEmpty()) {

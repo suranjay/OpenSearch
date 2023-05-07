@@ -55,7 +55,7 @@ import org.opensearch.extensions.NoopExtensionsManager;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.plugins.SearchPipelinePlugin;
-import org.opensearch.tracer.TracerFactory;
+import org.opensearch.tracing.TracerFactory;
 import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.pipeline.SearchPipelineService;
@@ -1022,7 +1022,7 @@ public class Node implements Closeable {
                 searchModule.getIndexSearcherExecutor(threadPool)
             );
 
-            TracerFactory.initializeTracer(threadPool);
+            TracerFactory.initializeTracer(threadPool, clusterService);
 
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
                 .stream()

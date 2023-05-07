@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.tracer;
+package org.opensearch.tracing;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -15,11 +15,13 @@ public class SpanHolder {
     private final AtomicReference<Span> span = new AtomicReference<>();
 
     public SpanHolder(SpanHolder spanHolder) {
-        this.span.getAndSet(spanHolder.span.get());
+        if (spanHolder != null) {
+            this.span.set(spanHolder.span.get());
+        }
     }
 
     public SpanHolder(Span span) {
-        this.span.getAndSet(span);
+        this.span.set(span);
     }
 
     public Span getSpan() {
@@ -27,6 +29,6 @@ public class SpanHolder {
     }
 
     public void setSpan(Span span) {
-        this.span.getAndSet(span);
+        this.span.set(span);
     }
 }

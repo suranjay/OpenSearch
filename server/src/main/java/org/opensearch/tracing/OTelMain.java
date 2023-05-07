@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.tracer;
+package org.opensearch.tracing;
 
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.Attributes;
@@ -22,20 +22,19 @@ import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
 import java.util.concurrent.TimeUnit;
 
 public class OTelMain {
-    public static final OpenTelemetry openTelemetry;
 
-    static {
-        Resource resource = Resource.getDefault()
+    static final class OTelHolder {
+        private static final Resource resource = Resource.getDefault()
             .merge(Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, "OpenSearch")));
 
-        SdkTracerProvider sdkTracerProvider = SdkTracerProvider.builder()
+        private static final SdkTracerProvider sdkTracerProvider = SdkTracerProvider.builder()
             .addSpanProcessor(BatchSpanProcessor.builder(OtlpGrpcSpanExporter.builder()
                 .setTimeout(2, TimeUnit.SECONDS).build()).build())
             .setResource(resource)
             .build();
 
 
-        openTelemetry = OpenTelemetrySdk.builder()
+        static final OpenTelemetry OPEN_TELEMETRY = OpenTelemetrySdk.builder()
             .setTracerProvider(sdkTracerProvider)
             .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
             .buildAndRegisterGlobal();
