@@ -51,8 +51,8 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.Streams;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.indices.breaker.CircuitBreakerService;
-import org.opensearch.tracer.Tracer;
-import org.opensearch.tracer.TracerFactory;
+import org.opensearch.tracing.Tracer;
+import org.opensearch.tracing.TracerFactory;
 import org.opensearch.usage.UsageService;
 
 import java.io.ByteArrayOutputStream;
@@ -242,9 +242,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
         try {
             if (request.uri().startsWith("/_search")) {
                 System.out.println("Request Id:" + request.getRequestId() + " uri:" + request.uri() );
-                Map<String, String> map = new HashMap<>();
+                Map<String, Object> map = new HashMap<>();
+                map.put("boolean", true);
+                map.put("long", 2l);
+                map.put("double", 2.0);
                 map.put("Request_id", String.valueOf(request.getRequestId()));
-                TracerFactory.getInstance().startTrace("Request_" + String.valueOf(request.getRequestId()), map, Tracer.Level.HIGH);
+                TracerFactory.getInstance().startSpan("Request_" + String.valueOf(request.getRequestId()), map, Tracer.Level.ROOT);
             }
             tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {
@@ -581,7 +584,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             close();
             final RestRequest request = request();
             System.out.println("Ending bbase request");
-            TracerFactory.getInstance().endTrace();
+            TracerFactory.getInstance().endSpan();
             delegate.sendResponse(response);
         }
 
