@@ -153,6 +153,10 @@ public interface SearchOperationListener {
 
         CompositeListener(List<SearchOperationListener> listeners, Logger logger) {
             this.listeners = listeners;
+            if (listeners != null) {
+                listeners.add(new SearchOperationListenerTracerImpl());
+            }
+
             this.logger = logger;
         }
 

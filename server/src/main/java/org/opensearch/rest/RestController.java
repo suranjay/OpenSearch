@@ -249,7 +249,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
         try {
             if (request.uri().contains("/_search") && !request.uri().contains(".replication-metadata-store")) {
-                TracerFactory.getTracer().startSpan("Request_", Level.ROOT);
+                TracerFactory.getTracer().startSpan("Request_" + request.getRequestId(), Level.ROOT);
             }
             tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {

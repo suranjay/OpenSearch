@@ -12,6 +12,11 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.tracing.Level;
 import org.opensearch.tracing.TracerFactory;
 
+/**
+ * Replication group for a shard. Used by a primary shard to coordinate replication and recoveries.
+ *
+ * @opensearch.internal
+ */
 public class SearchOperationListenerTracerImpl implements SearchOperationListener {
 
     @Override
