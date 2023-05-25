@@ -56,6 +56,8 @@ import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.tokens.RestTokenExtractor;
 import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.tracing.Level;
+import org.opensearch.tracing.TracerFactory;
 import org.opensearch.usage.UsageService;
 
 import java.io.ByteArrayOutputStream;
@@ -246,6 +248,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
     @Override
     public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
         try {
+            if (request.uri().contains("/_search") && !request.uri().contains(".replication-metadata-store")) {
+                TracerFactory.getTracer().startSpan("Request_", Level.ROOT);
+            }
             tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {
             try {
@@ -618,6 +623,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         @Override
         public void sendResponse(RestResponse response) {
+            TracerFactory.getTracer().endSpan();
             close();
             delegate.sendResponse(response);
         }
