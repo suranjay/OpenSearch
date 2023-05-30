@@ -8,6 +8,7 @@
 
 package org.opensearch.tracing;
 
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -27,6 +28,7 @@ import static org.opensearch.tracing.OTelTracerModulePlugin.OTEL_TRACER_NAME;
 
 public class OTelTracerModulePluginTests extends OpenSearchTestCase {
 
+    @SuppressForbidden(reason = "manipulates system properties for testing")
     public void testAdditionalSettingWithTracingFeatureDisabled() {
         System.setProperty("opensearch.experimental.feature.tracer.enabled", "false");
         Settings settings = new OTelTracerModulePlugin().additionalSettings();
@@ -34,6 +36,7 @@ public class OTelTracerModulePluginTests extends OpenSearchTestCase {
         assertTrue(settings.isEmpty());
     }
 
+    @SuppressForbidden(reason = "manipulates system properties for testing")
     public void testAdditionalSettingWithTracingFeatureEnabled() {
         System.setProperty("opensearch.experimental.feature.tracer.enabled", "true");
         Settings settings = new OTelTracerModulePlugin().additionalSettings();
