@@ -63,7 +63,6 @@ public class OTelTracerModulePluginTests extends OpenSearchTestCase {
         Map<String, TracerHeaderInjector> injectors = new OTelTracerModulePlugin().getHeaderInjectors();
 
         assertEquals(Set.of(OTEL_TRACER_NAME), injectors.keySet());
-        TracerHeaderInjector headerInjector = injectors.get(OTEL_TRACER_NAME);
         assertTrue(injectors.get(OTEL_TRACER_NAME) instanceof OTelTracerHeaderInjector);
     }
 
