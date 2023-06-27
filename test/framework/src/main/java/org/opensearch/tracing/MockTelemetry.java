@@ -11,6 +11,7 @@ package org.opensearch.tracing;
 import java.util.Optional;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.Telemetry;
+import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.metrics.MetricsTelemetry;
 import org.opensearch.telemetry.tracing.TracingTelemetry;
 
@@ -19,8 +20,8 @@ import org.opensearch.telemetry.tracing.TracingTelemetry;
  */
 public class MockTelemetry implements Telemetry {
 
-    private final Settings settings;
-    public MockTelemetry(Settings settings) {
+    private final TelemetrySettings settings;
+    public MockTelemetry(TelemetrySettings settings) {
         this.settings = settings;
     }
     @Override

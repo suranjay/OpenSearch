@@ -13,6 +13,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.TelemetryPlugin;
 import org.opensearch.telemetry.Telemetry;
+import org.opensearch.telemetry.TelemetrySettings;
 
 /**
  * Mock {@link TelemetryPlugin} implementation for testing.
@@ -20,7 +21,7 @@ import org.opensearch.telemetry.Telemetry;
 public class MockTelemetryPlugin extends Plugin implements TelemetryPlugin {
     private static final String MOCK_TRACER_NAME = "mock";
     @Override
-    public Optional<Telemetry> getTelemetry(Settings settings) {
+    public Optional<Telemetry> getTelemetry(TelemetrySettings settings) {
         return Optional.of(new MockTelemetry(settings));
     }
 

@@ -14,8 +14,6 @@ import java.util.function.BiConsumer;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.TracingContextPropagator;
 
-import static org.opensearch.telemetry.tracing.DefaultTracer.CURRENT_SPAN;
-
 /**
  * Mock {@link TracingContextPropagator} to persist the span for inter node communication.
  */
@@ -43,20 +41,12 @@ public class MockTracingContextPropagator implements TracingContextPropagator {
     }
 
     @Override
-    public BiConsumer<Map<String, String>, Map<String, Object>> inject() {
-        return (requestHeaders, transientHeaders) -> {
-            if (transientHeaders != null && transientHeaders.containsKey(CURRENT_SPAN)) {
-                if (transientHeaders.get(CURRENT_SPAN) instanceof AtomicReference) {
-                    AtomicReference<Span> currentSpanRef = (AtomicReference<Span>) transientHeaders.get(CURRENT_SPAN);
-                    Span currentSpan = currentSpanRef.get();
-                    if (currentSpan instanceof MockSpan) {
-                        String traceId = currentSpan.getTraceId();
-                        String spanId = currentSpan.getSpanId();
-                        String traceParent = String.format("%s%s%s", traceId, TRACE_PARENT, spanId);
-                        requestHeaders.put(TRACE_PARENT, traceParent);
-                    }
-                }
-            }
-        };
+    public void inject(Span currentSpan, BiConsumer<String, String> setter) {
+        if (currentSpan instanceof MockSpan) {
+            String traceId = currentSpan.getTraceId();
+            String spanId = currentSpan.getSpanId();
+            String traceParent = String.format("%s%s%s", traceId, TRACE_PARENT, spanId);
+            setter.accept(TRACE_PARENT, traceParent);
+        }
     }
 }
