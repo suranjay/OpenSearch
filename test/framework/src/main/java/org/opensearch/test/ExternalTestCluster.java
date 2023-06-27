@@ -50,6 +50,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.node.MockNode;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.tracing.MockTelemetryPlugin;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
 
 import java.io.IOException;
@@ -128,6 +129,7 @@ public final class ExternalTestCluster extends TestCluster {
         }
         pluginClasses = new ArrayList<>(pluginClasses);
         pluginClasses.add(MockHttpTransport.TestPlugin.class);
+        pluginClasses.add(MockTelemetryPlugin.class);
         Settings clientSettings = clientSettingsBuilder.build();
         MockNode node = new MockNode(clientSettings, pluginClasses);
         Client client = clientWrapper.apply(node.client());

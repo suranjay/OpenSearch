@@ -66,6 +66,7 @@ import org.opensearch.node.NodeValidationException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.tracing.MockTelemetryPlugin;
 import org.opensearch.transport.TransportSettings;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -254,6 +255,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             plugins.add(MockHttpTransport.TestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
+        plugins.add(MockTelemetryPlugin.class);
         Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
         try {
             node.start();
