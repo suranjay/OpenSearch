@@ -65,7 +65,9 @@ import org.opensearch.node.Node;
 import org.opensearch.node.NodeValidationException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptService;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.tracing.MockTelemetryPlugin;
 import org.opensearch.transport.TransportSettings;
 import org.junit.AfterClass;
@@ -116,6 +118,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             .setOrder(0)
             .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000)))
             .get();
+        client().admin().cluster().
     }
 
     private static void stopNode() throws IOException, InterruptedException {
@@ -209,7 +212,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
 
     /** Additional settings to add when creating the node. Also allows overriding the default settings. */
     protected Settings nodeSettings() {
-        return Settings.EMPTY;
+        return Settings.builder().put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true).build();
     }
 
     /** True if a dummy http transport should be used, or false if the real http transport should be used. */
