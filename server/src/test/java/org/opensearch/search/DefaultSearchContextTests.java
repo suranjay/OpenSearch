@@ -214,8 +214,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 Version.CURRENT,
                 false,
                 executor,
-                null
-            );
+                null,
+                    this.tracerFactory);
             contextWithoutScroll.from(300);
             contextWithoutScroll.close();
 
@@ -257,8 +257,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 Version.CURRENT,
                 false,
                 executor,
-                null
-            );
+                null,
+                    this.tracerFactory);
             context1.from(300);
             exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess(false));
             assertThat(
@@ -328,8 +328,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 Version.CURRENT,
                 false,
                 executor,
-                null
-            );
+                null,
+                    this.tracerFactory);
 
             SliceBuilder sliceBuilder = mock(SliceBuilder.class);
             int numSlices = maxSlicesPerScroll + randomIntBetween(1, 100);
@@ -368,8 +368,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 Version.CURRENT,
                 false,
                 executor,
-                null
-            );
+                null,
+                    this.tracerFactory);
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess(false);
             assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
@@ -404,8 +404,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 Version.CURRENT,
                 false,
                 executor,
-                null
-            );
+                null,
+                    this.tracerFactory);
             context4.sliceBuilder(new SliceBuilder(1, 2)).parsedQuery(parsedQuery).preProcess(false);
             Query query1 = context4.query();
             context4.sliceBuilder(new SliceBuilder(0, 2)).parsedQuery(parsedQuery).preProcess(false);
@@ -435,8 +435,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 Version.CURRENT,
                 false,
                 executor,
-                null
-            );
+                null,
+                    this.tracerFactory);
             int numSlicesForPit = maxSlicesPerPit + randomIntBetween(1, 100);
             when(sliceBuilder.getMax()).thenReturn(numSlicesForPit);
             context5.sliceBuilder(sliceBuilder);
@@ -533,8 +533,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 Version.CURRENT,
                 false,
                 executor,
-                null
-            );
+                null,
+                    this.tracerFactory);
             assertThat(context.searcher().hasCancellations(), is(false));
             context.searcher().addQueryCancellation(() -> {});
             assertThat(context.searcher().hasCancellations(), is(true));
