@@ -118,7 +118,6 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             .setOrder(0)
             .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000)))
             .get();
-        client().admin().cluster().
     }
 
     private static void stopNode() throws IOException, InterruptedException {
