@@ -26,6 +26,8 @@ public interface Tracer extends Closeable {
      */
     Scope startSpan(String spanName);
 
+    void endSpan();
+
     /**
      * Adds string attribute to the current active {@link Span}.
      *
