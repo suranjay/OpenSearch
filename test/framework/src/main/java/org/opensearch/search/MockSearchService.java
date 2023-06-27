@@ -108,8 +108,8 @@ public class MockSearchService extends SearchService {
             fetchPhase,
             null,
             circuitBreakerService,
-            indexSearcherExecutor
-        );
+            indexSearcherExecutor,
+                tracerFactory);
     }
 
     @Override
