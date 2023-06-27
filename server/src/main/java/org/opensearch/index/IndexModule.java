@@ -69,6 +69,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
+import org.opensearch.index.shard.SearchOperationTracingListener;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
@@ -83,6 +84,7 @@ import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
+import org.opensearch.telemetry.tracing.TracerFactory;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -199,6 +201,7 @@ public final class IndexModule {
     private final AtomicBoolean frozen = new AtomicBoolean(false);
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
+    private final TracerFactory tracerFactory;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -208,6 +211,7 @@ public final class IndexModule {
      * @param analysisRegistry   the analysis registry
      * @param engineFactory      the engine factory
      * @param directoryFactories the available store types
+     * @param tracerFactory
      */
     public IndexModule(
         final IndexSettings indexSettings,
@@ -217,13 +221,15 @@ public final class IndexModule {
         final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
-        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories
-    ) {
+        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
+        TracerFactory tracerFactory) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
         this.engineConfigFactory = Objects.requireNonNull(engineConfigFactory);
+        this.tracerFactory = tracerFactory;
         this.searchOperationListeners.add(new SearchSlowLog(indexSettings));
+        this.searchOperationListeners.add(new SearchOperationTracingListener(this.tracerFactory));
         this.indexOperationListeners.add(new IndexingSlowLog(indexSettings));
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
         this.allowExpensiveQueries = allowExpensiveQueries;

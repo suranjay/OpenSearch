@@ -39,10 +39,6 @@ public class TracerFactory implements Closeable {
             .orElse(NoopTracer.INSTANCE);
     }
 
-    /**
-     * Returns the tracer instance
-     * @return tracer instance
-     */
     public Tracer getTracer() {
         return telemetrySettings.isTracingEnabled() ? defaultTracer : NoopTracer.INSTANCE;
     }
