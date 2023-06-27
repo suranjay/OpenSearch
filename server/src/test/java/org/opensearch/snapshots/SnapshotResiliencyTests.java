@@ -1838,7 +1838,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService),
                     repositoriesServiceReference::get,
                     fileCacheCleaner,
-                        this.tracerFactory, tracerFactory1);
+                    getNoopTracerFactory());
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
                     settings,
@@ -2035,7 +2035,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     responseCollectorService,
                     new NoneCircuitBreakerService(),
                     null,
-                    tracerFactory);
+                    getNoopTracerFactory());
                 SearchPhaseController searchPhaseController = new SearchPhaseController(
                     writableRegistry(),
                     searchService::aggReduceContextBuilder
@@ -2065,9 +2065,9 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             List.of(),
                             client,
                             false
-                        )
-                    )
-                );
+                        ),
+                        getNoopTracerFactory()
+                                  );
                 actions.put(
                     RestoreSnapshotAction.INSTANCE,
                     new TransportRestoreSnapshotAction(

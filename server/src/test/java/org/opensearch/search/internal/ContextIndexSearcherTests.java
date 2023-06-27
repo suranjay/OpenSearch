@@ -259,7 +259,8 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
             true,
-            null
+            null,
+            getNoopTracerFactory()
         );
 
         for (LeafReaderContext context : searcher.getIndexReader().leaves()) {

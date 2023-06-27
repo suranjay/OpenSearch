@@ -42,6 +42,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
+import java.util.Optional;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -85,6 +86,7 @@ import org.opensearch.common.logging.HeaderWarning;
 import org.opensearch.common.logging.HeaderWarningAppender;
 import org.opensearch.common.logging.LogConfigurator;
 import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateUtils;
@@ -125,6 +127,9 @@ import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.MockSearchService;
+import org.opensearch.telemetry.TelemetrySettings;
+import org.opensearch.telemetry.tracing.NoopTracerFactory;
+import org.opensearch.telemetry.tracing.TracerFactory;
 import org.opensearch.test.junit.listeners.LoggingListener;
 import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.opensearch.threadpool.ThreadPool;
@@ -214,6 +219,8 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     private static final Collection<String> nettyLoggedLeaks = new ArrayList<>();
     private HeaderWarningAppender headerWarningAppender;
+
+    private static TracerFactory noopTracerFactory = new NoopTracerFactory();
 
     @AfterClass
     public static void resetPortCounter() {
@@ -504,6 +511,9 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         );
     }
 
+    public static TracerFactory getNoopTracerFactory(){
+        return noopTracerFactory;
+    }
     /**
      * Convenience method to assert same warnings for settings deprecations and general deprecation warnings
      * are not logged again.

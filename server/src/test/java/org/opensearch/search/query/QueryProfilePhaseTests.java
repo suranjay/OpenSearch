@@ -1430,7 +1430,8 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
             true,
-            executor
+            executor,
+            getNoopTracerFactory()
         );
     }
 
@@ -1442,7 +1443,8 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
             true,
-            executor
+            executor,
+            getNoopTracerFactory()
         ) {
 
             @Override

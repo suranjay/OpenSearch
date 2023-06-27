@@ -215,7 +215,7 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                    this.tracerFactory);
+                getNoopTracerFactory());
             contextWithoutScroll.from(300);
             contextWithoutScroll.close();
 
@@ -258,7 +258,7 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                    this.tracerFactory);
+                getNoopTracerFactory());
             context1.from(300);
             exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess(false));
             assertThat(
@@ -329,7 +329,7 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                    this.tracerFactory);
+                getNoopTracerFactory());
 
             SliceBuilder sliceBuilder = mock(SliceBuilder.class);
             int numSlices = maxSlicesPerScroll + randomIntBetween(1, 100);
@@ -369,7 +369,7 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                    this.tracerFactory);
+                getNoopTracerFactory());
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess(false);
             assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
@@ -405,7 +405,7 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                    this.tracerFactory);
+                getNoopTracerFactory());
             context4.sliceBuilder(new SliceBuilder(1, 2)).parsedQuery(parsedQuery).preProcess(false);
             Query query1 = context4.query();
             context4.sliceBuilder(new SliceBuilder(0, 2)).parsedQuery(parsedQuery).preProcess(false);
@@ -436,7 +436,7 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                    this.tracerFactory);
+                getNoopTracerFactory());
             int numSlicesForPit = maxSlicesPerPit + randomIntBetween(1, 100);
             when(sliceBuilder.getMax()).thenReturn(numSlicesForPit);
             context5.sliceBuilder(sliceBuilder);
@@ -534,7 +534,7 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 executor,
                 null,
-                    this.tracerFactory);
+                getNoopTracerFactory());
             assertThat(context.searcher().hasCancellations(), is(false));
             context.searcher().addQueryCancellation(() -> {});
             assertThat(context.searcher().hasCancellations(), is(true));

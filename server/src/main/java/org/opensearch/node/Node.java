@@ -1760,4 +1760,9 @@ public class Node implements Closeable {
     public FileCache fileCache() {
         return this.fileCache;
     }
+
+    //Visible for testing
+    TracerFactory getTracerFactory(){
+        return this.tracerFactory;
+    }
 }
