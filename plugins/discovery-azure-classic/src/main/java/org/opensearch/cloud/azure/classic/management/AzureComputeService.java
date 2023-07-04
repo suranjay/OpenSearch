@@ -76,6 +76,14 @@ public interface AzureComputeService {
             Property.Filtered
         );
 
+        public static final Setting<KeyStoreType> KEYSTORE_TYPE_S1ETTING = new Setting<>(
+            "cloud.azure.management.keystore.type",
+            KeyStoreType.pkcs12.name(),
+            KeyStoreType::fromString,
+            Property.NodeScope,
+            Property.Filtered
+        );
+
         // so that it can overridden for tests
         public static final Setting<URI> ENDPOINT_SETTING = new Setting<URI>(
             "cloud.azure.management.endpoint",

@@ -17,6 +17,7 @@ import org.opensearch.telemetry.metrics.MetricsTelemetry;
 import org.opensearch.telemetry.tracing.OTelResourceProvider;
 import org.opensearch.telemetry.tracing.OTelTelemetry;
 import org.opensearch.telemetry.tracing.OTelTracingTelemetry;
+import org.opensearch.telemetry.tracing.SpanExporterType;
 
 import java.util.Arrays;
 import java.util.List;
@@ -59,6 +60,14 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<SpanExporterType> TRACER_SPAN_EXPORTER_TYPE_SETTING = new Setting<>(
+        "tracer.level",
+        SpanExporterType.LOGGING.name(),
+        SpanExporterType::fromString,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final Settings settings;
 
     /**
@@ -71,7 +80,7 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(TRACER_EXPORTER_BATCH_SIZE_SETTING, TRACER_EXPORTER_DELAY_SETTING, TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING);
+        return Arrays.asList(TRACER_EXPORTER_BATCH_SIZE_SETTING, TRACER_EXPORTER_DELAY_SETTING, TRACER_EXPORTER_MAX_QUEUE_SIZE_SETTING, TRACER_SPAN_EXPORTER_TYPE_SETTING);
     }
 
     @Override
