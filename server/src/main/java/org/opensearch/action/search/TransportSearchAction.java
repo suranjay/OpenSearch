@@ -300,6 +300,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return new ActionListener<SearchResponse>() {
             @Override
             public void onResponse(SearchResponse searchResponse) {
+                logger.info("Search took time:" + searchResponse.getTook());
                 System.out.println("Search took time:" + searchResponse.getTook());
                 listener.onResponse(searchResponse);
                 tracerFactory.getTracer().endSpan();
