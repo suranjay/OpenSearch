@@ -54,7 +54,7 @@ public class OTelTelemetryPlugin extends Plugin implements TelemetryPlugin {
      */
     public static final Setting<TimeValue> TRACER_EXPORTER_DELAY_SETTING = Setting.timeSetting(
         "telemetry.otel.tracer.exporter.delay",
-        TimeValue.timeValueSeconds(2),
+        TimeValue.timeValueSeconds(60),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

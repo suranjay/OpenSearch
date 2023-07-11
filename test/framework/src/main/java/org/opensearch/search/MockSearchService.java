@@ -42,6 +42,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.query.QueryPhase;
+import org.opensearch.telemetry.tracing.NoopTracerFactory;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
@@ -109,7 +110,7 @@ public class MockSearchService extends SearchService {
             null,
             circuitBreakerService,
             indexSearcherExecutor,
-                tracerFactory);
+                new NoopTracerFactory());
     }
 
     @Override
