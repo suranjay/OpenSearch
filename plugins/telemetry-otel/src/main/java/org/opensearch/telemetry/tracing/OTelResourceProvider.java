@@ -32,6 +32,8 @@ import static org.opensearch.telemetry.OTelTelemetryPlugin.TRACER_EXPORTER_MAX_Q
  * This class encapsulates all OpenTelemetry related resources
  */
 public final class OTelResourceProvider {
+    private static final SpanExporterFactory spanExporterFactory = new SpanExporterFactory();
+
     private OTelResourceProvider() {}
 
     /**
@@ -42,7 +44,7 @@ public final class OTelResourceProvider {
     public static OpenTelemetry get(Settings settings) {
         return get(
             settings,
-            LoggingSpanExporter.create(),
+            spanExporterFactory.create(settings),
             ContextPropagators.create(W3CTraceContextPropagator.getInstance()),
             Sampler.alwaysOn()
         );

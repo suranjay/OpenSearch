@@ -11,7 +11,7 @@ package org.opensearch.telemetry.tracing;
 import java.io.Closeable;
 
 /**
- * Tracer is the interface used to create a {@link Span}
+ * Tracer is the interface used to create a {@link Span} and interact with current active {@link Span}.
  * It automatically handles the context propagation between threads, tasks, nodes etc.
  *
  * All methods on the Tracer object are multi-thread safe.
@@ -26,4 +26,15 @@ public interface Tracer extends Closeable {
      */
     SpanScope startSpan(String spanName);
 
+    void endSpan();
+
+    void addSpanAttribute(String key, String value);
+
+    void addSpanAttribute(String key, long value);
+
+    void addSpanAttribute(String key, double value);
+
+    void addSpanAttribute(String key, boolean value);
+
+    void addSpanEvent(String event);
 }

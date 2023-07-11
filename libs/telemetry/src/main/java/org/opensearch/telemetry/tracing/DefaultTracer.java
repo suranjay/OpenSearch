@@ -13,8 +13,8 @@ import java.io.IOException;
 
 /**
  *
- * The default tracer implementation. It handles tracing context propagation between spans by maintaining
- * current active span in its storage
+ * The default tracer implementation. This class implements the basic logic for span lifecycle and its state management.
+ * It also handles tracing context propagation between spans.
  *
  *  @opensearch.internal
  */
@@ -41,6 +41,42 @@ class DefaultTracer implements Tracer {
         setCurrentSpanInContext(span);
         addDefaultAttributes(span);
         return new DefaultSpanScope(span, (scopeSpan) -> endSpan(scopeSpan));
+    }
+
+    @Override
+    public void endSpan() {
+        Span currentSpan = getCurrentSpan();
+        endSpan(currentSpan);
+    }
+
+    @Override
+    public void addSpanAttribute(String key, String value) {
+        Span currentSpan = getCurrentSpan();
+        currentSpan.addAttribute(key, value);
+    }
+
+    @Override
+    public void addSpanAttribute(String key, long value) {
+        Span currentSpan = getCurrentSpan();
+        currentSpan.addAttribute(key, value);
+    }
+
+    @Override
+    public void addSpanAttribute(String key, double value) {
+        Span currentSpan = getCurrentSpan();
+        currentSpan.addAttribute(key, value);
+    }
+
+    @Override
+    public void addSpanAttribute(String key, boolean value) {
+        Span currentSpan = getCurrentSpan();
+        currentSpan.addAttribute(key, value);
+    }
+
+    @Override
+    public void addSpanEvent(String event) {
+        Span currentSpan = getCurrentSpan();
+        currentSpan.addEvent(event);
     }
 
     @Override

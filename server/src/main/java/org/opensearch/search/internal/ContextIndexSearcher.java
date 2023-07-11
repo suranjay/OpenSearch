@@ -77,6 +77,8 @@ import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
+import org.opensearch.telemetry.tracing.SpanScope;
+import org.opensearch.telemetry.tracing.TracerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -103,6 +105,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private QueryProfiler profiler;
     private MutableQueryTimeout cancellable;
     private SearchContext searchContext;
+    private TracerFactory tracerFactory;
 
     public ContextIndexSearcher(
         IndexReader reader,
@@ -110,8 +113,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         QueryCache queryCache,
         QueryCachingPolicy queryCachingPolicy,
         boolean wrapWithExitableDirectoryReader,
-        Executor executor,
-        SearchContext searchContext
+        Executor executor, TracerFactory tracerFactory
     ) throws IOException {
         this(
             reader,
@@ -121,7 +123,28 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             new MutableQueryTimeout(),
             wrapWithExitableDirectoryReader,
             executor,
-            searchContext
+            null, tracerFactory
+        );
+    }
+
+    public ContextIndexSearcher(
+        IndexReader reader,
+        Similarity similarity,
+        QueryCache queryCache,
+        QueryCachingPolicy queryCachingPolicy,
+        boolean wrapWithExitableDirectoryReader,
+        Executor executor,
+        SearchContext searchContext, TracerFactory tracerFactory
+    ) throws IOException {
+        this(
+            reader,
+            similarity,
+            queryCache,
+            queryCachingPolicy,
+            new MutableQueryTimeout(),
+            wrapWithExitableDirectoryReader,
+            executor,
+            searchContext, tracerFactory
         );
     }
 
@@ -133,7 +156,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         MutableQueryTimeout cancellable,
         boolean wrapWithExitableDirectoryReader,
         Executor executor,
-        SearchContext searchContext
+        SearchContext searchContext, TracerFactory tracerFactory
     ) throws IOException {
         super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
         setSimilarity(similarity);
@@ -141,6 +164,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         setQueryCachingPolicy(queryCachingPolicy);
         this.cancellable = cancellable;
         this.searchContext = searchContext;
+        this.tracerFactory = tracerFactory;
     }
 
     public void setProfiler(QueryProfiler profiler) {
@@ -225,22 +249,24 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         DocValueFormat[] formats,
         TotalHits totalHits
     ) throws IOException {
-        final List<Collector> collectors = new ArrayList<>(leaves.size());
-        for (LeafReaderContext ctx : leaves) {
-            final Collector collector = manager.newCollector();
-            searchLeaf(ctx, weight, collector);
-            collectors.add(collector);
+        try(SpanScope scope = tracerFactory.getTracer().startSpan("IndexSearcher")) {
+            final List<Collector> collectors = new ArrayList<>(leaves.size());
+            for (LeafReaderContext ctx : leaves) {
+                final Collector collector = manager.newCollector();
+                searchLeaf(ctx, weight, collector);
+                collectors.add(collector);
+            }
+            TopFieldDocs mergedTopDocs = (TopFieldDocs) manager.reduce(collectors);
+            // Lucene sets shards indexes during merging of topDocs from different collectors
+            // We need to reset shard index; OpenSearch will set shard index later during reduce stage
+            for (ScoreDoc scoreDoc : mergedTopDocs.scoreDocs) {
+                scoreDoc.shardIndex = -1;
+            }
+            if (totalHits != null) { // we have already precalculated totalHits for the whole index
+                mergedTopDocs = new TopFieldDocs(totalHits, mergedTopDocs.scoreDocs, mergedTopDocs.fields);
+            }
+            result.topDocs(new TopDocsAndMaxScore(mergedTopDocs, Float.NaN), formats);
         }
-        TopFieldDocs mergedTopDocs = (TopFieldDocs) manager.reduce(collectors);
-        // Lucene sets shards indexes during merging of topDocs from different collectors
-        // We need to reset shard index; OpenSearch will set shard index later during reduce stage
-        for (ScoreDoc scoreDoc : mergedTopDocs.scoreDocs) {
-            scoreDoc.shardIndex = -1;
-        }
-        if (totalHits != null) { // we have already precalculated totalHits for the whole index
-            mergedTopDocs = new TopFieldDocs(totalHits, mergedTopDocs.scoreDocs, mergedTopDocs.fields);
-        }
-        result.topDocs(new TopDocsAndMaxScore(mergedTopDocs, Float.NaN), formats);
     }
 
     public void search(
@@ -264,16 +290,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        if (shouldReverseLeafReaderContexts()) {
-            // reverse the segment search order if this flag is true.
-            // Certain queries can benefit if we reverse the segment read order,
-            // for example time series based queries if searched for desc sort order.
-            for (int i = leaves.size() - 1; i >= 0; i--) {
-                searchLeaf(leaves.get(i), weight, collector);
-            }
-        } else {
-            for (int i = 0; i < leaves.size(); i++) {
-                searchLeaf(leaves.get(i), weight, collector);
+        try(SpanScope scope = tracerFactory.getTracer().startSpan("IndexSearcher")) {
+            if (shouldReverseLeafReaderContexts()) {
+                // reverse the segment search order if this flag is true.
+                // Certain queries can benefit if we reverse the segment read order,
+                // for example time series based queries if searched for desc sort order.
+                for (int i = leaves.size() - 1; i >= 0; i--) {
+                    searchLeaf(leaves.get(i), weight, collector);
+                }
+            } else {
+                for (int i = 0; i < leaves.size(); i++) {
+                    searchLeaf(leaves.get(i), weight, collector);
+                }
             }
         }
     }
@@ -285,7 +313,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * the provided <code>ctx</code>.
      */
     private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
-
+        tracerFactory.getTracer().startSpan("IndexSearcher-Leaf");
         // Check if at all we need to call this leaf for collecting results.
         if (canMatch(ctx) == false) {
             return;
@@ -342,6 +370,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 }
             }
         }
+        tracerFactory.getTracer().endSpan();
     }
 
     private Weight wrapWeight(Weight weight) {

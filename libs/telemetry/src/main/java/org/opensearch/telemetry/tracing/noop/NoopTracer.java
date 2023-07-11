@@ -31,6 +31,36 @@ public class NoopTracer implements Tracer {
     }
 
     @Override
+    public void endSpan() {
+
+    }
+
+    @Override
+    public void addSpanAttribute(String key, String value) {
+
+    }
+
+    @Override
+    public void addSpanAttribute(String key, long value) {
+
+    }
+
+    @Override
+    public void addSpanAttribute(String key, double value) {
+
+    }
+
+    @Override
+    public void addSpanAttribute(String key, boolean value) {
+
+    }
+
+    @Override
+    public void addSpanEvent(String event) {
+
+    }
+
+    @Override
     public void close() {
 
     }

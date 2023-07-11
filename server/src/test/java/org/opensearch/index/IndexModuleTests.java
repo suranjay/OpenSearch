@@ -267,8 +267,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             Collections.emptyMap(),
             () -> true,
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            Collections.emptyMap()
-        );
+            Collections.emptyMap(),
+                tracerFactory);
         module.setReaderWrapper(s -> new Wrapper());
 
         IndexService indexService = newIndexService(module);
@@ -293,8 +293,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             indexStoreFactories,
             () -> true,
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            Collections.emptyMap()
-        );
+            Collections.emptyMap(),
+                tracerFactory);
 
         final IndexService indexService = newIndexService(module);
         assertThat(indexService.getDirectoryFactory(), instanceOf(FooFunction.class));
@@ -621,8 +621,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             Collections.emptyMap(),
             () -> true,
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            recoveryStateFactories
-        );
+            recoveryStateFactories,
+                tracerFactory);
 
         final IndexService indexService = newIndexService(module);
 
@@ -653,8 +653,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             Collections.emptyMap(),
             () -> true,
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            Collections.emptyMap()
-        );
+            Collections.emptyMap(),
+                tracerFactory);
     }
 
     class CustomQueryCache implements QueryCache {

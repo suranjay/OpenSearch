@@ -98,7 +98,7 @@ ${path.logs}
 # cluster.remote_store.translog.enabled: true
 #
 # Repository to use for translog upload while enforcing remote store for an index
-# cluster.remote_store.translog.repository: my-repo-1
+cluster.remote_store.translog.repository: my-repo-2
 #
 # ---------------------------------- Experimental Features -----------------------------------
 #
@@ -137,4 +137,5 @@ ${path.logs}
 # Gates the concurrent segment search feature. This feature enables concurrent segment search in a separate
 # index searcher threadpool.
 #
-#opensearch.experimental.feature.concurrent_segment_search.enabled: false
+opensearch.experimental.feature.concurrent_segment_search.enabled: false
+telemetry.tracer.span.exporter.type: OLTP_GRPC
