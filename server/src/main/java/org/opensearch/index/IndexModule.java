@@ -229,7 +229,7 @@ public final class IndexModule {
         this.engineConfigFactory = Objects.requireNonNull(engineConfigFactory);
         this.tracerFactory = tracerFactory;
         this.searchOperationListeners.add(new SearchSlowLog(indexSettings));
-        this.searchOperationListeners.add(new SearchOperationTracingListener(this.tracerFactory));
+//        this.searchOperationListeners.add(new SearchOperationTracingListener(this.tracerFactory));
         this.indexOperationListeners.add(new IndexingSlowLog(indexSettings));
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
         this.allowExpensiveQueries = allowExpensiveQueries;
