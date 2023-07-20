@@ -40,6 +40,7 @@ public class FileSpanExporter implements SpanExporter {
 
     @Override
     public CompletableResultCode export(Collection<SpanData> spans) {
+        DEFAULT_LOGGER.info("mm5>");
         if (isShutdown.get()) {
             return CompletableResultCode.ofFailure();
         }
