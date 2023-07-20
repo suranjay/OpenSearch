@@ -42,7 +42,7 @@ public final class OTelResourceProvider {
     public static OpenTelemetry get(Settings settings) {
         return get(
             settings,
-            new LoggingSpanExporter(),
+            new FileSpanExporter(),
             ContextPropagators.create(W3CTraceContextPropagator.getInstance()),
             Sampler.alwaysOn()
         );
