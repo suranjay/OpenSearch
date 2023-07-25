@@ -197,6 +197,8 @@ grant {
     permission java.io.FilePermission "/tmp/export/spans", "write";
     permission java.io.FilePermission "/tmp/export", "read";
     permission java.io.FilePermission "/tmp/export", "write";
+    permission java.io.FilePermission "/tmp/export/spans/*", "read";
+    permission java.io.FilePermission "/tmp/export/spans/*", "write";
 
 
 
