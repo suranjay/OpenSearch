@@ -12,7 +12,9 @@ import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
-import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
+import io.opentelemetry.contrib.disk.buffering.SpanDiskExporter;
+import io.opentelemetry.contrib.disk.buffering.internal.StorageConfiguration;
+import io.opentelemetry.exporter.logging.LoggingSpanExporter;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
@@ -22,6 +24,8 @@ import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
 import org.opensearch.common.settings.Settings;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.telemetry.OTelTelemetryPlugin.TRACER_EXPORTER_BATCH_SIZE_SETTING;
@@ -40,12 +44,16 @@ public final class OTelResourceProvider {
      * @return OpenTelemetry instance
      */
     public static OpenTelemetry get(Settings settings) {
-        return get(
-            settings,
-            OtlpGrpcSpanExporter.builder().setTimeout(10, TimeUnit.SECONDS).build(),
-            ContextPropagators.create(W3CTraceContextPropagator.getInstance()),
-            Sampler.alwaysOn()
-        );
+        try {
+            return get(
+                settings,
+                SpanDiskExporter.create(LoggingSpanExporter.create(), new File("/tmp/export"), StorageConfiguration.getDefault()),
+                ContextPropagators.create(W3CTraceContextPropagator.getInstance()),
+                Sampler.alwaysOn()
+            );
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
