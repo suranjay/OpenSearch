@@ -193,6 +193,8 @@ grant {
     permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
     permission java.net.NetPermission "getProxySelector";
     permission java.net.SocketPermission "127.0.0.1:4317", "connect,resolve";
+    permission java.io.FilePermission "/tmp/export/spans", "read";
+
 
 
 
