@@ -193,6 +193,9 @@ grant {
     permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
     permission java.net.NetPermission "getProxySelector";
     permission java.net.SocketPermission "127.0.0.1:4317", "connect,resolve";
+    permission java.net.SocketPermission "127.0.0.1:14250", "connect,resolve";
+    permission java.net.SocketPermission "ec2-52-12-141-142.us-west-2.compute.amazonaws.com:14250", "connect,resolve";
+    permission java.net.SocketPermission "52.12.141.142:14250", "connect,resolve";
     permission java.io.FilePermission "/home/ec2-user/opensearch-3.0.0-SNAPSHOT/tmpfs/spans", "read";
     permission java.io.FilePermission "/home/ec2-user/opensearch-3.0.0-SNAPSHOT/tmpfs/spans", "write";
     permission java.io.FilePermission "/home/ec2-user/opensearch-3.0.0-SNAPSHOT/tmpfs/spans", "delete";

@@ -12,9 +12,7 @@ import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
-import io.opentelemetry.contrib.disk.buffering.SpanDiskExporter;
-import io.opentelemetry.contrib.disk.buffering.internal.StorageConfiguration;
-import io.opentelemetry.exporter.logging.LoggingSpanExporter;
+import io.opentelemetry.exporter.jaeger.JaegerGrpcSpanExporter;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
@@ -24,8 +22,6 @@ import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
 import org.opensearch.common.settings.Settings;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.telemetry.OTelTelemetryPlugin.TRACER_EXPORTER_BATCH_SIZE_SETTING;
@@ -44,14 +40,15 @@ public final class OTelResourceProvider {
      * @return OpenTelemetry instance
      */
     public static OpenTelemetry get(Settings settings) {
+        System.out.println("=======>jaeger");
         try {
             return get(
                 settings,
-                SpanDiskExporter.create(LoggingSpanExporter.create(), new File("/home/ec2-user/opensearch-3.0.0-SNAPSHOT/tmpfs"), StorageConfiguration.getDefault()),
+                JaegerGrpcSpanExporter.builder().setEndpoint("http://ec2-52-12-141-142.us-west-2.compute.amazonaws.com:14250").build(),
                 ContextPropagators.create(W3CTraceContextPropagator.getInstance()),
                 Sampler.alwaysOn()
             );
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }

@@ -28,6 +28,7 @@ dependencies {
   api 'io.opentelemetry:opentelemetry-sdk-metrics:1.23.1'
   api 'io.opentelemetry:opentelemetry-sdk-trace:1.23.1'
   api 'io.opentelemetry:opentelemetry-exporter-otlp:1.23.1'
+  api 'io.opentelemetry:opentelemetry-exporter-jaeger:1.23.1'
   api 'io.opentelemetry:opentelemetry-exporter-logging:1.23.1'
   api 'io.opentelemetry:opentelemetry-exporter-common:1.23.1'
   api 'io.opentelemetry:opentelemetry-exporter-otlp-common:1.23.1'
