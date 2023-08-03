@@ -47,7 +47,7 @@ public final class OTelResourceProvider {
         try {
             return get(
                 settings,
-                SpanDiskExporter.create(LoggingSpanExporter.create(), new File("~/tmpfs"), StorageConfiguration.getDefault()),
+                SpanDiskExporter.create(LoggingSpanExporter.create(), new File("/home/ec2-user/opensearch-3.0.0-SNAPSHOT/tmpfs"), StorageConfiguration.getDefault()),
                 ContextPropagators.create(W3CTraceContextPropagator.getInstance()),
                 Sampler.alwaysOn()
             );
